@@ -8,6 +8,9 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+for module_name in list(sys.modules):
+    if module_name == "exam_trainer" or module_name.startswith("exam_trainer."):
+        del sys.modules[module_name]
 
 from PySide6.QtWidgets import QApplication
 
