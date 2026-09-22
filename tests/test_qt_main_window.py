@@ -157,6 +157,94 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("random_arguments", content)
             self.assertIn("echo_arguments", content)
 
+    def test_global_style_does_not_use_neon_green_as_solid_button_background(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            style = window.styleSheet().lower()
+
+            self.assertNotIn("background: #39ff14", style)
+            self.assertIn("background: #102010", style)
+            self.assertIn("qpushbutton:hover", style)
+
+    def test_training_and_exam_next_button_visibility(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+
+            window._load_exercise(ref, mode="training", overwrite=True)
+            self.assertFalse(window._next_button.isHidden())
+            self.assertTrue(window._next_button.isEnabled())
+
+            state = window._coordinator.start_exam("sample_rank", 60)
+            window._exam_state = state
+            window._load_exercise(window._coordinator.exam_ref(state), mode="exam", overwrite=True)
+            self.assertTrue(window._next_button.isHidden())
+            window._coordinator.finish_exam(state, "abandoned", 0)
+
+    def test_exam_prepare_uses_real_pack_levels_and_start_exam(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._open_exam_setup()
+            window._show_exam_prepare()
+
+            self.assertIs(window._stack.currentWidget(), window._exam_prepare_page)
+            text = window._exam_prepare_text.toPlainText()
+            self.assertIn("Pack/Rank : Sample Rank", text)
+            self.assertIn("level0", text)
+            self.assertIn("Aprovação : 100%", text)
+
+            window._start_exam()
+
+            self.assertIs(window._stack.currentWidget(), window._exercise_page)
+            self.assertEqual(window._mode, "exam")
+            self.assertIsNotNone(window._exam_state)
+            window._coordinator.finish_exam(window._exam_state, "abandoned", 0)
+
+    def test_start_training_button_starts_training(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._open_training_setup()
+            window._choose_level_training()
+            window._start_training()
+
+            self.assertIs(window._stack.currentWidget(), window._exercise_page)
+            self.assertEqual(window._mode, "training")
+            self.assertIsNotNone(window._active)
+
+    def test_history_uses_columns_for_attempts_and_latest_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=False)
+            ref = next(
+                ref
+                for ref in window._coordinator._pack_catalog.list_exercises("sample_rank")
+                if ref.definition.id == "steady_echo"
+            )
+            window._show_training_fail_feedback = lambda: None
+            window._load_exercise(ref, mode="training", overwrite=True)
+            window._submit_current()
+
+            window._show_history()
+
+            self.assertIs(window._stack.currentWidget(), window._history_page)
+            headers = [
+                window._history_table.horizontalHeaderItem(column).text()
+                for column in range(window._history_table.columnCount())
+            ]
+            self.assertEqual(
+                headers,
+                ["LEVEL", "EXERCÍCIO", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"],
+            )
+            matching_row = next(
+                row
+                for row in range(window._history_table.rowCount())
+                if "steady_echo" in window._history_table.item(row, 1).text()
+            )
+            self.assertEqual(window._history_table.item(matching_row, 3).text(), "1")
+            self.assertEqual(window._history_table.item(matching_row, 4).text(), "FAIL")
+
 
 if __name__ == "__main__":
     unittest.main()

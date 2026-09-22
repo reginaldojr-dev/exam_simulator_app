@@ -159,6 +159,8 @@ class MainWindow(QMainWindow):
         choices = QHBoxLayout()
         self._level_training_button = self._button("[1] TREINO POR LEVEL", self._choose_level_training, primary=True)
         self._random_training_button = self._button("[2] TREINO ALEATÓRIO", self._choose_random_training, primary=True)
+        self._level_training_button.setCheckable(True)
+        self._random_training_button.setCheckable(True)
         choices.addWidget(self._level_training_button)
         choices.addWidget(self._random_training_button)
         layout.addLayout(choices)
@@ -469,12 +471,16 @@ class MainWindow(QMainWindow):
         self._training_mode_label.setText("Treino por Level")
         self._random_options.setVisible(False)
         self._training_options_panel.setVisible(True)
+        self._level_training_button.setChecked(True)
+        self._random_training_button.setChecked(False)
 
     def _choose_random_training(self) -> None:
         self._training_kind = "random"
         self._training_mode_label.setText("Treino Aleatório")
         self._random_options.setVisible(True)
         self._training_options_panel.setVisible(True)
+        self._level_training_button.setChecked(False)
+        self._random_training_button.setChecked(True)
 
     def _refresh_packs(self) -> None:
         packs = self._coordinator.list_packs()

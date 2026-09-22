@@ -50,13 +50,32 @@ class StartupWindow(QWidget):
 
         self.setStyleSheet(
             """
+            QWidget {
+                background: #0a0e0a;
+                color: #39ff14;
+                font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+            }
             QLabel#title {
-                font-size: 22px;
-                font-weight: 700;
+                color: #39ff14;
+                font-size: 24px;
+                font-weight: 900;
             }
             QPushButton {
+                background: #0a0e0a;
+                color: #39ff14;
+                border: 1px solid #39ff14;
                 font-size: 15px;
                 padding: 8px 12px;
+                border-radius: 0;
+            }
+            QPushButton:hover, QPushButton:focus {
+                background: #102010;
+                color: #50fa7b;
+                border: 1px solid #39ff14;
+            }
+            QPushButton:pressed {
+                background: #0d1a0d;
+                color: #50fa7b;
             }
             """
         )
