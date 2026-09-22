@@ -6,8 +6,8 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, QUrl
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtCore import QEvent, QTimer, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -19,6 +19,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QRadioButton,
+    QTableWidget,
+    QTableWidgetItem,
     QStackedWidget,
     QTextEdit,
     QVBoxLayout,
@@ -49,6 +51,8 @@ class MainWindow(QMainWindow):
         self._training_kind = "level"
         self._pending_action: Callable[[], None] | None = None
         self._cursor_on = True
+        self._cursor_labels: list[tuple[QLabel, str]] = []
+        self._cursor_buttons: set[QPushButton] = set()
 
         self.setWindowTitle("42 Exam Trainer")
         self.setMinimumSize(760, 520)
@@ -58,6 +62,7 @@ class MainWindow(QMainWindow):
         self._home_page = self._build_home_page()
         self._training_page = self._build_training_page()
         self._exam_page = self._build_exam_page()
+        self._exam_prepare_page = self._build_exam_prepare_page()
         self._exercise_page = self._build_exercise_page()
         self._trace_page = self._build_trace_page()
         self._history_page = self._build_history_page()
@@ -67,6 +72,7 @@ class MainWindow(QMainWindow):
             self._home_page,
             self._training_page,
             self._exam_page,
+            self._exam_prepare_page,
             self._exercise_page,
             self._trace_page,
             self._history_page,
@@ -89,17 +95,28 @@ class MainWindow(QMainWindow):
             """
             QWidget { background: #0a0e0a; color: #39ff14; font-family: Consolas, "Cascadia Mono", "Courier New", monospace; font-size: 13px; }
             QLabel#title { color: #39ff14; font-size: 28px; font-weight: 900; letter-spacing: 1px; margin-bottom: 8px; }
-            QLabel#section { color: #f1fa8c; font-size: 16px; font-weight: 700; margin-top: 10px; }
+            QLabel#section { color: #39ff14; font-size: 16px; font-weight: 700; margin-top: 12px; }
             QLabel#muted { color: #4a6b4a; }
             QLabel#success { color: #50fa7b; font-weight: 700; }
             QLabel#error { color: #ff5555; font-weight: 700; }
             QPushButton { background: #0a0e0a; color: #39ff14; border: 1px solid #39ff14; padding: 7px 10px; border-radius: 0; text-align: left; }
-            QPushButton:hover, QPushButton:focus { background: #39ff14; color: #0a0e0a; }
+            QPushButton:hover, QPushButton:focus { background: #102010; color: #50fa7b; border: 1px solid #39ff14; }
+            QPushButton:pressed, QPushButton:checked { background: #0d1a0d; color: #50fa7b; border: 2px solid #39ff14; }
+            QPushButton:disabled { background: #0a0e0a; color: #4a6b4a; border: 1px solid #1f3a1f; }
             QPushButton#primary { color: #50fa7b; border: 2px solid #50fa7b; font-weight: 700; }
+            QPushButton#start { color: #50fa7b; border: 2px solid #39ff14; font-weight: 900; font-size: 15px; padding: 13px 18px; text-align: center; }
+            QPushButton#menu { min-height: 34px; font-weight: 700; }
             QPushButton#danger { color: #ff5555; border-color: #ff5555; }
             QComboBox, QLineEdit { background: #050505; color: #39ff14; border: 1px solid #4a6b4a; padding: 6px; border-radius: 0; }
-            QTextEdit { background: #050505; color: #39ff14; border: 1px solid #4a6b4a; padding: 8px; border-radius: 0; selection-background-color: #39ff14; selection-color: #0a0e0a; }
-            QCheckBox, QRadioButton { color: #39ff14; spacing: 8px; }
+            QComboBox:hover, QComboBox:focus, QLineEdit:focus { background: #102010; color: #50fa7b; border: 1px solid #39ff14; }
+            QComboBox QAbstractItemView { background: #050505; color: #39ff14; selection-background-color: #102010; selection-color: #50fa7b; border: 1px solid #39ff14; }
+            QTextEdit { background: #050505; color: #39ff14; border: 1px solid #4a6b4a; padding: 8px; border-radius: 0; selection-background-color: #102010; selection-color: #50fa7b; }
+            QCheckBox, QRadioButton { color: #39ff14; spacing: 8px; padding: 5px; border: 1px solid transparent; }
+            QCheckBox:hover, QRadioButton:hover, QCheckBox:focus, QRadioButton:focus { background: #102010; color: #50fa7b; border: 1px solid #39ff14; }
+            QCheckBox::indicator, QRadioButton::indicator { width: 15px; height: 15px; border: 1px solid #39ff14; background: #050505; }
+            QCheckBox::indicator:checked, QRadioButton::indicator:checked { background: #102010; border: 2px solid #50fa7b; }
+            QTableWidget { background: #050505; color: #39ff14; gridline-color: #1f3a1f; border: 1px solid #4a6b4a; selection-background-color: #102010; selection-color: #50fa7b; }
+            QHeaderView::section { background: #0a0e0a; color: #39ff14; border: 1px solid #1f3a1f; padding: 6px; font-weight: 700; }
             """
         )
 
@@ -108,15 +125,17 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(28, 28, 28, 28)
         layout.setSpacing(10)
-        self._title = QLabel("42 EXAM TRAINER _")
-        title = self._title
-        title.setObjectName("title")
+        self._title = self._title_label("42 EXAM TRAINER")
         self._workspace_label = QLabel(self._workspace_prompt())
         self._workspace_label.setObjectName("muted")
         self._workspace_label.setWordWrap(True)
-        layout.addWidget(title)
+        layout.addWidget(self._title)
         layout.addWidget(self._workspace_label)
-        layout.addSpacing(16)
+        layout.addStretch(1)
+        menu = QWidget()
+        menu_layout = QVBoxLayout(menu)
+        menu_layout.setContentsMargins(70, 0, 70, 0)
+        menu_layout.setSpacing(10)
         for index, (label, handler) in enumerate(
             (
                 ("TREINAR", self._open_training_setup),
@@ -126,25 +145,30 @@ class MainWindow(QMainWindow):
             ),
             start=1,
         ):
-            layout.addWidget(self._button(f"> [{index}] {label}", handler, primary=index in (1, 2)))
-        layout.addStretch()
+            menu_layout.addWidget(self._button(f"> [{index}] {label}", handler, primary=index in (1, 2), role="menu"))
+        layout.addWidget(menu)
+        layout.addStretch(2)
         return page
 
     def _build_training_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(8)
-        layout.addWidget(self._section_label("═══ TREINO ═══"))
+        layout.setSpacing(12)
+        layout.addWidget(self._title_label("TREINO"))
         choices = QHBoxLayout()
-        choices.addWidget(self._button("[1] TREINO POR LEVEL", self._choose_level_training, primary=True))
-        choices.addWidget(self._button("[2] TREINO ALEATÓRIO", self._choose_random_training, primary=True))
+        self._level_training_button = self._button("[1] TREINO POR LEVEL", self._choose_level_training, primary=True)
+        self._random_training_button = self._button("[2] TREINO ALEATÓRIO", self._choose_random_training, primary=True)
+        choices.addWidget(self._level_training_button)
+        choices.addWidget(self._random_training_button)
         layout.addLayout(choices)
 
         self._training_options_panel = QWidget()
         options = QVBoxLayout(self._training_options_panel)
-        options.setContentsMargins(0, 8, 0, 0)
+        options.setContentsMargins(32, 18, 32, 0)
+        options.setSpacing(10)
         self._training_mode_label = QLabel("")
+        self._training_mode_label.setObjectName("section")
         self._training_pack_combo = QComboBox()
         self._pack_combo = self._training_pack_combo
         self._training_pack_combo.currentIndexChanged.connect(self._refresh_levels)
@@ -171,7 +195,9 @@ class MainWindow(QMainWindow):
         options.addWidget(QLabel("> Levels"))
         options.addLayout(self._level_checks_layout)
         options.addWidget(self._random_options)
-        options.addWidget(self._button("> RUN_TRAINING_", self._start_training, primary=True))
+        self._start_training_button = self._button("> START TRAINING", self._start_training, primary=True, role="start")
+        options.addSpacing(14)
+        options.addWidget(self._start_training_button)
         self._training_options_panel.setVisible(False)
         layout.addWidget(self._training_options_panel)
         layout.addStretch()
@@ -182,8 +208,8 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(8)
-        layout.addWidget(self._section_label("═══ MODO PROVA ═══"))
+        layout.setSpacing(12)
+        layout.addWidget(self._title_label("MODO PROVA"))
         self._exam_resume_label = QLabel("")
         self._exam_resume_label.setWordWrap(True)
         self._resume_exam_button = self._button("[ CONTINUAR PROVA ]", self._resume_exam, primary=True)
@@ -195,11 +221,26 @@ class MainWindow(QMainWindow):
             self._end_exam_button,
             QLabel("> Rank/pack"),
             self._exam_pack_combo,
-            self._button("> START_EXAM_", self._start_exam, primary=True),
+            self._button("[ PREPARAR PROVA ]", self._show_exam_prepare, primary=True),
         ):
             layout.addWidget(widget)
         layout.addStretch()
         layout.addWidget(self._button("[ VOLTAR ]", self._show_home))
+        return page
+
+    def _build_exam_prepare_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(12)
+        layout.addWidget(self._title_label("PREPARAR PROVA"))
+        self._exam_prepare_text = QTextEdit()
+        self._exam_prepare_text.setReadOnly(True)
+        self._exam_prepare_text.setFont(QFont("Consolas", 10))
+        layout.addWidget(self._exam_prepare_text)
+        self._start_exam_button = self._button("> START EXAM", self._start_exam, primary=True, role="start")
+        layout.addWidget(self._start_exam_button)
+        layout.addWidget(self._button("[ VOLTAR ]", lambda: self._stack.setCurrentWidget(self._exam_page)))
         return page
 
     def _build_exercise_page(self) -> QWidget:
@@ -207,8 +248,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(18, 18, 18, 18)
         layout.setSpacing(8)
-        self._exercise_title = QLabel("")
-        self._exercise_title.setObjectName("section")
+        self._exercise_title = self._title_label("")
         self._exercise_meta = QLabel("")
         self._exam_timer_label = QLabel("")
         self._subject = QTextEdit()
@@ -239,6 +279,7 @@ class MainWindow(QMainWindow):
     def _build_trace_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
+        layout.addWidget(self._title_label("TRACE"))
         self._trace_text = QTextEdit()
         self._trace_text.setReadOnly(True)
         self._trace_text.setFont(QFont("Consolas", 10))
@@ -251,11 +292,24 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
-        self._history_text = QTextEdit()
-        self._history_text.setReadOnly(True)
-        self._history_text.setFont(QFont("Consolas", 10))
-        layout.addWidget(self._section_label("═══ HISTÓRICO ═══"))
-        layout.addWidget(self._history_text)
+        layout.setSpacing(10)
+        layout.addWidget(self._title_label("HISTÓRICO"))
+        self._history_summary = QLabel("")
+        self._history_summary.setObjectName("muted")
+        self._history_summary.setWordWrap(True)
+        self._history_table = QTableWidget(0, 6)
+        self._history_table.setHorizontalHeaderLabels(("LEVEL", "EXERCÍCIO", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"))
+        self._history_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._history_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self._history_table.verticalHeader().setVisible(False)
+        self._exam_history_text = QTextEdit()
+        self._exam_history_text.setReadOnly(True)
+        self._exam_history_text.setFont(QFont("Consolas", 10))
+        layout.addWidget(self._section_label("═══ PROGRESSO POR EXERCÍCIO ═══"))
+        layout.addWidget(self._history_summary)
+        layout.addWidget(self._history_table)
+        layout.addWidget(self._section_label("═══ HISTÓRICO DE PROVA ═══"))
+        layout.addWidget(self._exam_history_text)
         layout.addWidget(self._button("[ VOLTAR ]", self._show_home))
         return page
 
@@ -264,7 +318,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(8)
-        self._settings_title = self._section_label("═══ CONFIGURAÇÕES ═══")
+        self._settings_title = self._title_label("CONFIGURAÇÕES")
         self._settings_workspace = QLabel("")
         self._settings_editor = QLineEdit()
         self._editor_combo = QComboBox()
@@ -303,7 +357,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(24, 24, 24, 24)
         layout.setSpacing(8)
-        layout.addWidget(self._section_label("═══ COMO CRIAR UM PACK ═══"))
+        layout.addWidget(self._title_label("COMO CRIAR UM PACK"))
         self._pack_help_text = QTextEdit()
         self._pack_help_text.setReadOnly(True)
         self._pack_help_text.setFont(QFont("Consolas", 10))
@@ -313,12 +367,22 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._button("[ VOLTAR PARA CONFIGURAÇÕES ]", lambda: self._show_settings("Packs")))
         return page
 
-    def _button(self, text: str, handler, primary: bool = False) -> QPushButton:
+    def _button(self, text: str, handler, primary: bool = False, role: str = "") -> QPushButton:
         button = QPushButton(text)
+        button.setProperty("baseText", text)
+        button.installEventFilter(self)
         if primary:
             button.setObjectName("primary")
+        if role:
+            button.setObjectName(role)
         button.clicked.connect(handler)
         return button
+
+    def _title_label(self, text: str) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName("title")
+        self._cursor_labels.append((label, text))
+        return label
 
     @staticmethod
     def _section_label(text: str) -> QLabel:
@@ -337,8 +401,37 @@ class MainWindow(QMainWindow):
     def _blink_cursor(self) -> None:
         self._cursor_on = not self._cursor_on
         cursor = "_" if self._cursor_on else " "
-        if hasattr(self, "_title"):
-            self._title.setText(f"42 EXAM TRAINER {cursor}")
+        for label, base_text in self._cursor_labels:
+            if base_text:
+                label.setText(f"{base_text} {cursor}")
+        for button in list(self._cursor_buttons):
+            base_text = button.property("baseText")
+            if isinstance(base_text, str):
+                button.setText(f"{base_text}{cursor if self._cursor_on else ' '}")
+
+    def eventFilter(self, source: object, event: QEvent) -> bool:
+        if isinstance(source, QPushButton):
+            if event.type() in (QEvent.Type.Enter, QEvent.Type.FocusIn):
+                self._cursor_buttons.add(source)
+                self._blink_button(source)
+            elif event.type() in (QEvent.Type.Leave, QEvent.Type.FocusOut):
+                self._cursor_buttons.discard(source)
+                base_text = source.property("baseText")
+                if isinstance(base_text, str):
+                    source.setText(base_text)
+        return super().eventFilter(source, event)
+
+    def _blink_button(self, button: QPushButton) -> None:
+        base_text = button.property("baseText")
+        if isinstance(base_text, str):
+            button.setText(f"{base_text}{'_' if self._cursor_on else ' '}")
+
+    def _set_title_label(self, label: QLabel, text: str) -> None:
+        for index, (known_label, _) in enumerate(self._cursor_labels):
+            if known_label is label:
+                self._cursor_labels[index] = (label, text)
+                break
+        label.setText(f"{text} {'_' if self._cursor_on else ' '}" if text else "")
 
     def _show_home(self) -> None:
         self._show_resume_if_needed()
@@ -479,15 +572,20 @@ class MainWindow(QMainWindow):
         self._mode = mode
         self._active = active
         self._last_outcome = None
-        self._exercise_title.setText(active.ref.definition.name)
+        self._set_title_label(self._exercise_title, active.ref.definition.name)
         self._exercise_meta.setText(
             f"ID: {active.ref.definition.id}\n"
             f"Rank: {active.ref.pack.name}    Level: {active.ref.level_id}"
         )
         self._subject.setPlainText(active.subject_text)
         self._result_label.setText("")
+        self._result_label.setObjectName("")
+        self._result_label.style().unpolish(self._result_label)
+        self._result_label.style().polish(self._result_label)
         self._open_editor_button.setText(f"Abrir no {self._coordinator.editor_display_name()}")
+        self._open_editor_button.setProperty("baseText", self._open_editor_button.text())
         self._trace_button.setEnabled(False)
+        self._next_button.setVisible(mode == "training")
         self._next_button.setEnabled(mode == "training")
         self._stack.setCurrentWidget(self._exercise_page)
 
@@ -525,6 +623,9 @@ class MainWindow(QMainWindow):
                 self._last_outcome = self._coordinator.submit_training(self._active)
                 self._trace_button.setEnabled(True)
                 if not self._last_outcome.result.passed:
+                    self._result_label.setObjectName("error")
+                    self._result_label.style().unpolish(self._result_label)
+                    self._result_label.style().polish(self._result_label)
                     self._show_training_fail_feedback()
             if self._last_outcome.result.passed:
                 self._show_training_pass_feedback()
@@ -590,6 +691,46 @@ class MainWindow(QMainWindow):
         except Exception as error:
             QMessageBox.warning(self, "Prova", str(error))
 
+    def _show_exam_prepare(self) -> None:
+        if not self._handle_preflight(self._coordinator.preflight_exam(), self._show_exam_prepare):
+            return
+        pack_id = self._selected_exam_pack_id()
+        if pack_id is None:
+            QMessageBox.warning(self, "Prova", "Nenhum pack selecionado.")
+            return
+        pack = self._selected_pack(pack_id)
+        if pack is None:
+            QMessageBox.warning(self, "Prova", "Pack selecionado não encontrado.")
+            return
+        levels = self._coordinator.list_levels(pack_id)
+        duration = "04:00:00"
+        lines = [
+            f"Pack/Rank : {pack.name}",
+            f"ID        : {pack.id}",
+            f"Levels    : {len(levels)}",
+            "",
+            "Estrutura da prova baseada no pack real:",
+            *(f"  {level}" for level in levels),
+            "",
+            f"Duração   : {duration}",
+            "Aprovação : 100%",
+            "",
+            "Regras:",
+            "- ao errar, permanece no mesmo exercício;",
+            "- ao passar, avança automaticamente;",
+            "- não é permitido trocar exercício;",
+            "- se o tempo acabar, a prova encerra e salva nota parcial;",
+            "- se fechar no meio, a sessão pode ser retomada.",
+        ]
+        self._exam_prepare_text.setPlainText("\n".join(lines))
+        self._stack.setCurrentWidget(self._exam_prepare_page)
+
+    def _selected_pack(self, pack_id: str):
+        for pack in self._coordinator.list_packs():
+            if pack.id == pack_id:
+                return pack
+        return None
+
     def _resume_exam(self) -> None:
         state = self._coordinator.load_active_exam()
         if state is None:
@@ -638,64 +779,73 @@ class MainWindow(QMainWindow):
         self._exam_resume_label.setText(f"Prova em andamento\nRank: {state.pack_id}\nExercício: {state.exercise_id}\nTempo restante: {hours:02d}:{minutes:02d}:{seconds:02d}")
 
     def _show_history(self) -> None:
-        self._history_text.setHtml(self._history_html())
-        self._stack.setCurrentWidget(self._history_page)
-
-    def _history_html(self) -> str:
         rows = self._coordinator.exercise_history_rows()
         completed = sum(1 for row in rows if row["status"] == "concluído")
         attempted = sum(1 for row in rows if row["status"] == "tentado")
         pending = max(0, len(rows) - completed - attempted)
-        bar_width = 18
+        bar_width = 14
         filled = 0 if not rows else round((completed / len(rows)) * bar_width)
         bar = "█" * filled + "░" * (bar_width - filled)
-        lines = [
-            '<pre style="font-family: Consolas, monospace; color: #39ff14;">',
-            "═══ PROGRESSO POR EXERCÍCIO ═══",
-            f"[{bar}] {completed}/{len(rows)} concluídos   PASS={completed} FAIL={attempted} PEND={pending}",
-            "",
-            "LEVEL      EXERCÍCIO                 STATUS      TENTATIVAS ÚLTIMO RESULTADO DATA",
-            "────────── ───────────────────────── ─────────── ────────── ─────────────── ────────────────",
-        ]
-        grouped: dict[str, list[dict[str, object]]] = {}
-        for row in rows:
-            grouped.setdefault(str(row["level"]), []).append(row)
-        for level in sorted(grouped):
-            lines.append(f"{escape(level)}/")
-            level_rows = grouped[level]
-            for index, row in enumerate(level_rows):
-                branch = "└──" if index == len(level_rows) - 1 else "├──"
-                status = str(row["status"])
-                latest = str(row["latest_result"])
-                color = "#4a6b4a"
-                marker = "[ ]"
-                if status == "concluído":
-                    color = "#50fa7b"
-                    marker = "[✓]"
-                elif status == "tentado":
-                    color = "#f1fa8c" if latest != "FAIL" else "#ff5555"
-                    marker = "[…]" if latest != "FAIL" else "[✗]"
-                attempts = int(row["attempts"])
-                attempt_bar = ("▓" * min(attempts, 5)).ljust(5, "░")
-                date = self._format_date(row["last_attempt_at"])
-                exercise = f"{branch} {row['exercise_id']}"[:25].ljust(25)
-                line = (
-                    f"  {exercise} "
-                    f"<span style='color:{color}'>{marker} {status[:8].ljust(8)}</span> "
-                    f"{attempt_bar}     {latest[:13].ljust(13)} {date}"
-                )
-                lines.append(line)
-        lines.extend(["", "═══ HISTÓRICO DE PROVA ═══"])
+        self._history_summary.setText(
+            f"[{bar}] {completed}/{len(rows)} concluídos\n"
+            f"PASS: {completed}   FAIL: {attempted}   PENDENTES: {pending}"
+        )
+        self._populate_history_table(rows)
+        self._exam_history_text.setPlainText(self._exam_history_text_content())
+        self._stack.setCurrentWidget(self._history_page)
+
+    def _populate_history_table(self, rows: list[dict[str, object]]) -> None:
+        self._history_table.setRowCount(len(rows))
+        grouped_positions: dict[str, int] = {}
+        sorted_rows = sorted(rows, key=lambda row: (str(row["level"]), str(row["exercise_id"])))
+        for row_index, row in enumerate(sorted_rows):
+            level = str(row["level"])
+            grouped_positions[level] = grouped_positions.get(level, 0) + 1
+            level_total = sum(1 for candidate in sorted_rows if str(candidate["level"]) == level)
+            branch = "└──" if grouped_positions[level] == level_total else "├──"
+            status = str(row["status"])
+            latest = str(row["latest_result"])
+            attempts = int(row["attempts"])
+            marker = "[ ]"
+            if status == "concluído":
+                marker = "[✓]"
+            elif status == "tentado":
+                marker = "[✗]" if latest == "FAIL" else "[…]"
+            values = (
+                f"{level}/",
+                f"{branch} {row['exercise_id']}",
+                f"{marker} {status}",
+                str(attempts),
+                latest,
+                self._format_date(row["last_attempt_at"]),
+            )
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                if column == 2:
+                    if status == "concluído":
+                        item.setForeground(QColor("#50fa7b"))
+                    elif status == "tentado":
+                        item.setForeground(QColor("#f1fa8c"))
+                    else:
+                        item.setForeground(QColor("#4a6b4a"))
+                if column == 4 and latest == "FAIL":
+                    item.setForeground(QColor("#ff5555"))
+                elif column == 4 and latest == "PASS":
+                    item.setForeground(QColor("#50fa7b"))
+                self._history_table.setItem(row_index, column, item)
+        self._history_table.resizeColumnsToContents()
+
+    def _exam_history_text_content(self) -> str:
+        lines: list[str] = []
         exam_rows = self._coordinator.exam_history_rows()
         if not exam_rows:
-            lines.append("Nenhuma prova realizada ainda.")
+            return "Nenhuma prova realizada ainda."
         for row in exam_rows:
             lines.append(
                 f"{self._format_date(row.get('finished_at'))} | Rank: {escape(str(row.get('rank')))} | "
                 f"nota: {row.get('final_score')} | status: {escape(str(row.get('status')))} | "
                 f"duração: {row.get('used_seconds')}s | exercícios: {escape(str(row.get('exercises') or '-'))}"
             )
-        lines.append("</pre>")
         return "\n".join(lines)
 
     @staticmethod
@@ -722,7 +872,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Importar Pack", str(error))
 
     def _show_settings(self, section: str | None = None) -> None:
-        self._settings_title.setText("Configurações" if section is None else f"Configurações > {section}")
+        self._set_title_label(self._settings_title, "CONFIGURAÇÕES" if section is None else f"CONFIGURAÇÕES > {section.upper()}")
         self._settings_workspace.setText(str(self._coordinator.workspace_root))
         self._settings_editor.setText(self._coordinator.editor_command())
         self._show_compiler_cached()
