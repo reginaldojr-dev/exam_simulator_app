@@ -47,6 +47,21 @@ class ExamState:
     workspace_path: Path
 
 
+@dataclass(frozen=True)
+class PreflightResult:
+    ok: bool
+    missing: str | None = None
+    message: str = ""
+
+    @classmethod
+    def passed(cls) -> "PreflightResult":
+        return cls(ok=True)
+
+    @classmethod
+    def failed(cls, missing: str, message: str) -> "PreflightResult":
+        return cls(ok=False, missing=missing, message=message)
+
+
 class MVPTrainerCoordinator:
     def __init__(
         self,
@@ -180,6 +195,34 @@ class MVPTrainerCoordinator:
 
     def compiler_available(self) -> bool:
         return self._compiler.is_available()
+
+    def preflight_training(self) -> PreflightResult:
+        if not self._workspace_root.exists():
+            return PreflightResult.failed("workspace", "Configure a workspace antes de treinar.")
+        if not self.list_packs():
+            return PreflightResult.failed("packs", "Importe ou recarregue um pack antes de treinar.")
+        return PreflightResult.passed()
+
+    def preflight_exam(self) -> PreflightResult:
+        training = self.preflight_training()
+        if not training.ok:
+            return training
+        if not self.compiler_available():
+            return PreflightResult.failed(
+                "compiler",
+                "Configure um compilador C compatível antes de iniciar a prova.",
+            )
+        return PreflightResult.passed()
+
+    def preflight_editor(self) -> PreflightResult:
+        try:
+            validate_editor_executable(self.editor_command())
+        except EditorLaunchError:
+            return PreflightResult.failed(
+                "editor",
+                "Configure um editor/IDE válido antes de abrir a pasta do exercício.",
+            )
+        return PreflightResult.passed()
 
     def choose_training_exercise(self, options: TrainingOptions) -> ExerciseRef:
         refs = [
