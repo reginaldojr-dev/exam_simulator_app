@@ -106,13 +106,12 @@ class SystemCCompiler:
         return sorted(unique, key=self._candidate_priority)
 
     @staticmethod
-    def _candidate_priority(path: Path) -> tuple[int, str]:
+    def _candidate_priority(path: Path) -> tuple[int, int, str]:
         lowered = str(path).lower()
-        if "llvm-mingw" in lowered:
-            return (0, lowered)
-        if "mingw" in lowered:
-            return (1, lowered)
-        return (2, lowered)
+        name = path.name.lower()
+        toolchain_priority = 0 if "llvm-mingw" in lowered else (1 if "mingw" in lowered else 2)
+        compiler_priority = 0 if name in ("gcc.exe", "gcc") else (1 if name in ("clang.exe", "clang") else 2)
+        return (toolchain_priority, compiler_priority, lowered)
 
     def _windows_winget_candidates(self) -> list[Path]:
         if sys.platform != "win32":
@@ -126,7 +125,7 @@ class SystemCCompiler:
         for root in roots:
             if not root.is_dir():
                 continue
-            for name in ("clang.exe", "gcc.exe", "cc.exe"):
+            for name in ("gcc.exe", "clang.exe", "cc.exe"):
                 matches.extend(root.rglob(name))
         return matches
 
@@ -161,4 +160,16 @@ class SystemCCompiler:
                 )
             except (OSError, subprocess.TimeoutExpired):
                 return False
-            return completed.returncode == 0 and executable.exists()
+            if completed.returncode != 0 or not executable.exists():
+                return False
+            try:
+                probe = subprocess.run(
+                    [str(executable)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return False
+            return probe.returncode == 0 and probe.stdout == "OK\n"
