@@ -54,3 +54,5 @@ packs/rank02-original/
 # Python packaging
 *.egg-info/
 .eggs/
+
+docs/rank02_analysis.md
