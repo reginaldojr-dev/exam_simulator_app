@@ -40,6 +40,9 @@ class StaticGrader:
 
 
 class AvailableCompiler:
+    def __init__(self) -> None:
+        self.redetect_calls = 0
+
     def is_available(self) -> bool:
         return True
 
@@ -47,6 +50,10 @@ class AvailableCompiler:
         return "gcc"
 
     def redetect(self) -> str:
+        self.redetect_calls += 1
+        return "gcc"
+
+    def current_compiler(self) -> str:
         return "gcc"
 
     def compile(self, source_files: list[Path], output_path: Path) -> CompilationResult:
@@ -63,6 +70,7 @@ class MainWindowTest(unittest.TestCase):
         workspace = root / "workspace"
         workspace.mkdir()
         compiler = AvailableCompiler()
+        self._compiler = compiler
         coordinator = MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(
                 managed_packs_dir=root / "managed",
@@ -123,6 +131,14 @@ class MainWindowTest(unittest.TestCase):
             rendered = window._subject.toPlainText()
             self.assertIn("Assignment name  : steady_echo", rendered)
             self.assertIn("$> ./steady_echo hello world | cat -e\nhello world$", rendered)
+
+    def test_settings_open_does_not_run_compiler_probe(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._show_settings()
+
+            self.assertEqual(self._compiler.redetect_calls, 0)
 
 
 if __name__ == "__main__":

@@ -133,6 +133,11 @@ class MVPTrainerCoordinator:
             return self._compiler.find_compiler()
         return None
 
+    def current_compiler(self) -> str | None:
+        if hasattr(self._compiler, "current_compiler"):
+            return self._compiler.current_compiler()
+        return None
+
     def redetect_compiler(self) -> str | None:
         if hasattr(self._compiler, "redetect"):
             return self._compiler.redetect()

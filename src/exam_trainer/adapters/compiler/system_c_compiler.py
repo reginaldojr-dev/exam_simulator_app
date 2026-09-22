@@ -24,6 +24,9 @@ class SystemCCompiler:
     def is_available(self) -> bool:
         return self.find_compiler() is not None
 
+    def current_compiler(self) -> str | None:
+        return self._detected_compiler or self._manual_compiler
+
     def find_compiler(self) -> str | None:
         if self._detected_compiler is not None:
             return self._detected_compiler
