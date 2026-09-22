@@ -1,108 +1,73 @@
 # 42 Exam Trainer
 
-42 Exam Trainer is a desktop application prototype for studying programming exam workflows inspired by the 42 ecosystem.
+42 Exam Trainer is a Python/PySide6 desktop app for practicing C exam workflows inspired by the 42 ecosystem.
 
-This repository is public and intentionally does not include real exam questions, exercise packs, graders, compilation logic, or official 42 content.
+This public repository contains the generic app engine: workspace management, pack validation, C compilation, grading, trace output, training mode, exam mode, SQLite progress/history, and a compact desktop UI.
 
-## Current Stage
+It does not contain official 42 exam content, official subjects, official solutions, or any official Rank 02 original pack.
 
-This MVP contains:
+## Current MVP
 
-- Python 3.12+ project structure
-- PySide6 desktop entrypoint
-- local workspace setup flow
-- small JSON-based local configuration adapter
-- compact PySide6 UI for training, exam mode, trace, history, settings, and pack import
-- typed `exercise.json` and `pack.json` contracts
-- generic C grading foundation for `program_output` and `function_with_main`
-- deterministic test generators and internal expectations
-- technical trace generation
-- SQLite persistence foundation for attempts/progress
-- unit tests for workspace, configuration, parsing, packs, compiler/grader foundations, and SQLite
+The current MVP supports:
 
-The desktop UI now exposes the first usable MVP flow for the bundled sample pack: start training, view the subject, open the exercise folder in an external IDE, run correction, view PASS/FAIL, open the technical trace, view progress/history, import packs, and start/resume/end a simple exam session.
+- external workspace selection;
+- compact PySide6 UI;
+- local JSON configuration;
+- external editor/IDE integration;
+- compatible C compiler detection;
+- generic C grader for `program_output`, `function_with_main`, and validated pack capabilities;
+- deterministic generators and internal expectations;
+- technical traces for compile/runtime/output/timeout failures;
+- SQLite attempts, progress, exam sessions, and history;
+- pack import from folder or ZIP;
+- training by level and random training;
+- exam mode with fail-fast correction, resume, score, timeout, and cleanup.
 
-This is still not a complete exam clone and contains no official 42 exam content, login, backend, API, online updates, XP, badges, or gamification.
+## Navigation
 
-## Exercise Definition Contract
+The home screen intentionally stays small:
 
-External exercises describe themselves through an `exercise.json` file. The app defines the contract; exercise content adapts to it.
+- `Treinar`
+- `Modo Prova`
+- `Histórico`
+- `Configurações`
 
-```json
+Training setup lives on its own screen. Choose `Treino por Level` or `Treino Aleatório`, then select pack/rank and options.
+
+Exam setup lives on its own screen. If an exam session is active, `Continuar Prova` and `Encerrar Prova` appear there.
+
+Settings centralizes:
+
+- workspace;
+- editor/IDE;
+- compiler;
+- packs.
+
+## Requirements
+
+- Python 3.12+
+- PySide6
+- A compatible C compiler
+
+On Windows, the compiler must be MinGW/LLVM-MinGW compatible with POSIX-style exercise code. The detector validates candidates by compiling, linking, and running a console C program using:
+
+```c
+#include <unistd.h>
+
+int main(void)
 {
-  "id": "echo_args",
-  "name": "Echo Args",
-  "subject": "subject.md",
-  "submission": {
-    "filename": "echo_args.c"
-  },
-  "execution": {
-    "type": "program_output"
-  },
-  "tests": {
-    "generator": "random_arguments",
-    "expectation": "echo_arguments"
-  },
-  "limits": {
-    "timeout_seconds": 2
-  }
+    write(1, "OK\n", 3);
+    return (0);
 }
 ```
 
-The JSON loader validates structure and known capability identifiers before producing a typed `ExerciseDefinition`.
+with:
 
-Supported execution types:
-
-- `program_output`: compile the submitted C file, run it with generated arguments, compare stdout.
-- `function_with_main`: compile a pack-provided `main.c` fixture with the submitted C file, run it, compare stdout.
-- `custom`: reserved by the contract, not implemented by the current grader.
-
-Supported generators:
-
-- `random_string`
-- `random_integer`
-- `random_arguments`
-- `random_int_array`
-
-Supported expectations:
-
-- `echo_arguments`
-- `sum_integers`
-
-Packs reference these identifiers. They do not provide shell commands, Python code, graders, or arbitrary executable logic.
-
-## Pack Contract
-
-A pack contains a `pack.json` file:
-
-```json
-{
-  "id": "sample_rank",
-  "name": "Sample Rank",
-  "version": "1.0.0",
-  "levels": [
-    { "id": "level0", "path": "level0" },
-    { "id": "level1", "path": "level1" }
-  ]
-}
+```text
+-Wall -Wextra -Werror
 ```
 
-Each level contains exercise directories with an `exercise.json` and a referenced `subject.md`. `function_with_main` exercises must also include the declared fixture, usually `main.c`.
-
-See `examples/packs/sample_rank` for a small public sample pack with original exercises.
-
-## Architecture
-
-The project starts with a small hexagonal architecture:
-
-- `domain`: pure core entities, value objects, and domain services. It does not know about PySide6, JSON, operating systems, files, subprocesses, or storage implementations.
-- `application`: use cases and DTOs. This layer orchestrates domain objects through ports, but does not implement UI, persistence, compilation, grading, or editor integration.
-- `application/capabilities.py`: registries for known exercise capabilities such as execution types, test generators, and expectations.
-- `ports`: interfaces required by the application for external concerns such as configuration, workspace management, packs, progress, grading, compiler access, and editor integration.
-- `adapters`: concrete implementations at the edges, currently PySide6 UI, JSON configuration persistence, and local workspace filesystem handling.
-- `infrastructure`: dependency composition and platform path selection.
-
-The core does not depend on PySide6, JSON, operating-system details, or concrete storage.
+The app does not adapt exercises to MSVC and does not remove `unistd.h`.
 
 ## Install
 
@@ -112,15 +77,7 @@ python -m venv .venv
 python -m pip install -e .
 ```
 
-You also need a C compiler available in `PATH`. The app detects, in order:
-
-- `cc`
-- `clang`
-- `gcc`
-
-If none is found, training can still open subjects/workspaces, but correction and exam mode will show a clear compiler requirement message.
-
-On Linux or macOS:
+On Linux/macOS:
 
 ```bash
 python -m venv .venv
@@ -140,170 +97,170 @@ Or:
 python -m exam_trainer.main
 ```
 
-On first run, choose a workspace directory. The app creates and remembers the workspace path. You can later change it from `Configurações`.
+On first launch, choose a workspace. You can change it later in `Configurações > Workspace`.
 
-## Settings
+## Workspace Layout
 
-The `Configurações` screen lets you:
-
-- view and change the workspace;
-- set the external editor command, such as `code`, `zed`, or a custom executable;
-- see the detected C compiler;
-- rerun compiler detection.
-
-## Run Tests
-
-The tests use Python's standard `unittest` runner:
-
-```bash
-python -m unittest discover -s tests
-```
-
-## Project Structure
+Training and exam files are kept separate:
 
 ```text
-src/
-└── exam_trainer/
-    ├── domain/
-    │   ├── entities.py
-    │   ├── exercise_definition.py
-    │   ├── services.py
-    │   ├── value_objects.py
-    │   └── workspace.py
-    ├── application/
-    │   └── use_cases/
-    ├── ports/
-    ├── adapters/
-    │   ├── compiler/
-    │   ├── exercise_definition/
-    │   ├── grader/
-    │   ├── pack/
-    │   ├── filesystem/
-    │   ├── persistence/
-    │   ├── workspace/
-    │   └── ui/
-    ├── infrastructure/
-    └── main.py
-tests/
+workspace/
+├── training/
+│   └── <exercise>/
+│       ├── subject.txt
+│       └── <expected_file>.c
+└── exam/
+    └── <session_id>/
+        └── <exercise>/
+            ├── subject.txt
+            └── <expected_file>.c
 ```
 
-## Creating an Exercise
+Training work remains saved. Starting a new implementation only clears that training exercise. Exam cleanup removes only the finished session directory under `exam/<session_id>/`.
 
-Create a directory containing:
+## Editor/IDE
+
+Settings supports known editors:
+
+- VS Code
+- Zed
+- Cursor
+- custom executable
+
+The stored value is always a real filesystem path or command, never a `file:///` URI. Directories are rejected as editor executables. The editor is launched without `shell=True` using:
+
+```python
+[editor_executable, exercise_directory]
+```
+
+## Packs
+
+Packs are managed from `Configurações > Packs`.
+
+You can import:
+
+- a folder;
+- a `.zip`.
+
+The importer validates the pack before copying it into the app-managed pack directory.
+
+## Exercise Contract
+
+An exercise declares itself with `exercise.json`:
+
+```json
+{
+  "id": "steady_echo",
+  "name": "Steady Echo",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "steady_echo.c"
+  },
+  "execution": {
+    "type": "program_output"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "echo_arguments"
+  },
+  "limits": {
+    "timeout_seconds": 1
+  }
+}
+```
+
+Subjects should use the exam-style plain text format:
 
 ```text
-my_exercise/
-├── exercise.json
-└── subject.md
+Assignment name  : steady_echo
+Expected files   : steady_echo.c
+Allowed functions: write
+--------------------------------------------------------------------------------
+
+Write a program...
+
+Examples:
+
+$> ./steady_echo hello world | cat -e
+hello world$
+$>
 ```
 
-For `function_with_main`, include the fixture:
+The UI renders subjects as plain monospaced text to preserve whitespace and line breaks.
 
-```text
-my_function/
-├── exercise.json
-├── main.c
-└── subject.md
+## Pack Contract
+
+```json
+{
+  "id": "sample_rank",
+  "name": "Sample Rank",
+  "version": "1.0.0",
+  "levels": [
+    { "id": "level0", "path": "level0" },
+    { "id": "level1", "path": "level1" }
+  ]
+}
 ```
 
-Keep `submission.filename` as a simple filename, not a path. Paths in JSON are relative to the exercise directory.
+Each level contains exercise folders with `exercise.json` and `subject.md`. Function exercises may declare fixtures such as `main.c`.
 
-## Creating and Importing a Pack
+## Training
 
-Create a folder with:
+Training supports:
 
-```text
-my_pack/
-├── pack.json
-└── level0/
-    └── my_exercise/
-        ├── exercise.json
-        └── subject.md
-```
+- level-based selection;
+- random selection;
+- prioritizing uncompleted exercises;
+- only uncompleted exercises;
+- all exercises;
+- allowing or disallowing repeats.
 
-The importer accepts a folder or ZIP, validates the full pack, and copies it to the app-managed pack directory only if every exercise is valid. In the UI, use `Importar Pack` and select either a `.zip` file or a folder.
-
-## Training Modes
-
-- `Treino por Level`: select one or more levels from a pack.
-- `Treino Aleatório`: uses the same selection controls but chooses an exercise randomly.
-- Selection options: prioritize uncompleted, only uncompleted, all exercises, and allow repeated.
-
-After an exercise opens, use your external IDE to edit the generated workspace file, then click `Corrigir`.
+On FAIL, training shows a small failure dialog with actions to view the trace, reopen the editor, or return to fix the code. The app does not provide solution hints.
 
 ## Exam Mode
 
-The current exam mode is fail-fast:
+Exam mode keeps the existing rules:
 
-- starts at the first level;
-- FAIL keeps the same exercise and code;
-- PASS advances to the next level automatically;
-- score progresses by level;
+- fail-fast correction;
+- FAIL keeps the same exercise and workspace code;
+- PASS advances automatically;
 - 100% completes the exam;
-- timeout or manual end saves history and cleans the temporary `.exam` workspace;
-- active exams can be resumed after reopening the app.
+- timeout saves partial score;
+- closing/reopening can resume the active session;
+- finishing removes only `workspace/exam/<session_id>/`.
+
+## Trace
+
+Trace output is technical and factual. It includes:
+
+- collected file;
+- compiler command;
+- compiler output;
+- test cases;
+- expected output;
+- actual output;
+- stderr;
+- timeout flag;
+- final result.
+
+## Tests
+
+```bash
+python -m unittest discover -s tests
+python -m compileall -q src tests
+```
 
 ## Build With PyInstaller
-
-PyInstaller is not a runtime dependency. To build on the current platform:
 
 ```bash
 python -m pip install pyinstaller
 python -m PyInstaller "42 Exam Trainer.spec" --noconfirm
 ```
 
-The output is created under `dist/`.
+Build on each target platform separately:
 
-Build separately on each target platform:
+- Windows: produces a Windows executable.
+- Linux: produces a Linux binary.
+- macOS: produces a macOS app/binary.
 
-- Windows: run the command above on Windows to produce `.exe`.
-- Linux: run the same command on Linux to produce a Linux binary.
-- macOS: run the same command on macOS to produce a macOS app/binary.
-
-Build packaging is intentionally outside the domain/application layers.
-
-## MVP UI Flow
-
-```text
-Open app
-↓
-Configure workspace if needed
-↓
-Select sample_rank
-↓
-Select one or more levels
-↓
-Treino por Level / Treino Aleatório / Modo Prova
-↓
-Read subject
-↓
-Open IDE
-↓
-Write C solution in the workspace file
-↓
-Corrigir
-↓
-PASS/FAIL
-↓
-Ver trace
-↓
-Histórico
-```
-
-## Workspace Flow
-
-```text
-start app
-    ↓
-workspace configured?
-    ↓
-no → choose location → create → save
-    ↓
-yes
-    ↓
-main screen
-    ↓
-[Treino por Level]
-[Treino Aleatório]
-[Modo Prova]
-```
+Packaging stays outside the domain and application layers.
