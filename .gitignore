@@ -30,8 +30,8 @@ dist/
 *.local.json
 
 # User workspace
-workspace/
-42-exam-trainer/
+/workspace/
+/42-exam-trainer/
 
 # IDE / editor
 .vscode/
