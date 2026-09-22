@@ -140,6 +140,23 @@ class MainWindowTest(unittest.TestCase):
 
             self.assertEqual(self._compiler.redetect_calls, 0)
 
+    def test_pack_help_page_documents_pack_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._show_pack_help()
+
+            self.assertIs(window._stack.currentWidget(), window._pack_help_page)
+            content = window._pack_help_text.toPlainText()
+            self.assertIn("não é limitado ao Rank 02", content)
+            self.assertIn("pack.json", content)
+            self.assertIn("exercise.json", content)
+            self.assertIn("subject.md", content)
+            self.assertIn("program_output", content)
+            self.assertIn("function_with_main", content)
+            self.assertIn("random_arguments", content)
+            self.assertIn("echo_arguments", content)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -144,6 +144,180 @@ You can import:
 
 The importer validates the pack before copying it into the app-managed pack directory.
 
+## Creating Your Own Pack
+
+42 Exam Trainer is not limited to Rank 02. Any rank, practice track, school list, or personal collection can be added as a pack as long as it follows the app contract and uses capabilities supported by the engine.
+
+The program defines the contract; exercises adapt to the program. Packs cannot provide arbitrary shell commands, Python code, custom graders, or hidden executable logic.
+
+### Minimal Directory Layout
+
+```text
+my_pack/
+├── pack.json
+└── level0/
+    └── steady_echo/
+        ├── exercise.json
+        └── subject.md
+```
+
+A function exercise that needs a generated `main.c` can include a fixture:
+
+```text
+my_pack/
+└── level1/
+    └── sum_values/
+        ├── exercise.json
+        ├── subject.md
+        └── fixtures/
+            └── main.c
+```
+
+Fixture paths are relative to the exercise directory. They may prepare the test harness, but they must not contain the user's solution.
+
+### pack.json
+
+```json
+{
+  "id": "my_rank",
+  "name": "My Rank",
+  "version": "1.0.0",
+  "levels": [
+    { "id": "level0", "path": "level0" },
+    { "id": "level1", "path": "level1" }
+  ]
+}
+```
+
+Keep `id` stable and filesystem-friendly. The `path` for each level is relative to the pack root.
+
+### exercise.json for a Program
+
+Use `program_output` when the user submits a complete C program. The grader compiles the expected file, runs it with generated/fixed arguments, captures stdout/stderr, and compares stdout with the expected value.
+
+```json
+{
+  "id": "steady_echo",
+  "name": "Steady Echo",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "steady_echo.c"
+  },
+  "execution": {
+    "type": "program_output"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "echo_arguments"
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}
+```
+
+### exercise.json for a Function
+
+Use `function_with_main` when the user submits a C function and the pack provides a `main.c` fixture to call it.
+
+```json
+{
+  "id": "sum_values",
+  "name": "Sum Values",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "sum_values.c"
+  },
+  "execution": {
+    "type": "function_with_main",
+    "fixture": "fixtures/main.c"
+  },
+  "tests": {
+    "generator": "random_int_array",
+    "expectation": "sum_integers"
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}
+```
+
+If `execution.fixture` or `support_files` is declared, the referenced files must exist inside the exercise folder.
+
+### subject.md
+
+Subjects should be plain text or Markdown that preserves the exam-style shape. The UI renders subjects in a monospaced view and keeps whitespace intact.
+
+```text
+Assignment name  : steady_echo
+Expected files   : steady_echo.c
+Allowed functions: write
+--------------------------------------------------------------------------------
+
+Write a program that displays all command-line arguments on a single line,
+separated by exactly one space, followed by a newline.
+
+If no argument is provided, simply display a newline.
+
+Examples:
+
+$> ./steady_echo hello world | cat -e
+hello world$
+$> ./steady_echo | cat -e
+$
+$>
+```
+
+The `Expected files` line should match `submission.filename`.
+
+### Supported Capabilities
+
+Execution types currently recognized by the loader:
+
+- `program_output`
+- `function_with_main`
+- `reference_compare`
+- `custom`
+
+`program_output` and `function_with_main` are the normal generic C grading paths. Other execution types are reserved/validated capabilities for supported project content; do not rely on them for new packs unless the app has an implementation for your workflow.
+
+Generators currently available:
+
+- `fixed_cases`
+- `random_arguments`
+- `random_int_array`
+- `random_integer`
+- `random_string`
+
+Expectations currently available:
+
+- `echo_arguments`
+- `literal`
+- `reference_output`
+- `sum_integers`
+
+For `fixed_cases`, include `tests.cases` in `exercise.json`. A simple fixed case can look like:
+
+```json
+{
+  "args": ["hello", "world"],
+  "stdin": "",
+  "expected": "hello world\n"
+}
+```
+
+### Validate and Import
+
+1. Create the pack folder or a `.zip` containing it.
+2. Open `Configurações > Packs`.
+3. Click `Como criar um pack` for the in-app quick reference, or `Importar Pack` to import.
+4. Select the folder or `.zip`.
+5. The app validates `pack.json`, every `exercise.json`, referenced subjects, fixtures, support files, execution types, generators, and expectations.
+6. If anything is invalid, the whole pack is rejected and nothing is copied.
+7. If validation passes, the pack is copied into the app-managed pack directory and appears in training/exam setup.
+
+Use the sample pack as a small working reference, but keep public packs free of official 42 subjects, official solutions, and copied exam content.
+
 ## Exercise Contract
 
 An exercise declares itself with `exercise.json`:

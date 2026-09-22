@@ -6,8 +6,8 @@ from datetime import datetime
 from html import escape
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QTimer, QUrl
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from exam_trainer.adapters.editor.subprocess_editor import resolve_known_editor
+from exam_trainer.application.capabilities import default_exercise_capabilities
 from exam_trainer.application.mvp_models import ActiveExercise, CorrectionOutcome, ExerciseRef
 from exam_trainer.application.use_cases.mvp_coordinator import (
     ExamState,
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         self._trace_page = self._build_trace_page()
         self._history_page = self._build_history_page()
         self._settings_page = self._build_settings_page()
+        self._pack_help_page = self._build_pack_help_page()
         for page in (
             self._home_page,
             self._training_page,
@@ -69,6 +71,7 @@ class MainWindow(QMainWindow):
             self._trace_page,
             self._history_page,
             self._settings_page,
+            self._pack_help_page,
         ):
             self._stack.addWidget(page)
         self.setCentralWidget(self._stack)
@@ -288,10 +291,26 @@ class MainWindow(QMainWindow):
             self._packs_summary,
             self._button("[ IMPORTAR PACK ]", self._import_pack),
             self._button("[ ATUALIZAR PACKS ]", self._refresh_packs),
+            self._button("[ COMO CRIAR UM PACK ]", self._show_pack_help),
         ):
             layout.addWidget(widget)
         layout.addStretch()
         layout.addWidget(self._button("[ VOLTAR ]", self._show_home))
+        return page
+
+    def _build_pack_help_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(8)
+        layout.addWidget(self._section_label("═══ COMO CRIAR UM PACK ═══"))
+        self._pack_help_text = QTextEdit()
+        self._pack_help_text.setReadOnly(True)
+        self._pack_help_text.setFont(QFont("Consolas", 10))
+        self._pack_help_text.setPlainText(self._pack_help_content())
+        layout.addWidget(self._pack_help_text)
+        layout.addWidget(self._button("[ ABRIR DOCUMENTAÇÃO COMPLETA ]", self._open_full_documentation))
+        layout.addWidget(self._button("[ VOLTAR PARA CONFIGURAÇÕES ]", lambda: self._show_settings("Packs")))
         return page
 
     def _button(self, text: str, handler, primary: bool = False) -> QPushButton:
@@ -708,6 +727,155 @@ class MainWindow(QMainWindow):
         self._settings_editor.setText(self._coordinator.editor_command())
         self._show_compiler_cached()
         self._stack.setCurrentWidget(self._settings_page)
+
+    def _show_pack_help(self) -> None:
+        self._pack_help_text.setPlainText(self._pack_help_content())
+        self._stack.setCurrentWidget(self._pack_help_page)
+
+    def _open_full_documentation(self) -> None:
+        readme = self._documentation_path()
+        if readme is None:
+            QMessageBox.warning(self, "Documentação", "README.md não encontrado.")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(readme)))
+
+    @staticmethod
+    def _documentation_path() -> Path | None:
+        candidates = (
+            Path(__file__).resolve().parents[5] / "README.md",
+            Path.cwd() / "README.md",
+        )
+        for candidate in candidates:
+            if candidate.is_file():
+                return candidate
+        return None
+
+    @staticmethod
+    def _pack_help_content() -> str:
+        capabilities = default_exercise_capabilities()
+        executions = ", ".join(sorted(capabilities.executions.supported))
+        generators = ", ".join(sorted(capabilities.generators.supported))
+        expectations = ", ".join(sorted(capabilities.expectations.supported))
+        return f"""O 42 Exam Trainer não é limitado ao Rank 02.
+Qualquer rank, trilha ou coleção de exercícios pode virar um pack, desde que siga
+o contrato abaixo e use capabilities suportadas pela engine.
+
+Estrutura mínima:
+
+my_pack/
+├── pack.json
+└── level0/
+    └── steady_echo/
+        ├── exercise.json
+        └── subject.md
+
+Para exercícios de função, adicione uma fixture de main quando necessário:
+
+sum_values/
+├── exercise.json
+├── subject.md
+└── fixtures/
+    └── main.c
+
+pack.json:
+
+{{
+  "id": "my_rank",
+  "name": "My Rank",
+  "version": "1.0.0",
+  "levels": [
+    {{ "id": "level0", "path": "level0" }},
+    {{ "id": "level1", "path": "level1" }}
+  ]
+}}
+
+exercise.json para programa com argv/stdout:
+
+{{
+  "id": "steady_echo",
+  "name": "Steady Echo",
+  "subject": "subject.md",
+  "submission": {{
+    "filename": "steady_echo.c"
+  }},
+  "execution": {{
+    "type": "program_output"
+  }},
+  "tests": {{
+    "generator": "random_arguments",
+    "expectation": "echo_arguments"
+  }},
+  "limits": {{
+    "timeout_seconds": 2
+  }}
+}}
+
+exercise.json para função testada com main.c:
+
+{{
+  "id": "sum_values",
+  "name": "Sum Values",
+  "subject": "subject.md",
+  "submission": {{
+    "filename": "sum_values.c"
+  }},
+  "execution": {{
+    "type": "function_with_main",
+    "fixture": "fixtures/main.c"
+  }},
+  "tests": {{
+    "generator": "random_int_array",
+    "expectation": "sum_integers"
+  }},
+  "limits": {{
+    "timeout_seconds": 2
+  }}
+}}
+
+subject.md:
+
+Use texto em estilo de prova, preservando quebras de linha:
+
+Assignment name  : steady_echo
+Expected files   : steady_echo.c
+Allowed functions: write
+--------------------------------------------------------------------------------
+
+Write a program...
+
+Examples:
+
+$> ./steady_echo hello world | cat -e
+hello world$
+$>
+
+Fixtures e arquivos de apoio:
+
+- main.c/fixtures só devem preparar o teste, nunca conter a solução.
+- Caminhos são relativos ao diretório do exercício.
+- Se declarar fixture ou support_files no JSON, o arquivo precisa existir no pack.
+
+Execution types disponíveis:
+{executions}
+
+Generators disponíveis:
+{generators}
+
+Expectations disponíveis:
+{expectations}
+
+Validação e importação:
+
+1. Crie a pasta do pack ou um .zip contendo o pack.
+2. Abra Configurações > Packs.
+3. Clique em [ IMPORTAR PACK ].
+4. O app valida pack.json, exercise.json, subject.md, fixtures e capabilities.
+5. Se qualquer exercício falhar, o pack inteiro é rejeitado.
+6. Se passar, o pack é copiado para o diretório gerenciado do app.
+
+Packs não podem trazer comandos shell arbitrários nem código Python executável.
+O conteúdo externo apenas declara o contrato; a engine do app executa o grader.
+"""
 
     def _change_workspace(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Selecionar nova workspace")
