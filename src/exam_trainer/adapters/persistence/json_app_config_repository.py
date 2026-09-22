@@ -46,6 +46,14 @@ class JsonAppConfigRepository:
             data["compiler_path"] = normalized
         self._save_data(data)
 
+    def load_theme(self) -> str | None:
+        return self._read_string(self._load_data(), "theme")
+
+    def save_theme(self, theme_key: str) -> None:
+        data = self._load_data()
+        data["theme"] = theme_key
+        self._save_data(data)
+
     def _load_data(self) -> dict[str, Any]:
         if not self._config_file_path.exists():
             return {}

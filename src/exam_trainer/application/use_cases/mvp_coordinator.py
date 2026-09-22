@@ -114,6 +114,15 @@ class MVPTrainerCoordinator:
             self._config_repository.save_workspace_path(workspace.path)
         self._workspace_root = workspace.path
 
+    def theme_key(self) -> str | None:
+        loader = getattr(self._config_repository, "load_theme", None)
+        return loader() if callable(loader) else None
+
+    def save_theme(self, theme_key: str) -> None:
+        saver = getattr(self._config_repository, "save_theme", None)
+        if callable(saver):
+            saver(theme_key)
+
     def editor_command(self) -> str:
         if self._config_repository is None:
             return "code"
