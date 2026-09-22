@@ -417,6 +417,19 @@ Trace output is technical and factual. It includes:
 - timeout flag;
 - final result.
 
+## Themes
+
+The UI look lives in `src/exam_trainer/adapters/ui/qt/theme/` and is independent from screens, grader, packs and history.
+
+- `tokens.py`: `ThemeTokens` (background, surface, accent, text_primary, text_secondary, success, fail, warning, border, hover_background, selected_background, fonts, radius, cursor behaviour).
+- `themes.py`: built-in themes (`terminal` default, `minimal`, `amber`, `gameboy`, `neon`, `paper`).
+- `qss.py`: builds the single application stylesheet from tokens.
+- `manager.py`: `ThemeManager` applies the stylesheet and notifies screens when the theme changes.
+
+Screens never write colors or QSS. They create widgets through `adapters/ui/qt/components/widgets.py` and set a role (`variant="primary"`, `role="title"`, `status="fail"`...). The blinking cursor is centralized in `components/cursor.py` (one `QTimer` for the whole window).
+
+To add a theme, create a new `ThemeTokens` in `themes.py` and register it in `THEMES`. It appears in `Configurações > Tema` and is saved in the local config file. Rule for every theme: the accent color is never the background of a button, row, tab or selected item.
+
 ## Tests
 
 ```bash

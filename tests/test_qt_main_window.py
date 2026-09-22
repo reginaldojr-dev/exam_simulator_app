@@ -246,5 +246,43 @@ class MainWindowTest(unittest.TestCase):
             self.assertEqual(window._history_table.item(matching_row, 4).text(), "FAIL")
 
 
+    def test_theme_change_restyles_window_and_is_persisted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            saved: list[str] = []
+            window._coordinator.save_theme = saved.append
+
+            index = window._theme_combo.findData("minimal")
+            window._theme_combo.setCurrentIndex(index)
+
+            self.assertEqual(saved, ["minimal"])
+            self.assertIn("#121417", window.styleSheet())
+
+    def test_training_fail_shows_inline_feedback_with_trace_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=False)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+
+            window._submit_current()
+
+            self.assertFalse(window._feedback.isHidden())
+            self.assertEqual(window._feedback.headline, "[✗] FAIL")
+            self.assertTrue(window._trace_button.isEnabled())
+
+    def test_level_options_are_clickable_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._open_training_setup()
+
+            self.assertTrue(window._level_training_button.isChecked())
+            self.assertTrue(window._level_checks)
+            first = window._level_checks[0]
+            self.assertTrue(first.text().startswith("[x] "))
+            first.click()
+            self.assertTrue(first.text().startswith("[ ] "))
+            self.assertNotIn(first.value, window._selected_levels())
+
+
 if __name__ == "__main__":
     unittest.main()

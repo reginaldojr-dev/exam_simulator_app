@@ -5,12 +5,13 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QFileDialog,
-    QLabel,
     QMessageBox,
-    QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+from exam_trainer.adapters.ui.qt.components import widgets as ui
+from exam_trainer.adapters.ui.qt.theme import ThemeManager
 
 from exam_trainer.application.use_cases.initialize_application import (
     InitializeApplication,
@@ -21,24 +22,23 @@ from exam_trainer.domain.workspace import WorkspaceError
 class StartupWindow(QWidget):
     workspace_configured = Signal(Path)
 
-    def __init__(self, initialize_application: InitializeApplication) -> None:
+    def __init__(
+        self,
+        initialize_application: InitializeApplication,
+        theme_manager: ThemeManager | None = None,
+    ) -> None:
         super().__init__()
         self._initialize_application = initialize_application
 
         self.setWindowTitle("Configurar Workspace")
         self.setMinimumSize(480, 260)
 
-        title = QLabel("42 Exam Trainer")
-        title.setObjectName("title")
-
-        description = QLabel(
-            "Escolha onde a workspace local do aplicativo deve ser criada."
+        title = ui.title_label("42 EXAM TRAINER")
+        description = ui.label(
+            "Escolha onde a workspace local do aplicativo deve ser criada.",
+            wrap=True,
         )
-        description.setWordWrap(True)
-
-        choose_button = QPushButton("Escolher pasta da workspace")
-        choose_button.setMinimumHeight(42)
-        choose_button.clicked.connect(self._choose_workspace)
+        choose_button = ui.button("> ESCOLHER PASTA DA WORKSPACE", self._choose_workspace, "start")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(32, 32, 32, 32)
@@ -48,37 +48,7 @@ class StartupWindow(QWidget):
         layout.addStretch()
         layout.addWidget(choose_button)
 
-        self.setStyleSheet(
-            """
-            QWidget {
-                background: #0a0e0a;
-                color: #39ff14;
-                font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
-            }
-            QLabel#title {
-                color: #39ff14;
-                font-size: 24px;
-                font-weight: 900;
-            }
-            QPushButton {
-                background: #0a0e0a;
-                color: #39ff14;
-                border: 1px solid #39ff14;
-                font-size: 15px;
-                padding: 8px 12px;
-                border-radius: 0;
-            }
-            QPushButton:hover, QPushButton:focus {
-                background: #102010;
-                color: #50fa7b;
-                border: 1px solid #39ff14;
-            }
-            QPushButton:pressed {
-                background: #0d1a0d;
-                color: #50fa7b;
-            }
-            """
-        )
+        (theme_manager or ThemeManager()).apply(self)
 
     def _choose_workspace(self) -> None:
         selected_parent = QFileDialog.getExistingDirectory(
