@@ -1,0 +1,30 @@
+{
+  "id": "dash_to_caps",
+  "name": "Dash To Caps",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "dash_to_caps.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

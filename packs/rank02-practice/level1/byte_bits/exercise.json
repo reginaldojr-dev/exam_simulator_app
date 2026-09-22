@@ -1,0 +1,30 @@
+{
+  "id": "byte_bits",
+  "name": "Byte Bits",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "byte_bits.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

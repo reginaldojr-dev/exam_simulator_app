@@ -1,0 +1,30 @@
+{
+  "id": "apply_to_nodes",
+  "name": "Apply To Nodes",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "apply_to_nodes.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

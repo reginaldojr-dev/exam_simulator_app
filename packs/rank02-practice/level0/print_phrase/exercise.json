@@ -1,0 +1,30 @@
+{
+  "id": "print_phrase",
+  "name": "Print Phrase",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "print_phrase.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

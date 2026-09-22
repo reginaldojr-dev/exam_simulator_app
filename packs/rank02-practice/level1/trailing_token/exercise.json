@@ -1,0 +1,30 @@
+{
+  "id": "trailing_token",
+  "name": "Trailing Token",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "trailing_token.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

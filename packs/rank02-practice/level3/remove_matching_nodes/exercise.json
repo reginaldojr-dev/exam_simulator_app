@@ -1,0 +1,30 @@
+{
+  "id": "remove_matching_nodes",
+  "name": "Remove Matching Nodes",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "remove_matching_nodes.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

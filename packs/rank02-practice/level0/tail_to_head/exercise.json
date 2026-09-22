@@ -1,0 +1,30 @@
+{
+  "id": "tail_to_head",
+  "name": "Tail To Head",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "tail_to_head.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

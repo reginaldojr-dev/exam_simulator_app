@@ -1,0 +1,18 @@
+{
+  "id": "steady_echo",
+  "name": "Steady Echo",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "steady_echo.c"
+  },
+  "execution": {
+    "type": "program_output"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "echo_arguments"
+  },
+  "limits": {
+    "timeout_seconds": 1
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "parse_base_lite",
+  "name": "Parse Base Lite",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "parse_base_lite.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "letter_reflect",
+  "name": "Letter Reflect",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "letter_reflect.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

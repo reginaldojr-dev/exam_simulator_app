@@ -1,0 +1,19 @@
+{
+  "id": "sum_values",
+  "name": "Sum Values",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "sum_values.c"
+  },
+  "execution": {
+    "type": "function_with_main",
+    "fixture": "main.c"
+  },
+  "tests": {
+    "generator": "random_int_array",
+    "expectation": "sum_integers"
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "copy_until_end",
+  "name": "Copy Until End",
+  "subject": "subject.md",
+  "submission": {
+    "filename": "copy_until_end.c"
+  },
+  "execution": {
+    "type": "reference_compare",
+    "reference": "fixtures/reference.c"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "alpha",
+          "beta"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}
