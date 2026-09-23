@@ -12,7 +12,9 @@ from exam_trainer.adapters.editor.subprocess_editor import (
     SubprocessEditor,
     editor_display_name,
 )
-from exam_trainer.adapters.grader.generic_c_grader import GenericCGrader
+from exam_trainer.adapters.grader.generic_grader import GenericGrader
+from exam_trainer.adapters.runtime.c_runtime import CRuntime
+from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
@@ -46,6 +48,7 @@ class AppFactory:
         config = JsonAppConfigRepository(app_config_file_path())
         workspace = LocalWorkspace()
         compiler = SystemCCompiler(manual_compiler=config.load_compiler_path())
+        runtimes = RuntimeRegistry([CRuntime(compiler, manager=compiler)])
         editor_command = config.load_editor_command()
         return MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(
@@ -54,13 +57,14 @@ class AppFactory:
             ),
             progress_repository=self.create_progress_repository(),
             workspace=LocalExerciseWorkspace(),
-            grader=GenericCGrader(compiler),
+            grader=GenericGrader(runtimes),
             editor=SubprocessEditor(editor_command, editor_display_name(editor_command)),
             pack_importer=LocalPackImporter(managed_packs_dir()),
             compiler=compiler,
             config_repository=config,
             workspace_port=workspace,
             workspace_root=workspace_root,
+            runtimes=runtimes,
         )
 
     def create_config_repository(self) -> JsonAppConfigRepository:

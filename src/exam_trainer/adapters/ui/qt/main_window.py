@@ -607,9 +607,9 @@ class MainWindow(QMainWindow):
         self._go(self._training_page)
 
     def _open_exam_setup(self) -> None:
-        if not self._compiler_checked(self._open_exam_setup):
+        if not self._runtime_checked(self._exam_language(), self._open_exam_setup):
             return
-        if not self._handle_preflight(self._coordinator.preflight_exam(), self._open_exam_setup):
+        if not self._handle_preflight(self._coordinator.preflight_exam(self._selected_exam_pack_id()), self._open_exam_setup):
             return
         self._show_resume_if_needed()
         self._go(self._exam_page)
@@ -637,32 +637,28 @@ class MainWindow(QMainWindow):
 
         return self._tasks.start(key, work, done, failed)
 
-    def _compiler_checked(self, then: Callable[[], None]) -> bool:
-        """True se o compilador já foi validado. Senão detecta em segundo plano e chama `then` depois.
+    def _exam_language(self) -> str:
+        return self._coordinator.pack_language(self._selected_exam_pack_id())
 
-        A detecção roda processos externos (probe do compilador) e pode demorar.
-        Se não houver compilador, `then` roda de novo e o preflight normal mostra a
-        mensagem de configuração (a verificação seguinte volta a ser em segundo plano).
+    def _runtime_checked(self, language: str, then: Callable[[], None]) -> bool:
+        """True se o runtime da linguagem já foi validado. Senão valida em segundo plano e chama `then`.
+
+        A detecção roda processos externos (probe do compilador/interpretador) e pode demorar.
+        Se falhar, o preflight mostra a mensagem e leva às Configurações.
         """
-        if self._coordinator.compiler_ready():
+        if self._coordinator.runtime_ready(language):
             return True
-        if self._tasks.is_busy("compiler"):
+        if self._tasks.is_busy("runtime"):
             return False
-        self._home_status.setText("detectando compilador...")
+        self._home_status.setText("verificando ambiente de execução...")
         self._run_task(
-            "compiler",
-            self._coordinator.compiler_available,
-            lambda available: then() if available else self._compiler_missing(then),
-            "Compilador",
+            "runtime",
+            lambda: self._coordinator.preflight_runtime(language),
+            lambda preflight: then() if preflight.ok else self._handle_preflight(preflight, then),
+            "Ambiente de execução",
             on_finally=self._refresh_home_status,
         )
         return False
-
-    def _compiler_missing(self, resume: Callable[[], None]) -> None:
-        self._handle_preflight(
-            PreflightResult.failed("compiler", "Configure um compilador C compatível antes de continuar."),
-            resume,
-        )
 
     def _handle_preflight(self, preflight: PreflightResult, resume: Callable[[], None]) -> bool:
         if preflight.ok:
@@ -820,7 +816,7 @@ class MainWindow(QMainWindow):
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):
             return
-        if not self._compiler_checked(self._submit_current):
+        if not self._runtime_checked(self._active.ref.pack.language, self._submit_current):
             return
         active = self._active
         if self._mode == "exam":
@@ -923,9 +919,9 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ prova
     def _start_exam(self) -> None:
-        if not self._compiler_checked(self._start_exam):
+        if not self._runtime_checked(self._exam_language(), self._start_exam):
             return
-        if not self._handle_preflight(self._coordinator.preflight_exam(), self._start_exam):
+        if not self._handle_preflight(self._coordinator.preflight_exam(self._selected_exam_pack_id()), self._start_exam):
             return
         pack_id = self._selected_exam_pack_id()
         if pack_id is None:
@@ -940,9 +936,9 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Prova", str(error))
 
     def _show_exam_prepare(self) -> None:
-        if not self._compiler_checked(self._show_exam_prepare):
+        if not self._runtime_checked(self._exam_language(), self._show_exam_prepare):
             return
-        if not self._handle_preflight(self._coordinator.preflight_exam(), self._show_exam_prepare):
+        if not self._handle_preflight(self._coordinator.preflight_exam(self._selected_exam_pack_id()), self._show_exam_prepare):
             return
         pack_id = self._selected_exam_pack_id()
         if pack_id is None:
@@ -1286,7 +1282,7 @@ class MainWindow(QMainWindow):
     def _refresh_compiler_setting(self) -> None:
         self._settings_compiler.setText("● detectando...")
         ui.set_status(self._settings_compiler, "pending")
-        self._run_task("compiler", self._coordinator.redetect_compiler, self._show_compiler_result, "Compilador")
+        self._run_task("runtime", self._coordinator.redetect_compiler, self._show_compiler_result, "Compilador")
 
     def _show_compiler_result(self, compiler: object) -> None:
         if compiler:
@@ -1337,7 +1333,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Compilador", "Compilador atualizado.")
             self._resume_pending_if_ready()
 
-        self._run_task("compiler", work, done, "Compilador", on_finally=self._show_compiler_cached)
+        self._run_task("runtime", work, done, "Compilador", on_finally=self._show_compiler_cached)
 
     def closeEvent(self, event) -> None:  # noqa: N802 — API do Qt
         # Deixa uma correção/importação em andamento terminar de gravar antes de fechar.

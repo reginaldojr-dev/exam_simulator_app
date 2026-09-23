@@ -22,7 +22,12 @@ from exam_trainer.application.mvp_models import (
 )
 from exam_trainer.domain.attempt_modes import EXAM_MODE, LEGACY_PACK_ID, TRAINING_MODE
 from exam_trainer.domain.grading import GradingPolicy, GradingResult
-from exam_trainer.domain.pack_definition import PackDefinition
+from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
+from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
+from exam_trainer.ports.compiler_port import ConfigurableCompilerPort
+from exam_trainer.ports.config_repository import AppSettingsRepository
+from exam_trainer.ports.progress_repository import TrainerProgressRepository
+from exam_trainer.ports.runtime_port import LanguageRuntime
 from exam_trainer.domain.workspace import Workspace
 from exam_trainer.ports.editor_port import EditorPort
 from exam_trainer.ports.exercise_workspace_port import ExerciseWorkspacePort
@@ -70,25 +75,33 @@ class MVPTrainerCoordinator:
     def __init__(
         self,
         pack_catalog,
-        progress_repository,
+        progress_repository: TrainerProgressRepository,
         workspace: ExerciseWorkspacePort,
         grader: GraderPort,
         editor: EditorPort,
         pack_importer,
-        compiler,
+        compiler: ConfigurableCompilerPort | None,
         workspace_root: Path,
-        config_repository=None,
+        config_repository: AppSettingsRepository | None = None,
         workspace_port=None,
         clock: Callable[[], datetime] | None = None,
         rng: random.Random | None = None,
+        runtimes: RuntimeRegistry | None = None,
     ) -> None:
+        """`runtimes`: um runtime por linguagem. Sem ele, registra só o CRuntime do `compiler`."""
         self._pack_catalog = pack_catalog
         self._progress_repository = progress_repository
         self._workspace = workspace
         self._grader = grader
         self._editor = editor
         self._pack_importer = pack_importer
-        self._compiler = compiler
+        if runtimes is None:
+            if compiler is None:
+                raise ValueError("Provide runtimes or a C compiler.")
+            from exam_trainer.adapters.runtime.c_runtime import CRuntime
+
+            runtimes = RuntimeRegistry([CRuntime(compiler, manager=compiler)])
+        self._runtimes = runtimes
         self._config_repository = config_repository
         self._workspace_port = workspace_port
         self._workspace_root = workspace_root
@@ -104,16 +117,13 @@ class MVPTrainerCoordinator:
         Só quando o exercise_id existe em exatamente um pack; nunca apaga nada. Falhas
         aqui não podem impedir o app de abrir.
         """
-        adopt = getattr(self._progress_repository, "adopt_legacy_attempts", None)
-        if adopt is None:
-            return 0
         try:
             owners: dict[str, set[str]] = {}
             for pack in self.list_packs():
                 for ref in self._pack_catalog.list_exercises(pack.id):
                     owners.setdefault(ref.definition.id, set()).add(pack.id)
             unique = {exercise_id: next(iter(packs)) for exercise_id, packs in owners.items() if len(packs) == 1}
-            return adopt(unique)
+            return self._progress_repository.adopt_legacy_attempts(unique)
         except Exception:  # noqa: BLE001 — migração oportunista, nunca bloqueia
             return 0
 
@@ -144,13 +154,11 @@ class MVPTrainerCoordinator:
         self._workspace_root = workspace.path
 
     def theme_key(self) -> str | None:
-        loader = getattr(self._config_repository, "load_theme", None)
-        return loader() if callable(loader) else None
+        return None if self._config_repository is None else self._config_repository.load_theme()
 
     def save_theme(self, theme_key: str) -> None:
-        saver = getattr(self._config_repository, "save_theme", None)
-        if callable(saver):
-            saver(theme_key)
+        if self._config_repository is not None:
+            self._config_repository.save_theme(theme_key)
 
     def editor_command(self) -> str:
         if self._config_repository is None:
@@ -166,30 +174,38 @@ class MVPTrainerCoordinator:
             self._config_repository.save_editor_command(str(executable))
         self._editor = SubprocessEditor(str(executable), editor_display_name(str(executable)))
 
-    def detected_compiler(self) -> str | None:
-        if hasattr(self._compiler, "find_compiler"):
-            return self._compiler.find_compiler()
-        return None
+    # ---------------------------------------------------------------- runtimes
+    def runtime(self, language: str) -> LanguageRuntime:
+        return self._runtimes.get(language)
 
+    def supported_languages(self) -> tuple[str, ...]:
+        return self._runtimes.languages()
+
+    def pack_language(self, pack_id: str | None) -> str:
+        if pack_id is None:
+            return DEFAULT_LANGUAGE
+        for pack in self.list_packs():
+            if pack.id == pack_id:
+                return pack.language
+        return DEFAULT_LANGUAGE
+
+    def runtime_ready(self, language: str) -> bool:
+        """Sem processo externo: seguro na thread da UI. False = ainda não verificado."""
+        return self._runtimes.has(language) and self._runtimes.get(language).is_ready()
+
+    def runtime_available(self, language: str) -> bool:
+        """Pode rodar processos (probe). Chamar fora da thread da UI."""
+        return self._runtimes.has(language) and self._runtimes.get(language).check_available()
+
+    # C: atalhos usados pela tela de Configurações > Compilador
     def current_compiler(self) -> str | None:
-        if hasattr(self._compiler, "current_compiler"):
-            return self._compiler.current_compiler()
-        return None
+        return self.runtime(DEFAULT_LANGUAGE).current_tool()
 
     def redetect_compiler(self) -> str | None:
-        if hasattr(self._compiler, "redetect"):
-            return self._compiler.redetect()
-        return self.detected_compiler()
+        return self.runtime(DEFAULT_LANGUAGE).redetect()
 
     def save_manual_compiler(self, compiler_path: Path) -> None:
-        if not hasattr(self._compiler, "validate_compiler"):
-            raise ValueError("Compiler adapter does not support manual validation.")
-        if not self._compiler.validate_compiler(compiler_path):
-            raise ValueError(
-                "Nenhum compilador C compatível com os exercícios foi encontrado nesse caminho."
-            )
-        if hasattr(self._compiler, "set_manual_compiler"):
-            self._compiler.set_manual_compiler(str(compiler_path))
+        self.runtime(DEFAULT_LANGUAGE).configure_manual(compiler_path)
         if self._config_repository is not None:
             self._config_repository.save_compiler_path(str(compiler_path))
 
@@ -253,18 +269,10 @@ class MVPTrainerCoordinator:
         return self._pack_importer.import_pack(source_path)
 
     def compiler_ready(self) -> bool:
-        """True se já se sabe, SEM rodar processo externo, que há compilador válido.
-
-        False significa "ainda não verificado": a UI deve chamar `compiler_available`
-        fora da thread principal.
-        """
-        cached = getattr(self._compiler, "cached_compiler", None)
-        if cached is None:
-            return self._compiler.is_available()  # adapters sem probe (fakes/testes)
-        return cached() is not None
+        return self.runtime_ready(DEFAULT_LANGUAGE)
 
     def compiler_available(self) -> bool:
-        return self._compiler.is_available()
+        return self.runtime_available(DEFAULT_LANGUAGE)
 
     def preflight_training(self) -> PreflightResult:
         if not self._workspace_root.exists():
@@ -273,14 +281,23 @@ class MVPTrainerCoordinator:
             return PreflightResult.failed("packs", "Importe ou recarregue um pack antes de treinar.")
         return PreflightResult.passed()
 
-    def preflight_exam(self) -> PreflightResult:
+    def preflight_exam(self, pack_id: str | None = None) -> PreflightResult:
         training = self.preflight_training()
         if not training.ok:
             return training
-        if not self.compiler_available():
+        return self.preflight_runtime(self.pack_language(pack_id))
+
+    def preflight_runtime(self, language: str) -> PreflightResult:
+        """O runtime da linguagem do pack está pronto? (pode rodar o probe)."""
+        if not self._runtimes.has(language):
             return PreflightResult.failed(
-                "compiler",
-                "Configure um compilador C compatível antes de iniciar a prova.",
+                "packs", f"Este app não executa exercícios em '{language}'. Atualize o app ou use outro pack."
+            )
+        runtime = self._runtimes.get(language)
+        if not runtime.check_available():
+            return PreflightResult.failed(
+                runtime.display_name.lower(),
+                f"Configure {runtime.display_name} antes de continuar (linguagem do pack: {language}).",
             )
         return PreflightResult.passed()
 

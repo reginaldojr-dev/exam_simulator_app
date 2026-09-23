@@ -217,6 +217,10 @@ Exam mode keeps the existing rules:
 - finishing removes only `workspace/exam/<session_id>/`;
 - a correction that is already running when the deadline passes is finished and counted; the exam is then closed as `timeout` with the updated score.
 
+## Grading architecture
+
+`GenericGrader` → `ExecutionStrategy` → `RuntimeRegistry` → language runtime (`CRuntime` today). The grader owns test cases, expectations, comparison, fail-fast, trace and seeds; the runtime owns availability, build/prepare, execution and timeouts. Preflight uses the pack language. See [`docs/runtimes.md`](docs/runtimes.md).
+
 ## Responsiveness (UI thread)
 
 Anything that starts an external process or does heavy disk work runs outside the Qt main thread, through `adapters/ui/qt/task_runner.py` (`QThreadPool` + `QRunnable`):

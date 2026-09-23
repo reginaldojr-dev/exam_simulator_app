@@ -52,6 +52,15 @@ class AvailableCompiler:
     def current_compiler(self) -> str:
         return "gcc"
 
+    def cached_compiler(self) -> str | None:
+        return "gcc"
+
+    def validate_compiler(self, compiler_path) -> bool:
+        return True
+
+    def set_manual_compiler(self, compiler_path) -> None:
+        pass
+
     def compile(self, source_files: list[Path], output_path: Path) -> CompilationResult:
         return CompilationResult(success=True, executable_path=output_path)
 
