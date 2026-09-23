@@ -64,7 +64,7 @@ class LocalPackCatalog:
             level_path = pack_root / level.path
             for exercise_json in sorted(level_path.glob("*/exercise.json")):
                 try:
-                    definition = self._exercise_loader.load(exercise_json)
+                    definition = self._exercise_loader.load(exercise_json, pack.language)
                 except ExerciseDefinitionError as error:
                     self._load_errors[str(exercise_json)] = str(error)
                     continue

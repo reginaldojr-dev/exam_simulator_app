@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path, PurePath
 from typing import Any
 
 from exam_trainer.application.capabilities import (
+    HARNESS_FROM_APP,
+    HARNESS_FROM_PACK,
     ExerciseCapabilities,
     default_exercise_capabilities,
 )
@@ -15,16 +18,37 @@ from exam_trainer.domain.identifiers import (
     validate_simple_filename,
 )
 from exam_trainer.domain.exercise_definition import (
+    FUNCTION_CALL,
+    PROGRAM_OUTPUT,
     ExerciseDefinition,
     ExecutionDefinition,
     LimitsDefinition,
+    ReferenceDefinition,
     SubmissionDefinition,
     TestCaseDefinition,
     TestDefinition,
 )
+from exam_trainer.adapters.contract_fields import read_schema_version, read_topics
+from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE
 
 
 DEFAULT_TIMEOUT_SECONDS = 2
+V2_EXERCISE_KEYS = frozenset(
+    (
+        "schema_version",
+        "id",
+        "name",
+        "subject",
+        "topics",
+        "submission",
+        "execution",
+        "reference",
+        "tests",
+        "limits",
+        "support_files",
+    )
+)
+
 
 
 class ExerciseDefinitionError(ValueError):
@@ -40,7 +64,7 @@ class JsonExerciseDefinitionLoader:
         self._capabilities = capabilities or default_exercise_capabilities()
         self._default_timeout_seconds = default_timeout_seconds
 
-    def load(self, exercise_json_path: Path | str) -> ExerciseDefinition:
+    def load(self, exercise_json_path: Path | str, language: str = DEFAULT_LANGUAGE) -> ExerciseDefinition:
         path = Path(exercise_json_path)
         try:
             raw_data = json.loads(path.read_text(encoding="utf-8"))
@@ -53,19 +77,45 @@ class JsonExerciseDefinitionLoader:
                 f"Could not read exercise definition: {error}."
             ) from error
 
-        return self.load_data(raw_data)
+        return self.load_data(raw_data, language)
 
-    def load_data(self, raw_data: Any) -> ExerciseDefinition:
+    def load_data(self, raw_data: Any, language: str = DEFAULT_LANGUAGE) -> ExerciseDefinition:
+        """Carrega v1 ou v2 e normaliza para o modelo neutro.
+
+        `language` vem do pack (v1 = "c"). O exercício herda a linguagem do pack.
+        """
         data = self._require_object(raw_data, "exercise definition")
+        schema_version = read_schema_version(data, ExerciseDefinitionError)
+        support = self._capabilities.language(language)
+        if support is None:
+            raise ExerciseDefinitionError(f"Unsupported language: {language}.")
+        if schema_version >= 2:
+            unknown = sorted(set(data) - V2_EXERCISE_KEYS)
+            if unknown:
+                raise ExerciseDefinitionError(f"Unknown field(s) in exercise.json v2: {', '.join(unknown)}.")
 
         exercise_id = self._require_identifier(data, "id")
         name = self._require_non_empty_string(data, "name")
         subject = self._require_relative_path(data, "subject")
         submission = self._read_submission(self._require_object_field(data, "submission"))
-        execution = self._read_execution(self._require_object_field(data, "execution"))
+        execution, legacy_reference = self._read_execution(
+            self._require_object_field(data, "execution"), language
+        )
+        reference = legacy_reference
+        if "reference" in data:
+            if schema_version < 2:
+                raise ExerciseDefinitionError("Top-level reference requires schema_version 2.")
+            if legacy_reference is not None:
+                raise ExerciseDefinitionError("Declare the reference only once (top-level reference).")
+            reference = self._read_reference(data["reference"])
         tests = self._read_tests(self._require_object_field(data, "tests"))
+        if tests.expectation == "reference_output" and reference is None and schema_version >= 2:
+            raise ExerciseDefinitionError("expectation reference_output requires a reference.")
         limits = self._read_limits(data.get("limits", {}))
         support_files = self._read_support_files(data.get("support_files", []))
+        topics = read_topics(data.get("topics", []), ExerciseDefinitionError)
+        if reference is not None and execution.reference != reference.source:
+            execution = replace(execution, reference=reference.source)
 
         return ExerciseDefinition(
             id=exercise_id,
@@ -76,6 +126,10 @@ class JsonExerciseDefinitionLoader:
             tests=tests,
             limits=limits,
             support_files=support_files,
+            reference=reference,
+            topics=topics,
+            schema_version=schema_version,
+            language=language,
         )
 
     def _read_submission(self, data: dict[str, Any]) -> SubmissionDefinition:
@@ -83,28 +137,93 @@ class JsonExerciseDefinitionLoader:
         self._validate_filename(filename)
         return SubmissionDefinition(filename=filename)
 
-    def _read_execution(self, data: dict[str, Any]) -> ExecutionDefinition:
-        execution_type = self._require_identifier(data, "type")
-        if not self._capabilities.executions.supports(execution_type):
-            raise ExerciseDefinitionError(f"Unknown execution type: {execution_type}.")
+    def _read_execution(
+        self, data: dict[str, Any], language: str
+    ) -> tuple[ExecutionDefinition, ReferenceDefinition | None]:
+        declared = self._require_identifier(data, "type")
+        if not self._capabilities.executions.supports(declared):
+            raise ExerciseDefinitionError(f"Unknown execution type: {declared}.")
+        support = self._capabilities.language(language)
+        assert support is not None  # validado em load_data
 
+        if "fixture" in data and "harness" in data:
+            raise ExerciseDefinitionError("Use execution.harness or execution.fixture, not both.")
         fixture = None
-        if "fixture" in data:
-            fixture = self._read_relative_path_value(data["fixture"], "execution.fixture")
-        reference = None
+        for key in ("harness", "fixture"):
+            if key in data:
+                fixture = self._read_relative_path_value(data[key], f"execution.{key}")
+        legacy_reference_path = None
         if "reference" in data:
-            reference = self._read_relative_path_value(data["reference"], "execution.reference")
+            legacy_reference_path = self._read_relative_path_value(data["reference"], "execution.reference")
+        entry = None
+        if "entry" in data:
+            entry = self._require_identifier(data, "entry")
+        args_format = None
+        if "args_format" in data:
+            args_format = self._require_identifier(data, "args_format")
 
-        if execution_type == "function_with_main" and fixture is None:
+        # ---- normalização dos aliases do v1 -------------------------------------
+        kind = declared
+        legacy_reference = None
+        if declared == "function_with_main":
+            if fixture is None:
+                raise ExerciseDefinitionError("execution.fixture is required for function_with_main.")
+            kind = FUNCTION_CALL
+        elif declared == "reference_compare":
+            if legacy_reference_path is None:
+                raise ExerciseDefinitionError("execution.reference is required for reference_compare.")
+            kind = FUNCTION_CALL if fixture is not None else PROGRAM_OUTPUT
+            legacy_reference = ReferenceDefinition(source=legacy_reference_path, harness=fixture)
+        elif legacy_reference_path is not None:
             raise ExerciseDefinitionError(
-                "execution.fixture is required for function_with_main."
-            )
-        if execution_type == "reference_compare" and reference is None:
-            raise ExerciseDefinitionError(
-                "execution.reference is required for reference_compare."
+                "execution.reference is only valid with reference_compare; use a top-level reference."
             )
 
-        return ExecutionDefinition(type=execution_type, fixture=fixture, reference=reference)
+        # ---- regras por linguagem ------------------------------------------------
+        if kind not in support.executions:
+            raise ExerciseDefinitionError(
+                f"Execution type {declared} is not supported for language {language}."
+            )
+        if kind == FUNCTION_CALL and support.function_harness == HARNESS_FROM_PACK and fixture is None:
+            raise ExerciseDefinitionError(
+                f"execution.harness is required for function_call in {language} (the pack provides it)."
+            )
+        if support.function_harness == HARNESS_FROM_APP:
+            if fixture is not None:
+                raise ExerciseDefinitionError(
+                    f"execution.harness is not allowed for {language}: the app provides the harness."
+                )
+            if kind == FUNCTION_CALL:
+                if entry is None:
+                    raise ExerciseDefinitionError(f"execution.entry is required for function_call in {language}.")
+                args_format = args_format or "json"
+                if args_format not in support.args_formats:
+                    raise ExerciseDefinitionError(f"Unsupported execution.args_format: {args_format}.")
+        elif entry is not None or args_format is not None:
+            raise ExerciseDefinitionError(
+                f"execution.entry/args_format are not used for {language}; declare a harness instead."
+            )
+
+        execution = ExecutionDefinition(
+            type=kind,
+            fixture=fixture,
+            reference=legacy_reference_path,
+            entry=entry,
+            args_format=args_format,
+            declared_type=declared,
+        )
+        return execution, legacy_reference
+
+    def _read_reference(self, raw: Any) -> ReferenceDefinition:
+        data = self._require_object(raw, "reference")
+        unknown = sorted(set(data) - {"source", "harness"})
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in reference: {', '.join(unknown)}.")
+        source = self._require_relative_path(data, "source")
+        harness = None
+        if "harness" in data:
+            harness = self._read_relative_path_value(data["harness"], "reference.harness")
+        return ReferenceDefinition(source=source, harness=harness)
 
     def _read_tests(self, data: dict[str, Any]) -> TestDefinition:
         generator = self._require_identifier(data, "generator")

@@ -105,7 +105,7 @@ class LocalPackImporter:
             if not exercise_files:
                 raise PackImportError(f"No exercises found in level: {level.id}")
             for exercise_file in exercise_files:
-                exercise_id, files = self._validate_exercise(pack_root, exercise_file)
+                exercise_id, files = self._validate_exercise(pack_root, exercise_file, pack.language)
                 if exercise_id in seen_ids:
                     raise PackImportError(f"Duplicated exercise id in pack: {exercise_id}")
                 seen_ids.add(exercise_id)
@@ -117,10 +117,10 @@ class LocalPackImporter:
             executable_files=tuple(executable),
         )
 
-    def _validate_exercise(self, pack_root: Path, exercise_file: Path) -> tuple[str, list[str]]:
+    def _validate_exercise(self, pack_root: Path, exercise_file: Path, language: str) -> tuple[str, list[str]]:
         relative = exercise_file.relative_to(pack_root)
         try:
-            definition = self._exercise_loader.load(exercise_file)
+            definition = self._exercise_loader.load(exercise_file, language)
         except ExerciseDefinitionError as error:
             raise PackImportError(f"{relative}: {error}") from error
 
@@ -140,10 +140,8 @@ class LocalPackImporter:
                 executable.append(path.relative_to(pack_root).as_posix())
 
         check(definition.subject, "subject")
-        if definition.execution.fixture is not None:
-            check(definition.execution.fixture, "fixture", runnable=True)
-        if definition.execution.reference is not None:
-            check(definition.execution.reference, "reference", runnable=True)
+        for executable_file in definition.executable_files:
+            check(executable_file, "harness/reference", runnable=True)
         for support_file in definition.support_files:
             check(support_file, "support")
         return definition.id, executable

@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import PurePath
 
 LEGACY_EXAM_DURATION_SECONDS = 4 * 60 * 60
+DEFAULT_LANGUAGE = "c"
+SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,10 @@ class PackDefinition:
     # Duração da prova declarada pelo pack (`exam.duration_minutes`).
     # None = pack não declarou; use `exam_duration_seconds_or_default`.
     exam_duration_seconds: int | None = None
+    # Contrato v2. Pack v1 (sem schema_version) é normalizado: language="c", topics=().
+    schema_version: int = 1
+    language: str = DEFAULT_LANGUAGE
+    topics: tuple[str, ...] = ()
 
     @property
     def exam_duration_seconds_or_default(self) -> int:

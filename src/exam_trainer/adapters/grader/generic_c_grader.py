@@ -16,6 +16,7 @@ from exam_trainer.application.engine.generators import (
 )
 from exam_trainer.application.engine.test_case_service import TestCaseService
 from exam_trainer.application.engine.trace_builder import TraceBuilder
+from exam_trainer.domain.exercise_definition import FUNCTION_CALL
 from exam_trainer.domain.grading import GradingResult, TestResult
 from exam_trainer.ports.compiler_port import CompilationResult, CompilerPort
 from exam_trainer.ports.grader_port import GraderPort, GradingRequest
@@ -70,7 +71,7 @@ class GenericCGrader:
 
         test_cases = self._test_case_service.build_cases(definition, seed)
         reference_executable_path: Path | None = None
-        if definition.execution.type == "reference_compare":
+        if definition.reference is not None:
             try:
                 reference_sources = self._reference_source_files_for_request(request)
             except ValueError as error:
@@ -137,44 +138,34 @@ class GenericCGrader:
         request: GradingRequest,
         source_file: Path,
     ) -> list[Path]:
-        execution = request.definition.execution
-        if execution.type == "program_output":
+        """Submissão + harness do pack (se houver). Mesmo resultado do contrato v1:
+        program_output -> [submissão]; function_with_main/reference_compare com fixture -> [fixture, submissão].
+        """
+        harness = request.definition.execution.harness
+        if request.definition.execution.type == FUNCTION_CALL and harness is None:
+            raise ValueError("Missing harness declaration for function_call.")
+        if harness is None:
             return [source_file]
-
-        if execution.type == "function_with_main":
-            if execution.fixture is None:
-                raise ValueError("Missing fixture declaration for function_with_main.")
-            fixture_path = request.exercise_path / execution.fixture
-            if not fixture_path.is_file():
-                raise ValueError(f"Required fixture not found: {fixture_path}")
-            return [fixture_path, source_file]
-
-        if execution.type == "reference_compare":
-            if execution.fixture is None:
-                return [source_file]
-            fixture_path = request.exercise_path / execution.fixture
-            if not fixture_path.is_file():
-                raise ValueError(f"Required fixture not found: {fixture_path}")
-            return [fixture_path, source_file]
-
-        raise ValueError(f"Unsupported execution type for grader: {execution.type}")
+        return [self._pack_file(request, harness, "harness"), source_file]
 
     def _reference_source_files_for_request(
         self,
         request: GradingRequest,
     ) -> list[Path]:
-        execution = request.definition.execution
-        if execution.reference is None:
-            raise ValueError("Missing reference declaration for reference_compare.")
-        reference_path = request.exercise_path / execution.reference
-        if not reference_path.is_file():
-            raise ValueError(f"Required reference not found: {reference_path}")
-        if execution.fixture is None:
-            return [reference_path]
-        fixture_path = request.exercise_path / execution.fixture
-        if not fixture_path.is_file():
-            raise ValueError(f"Required fixture not found: {fixture_path}")
-        return [fixture_path, reference_path]
+        reference = request.definition.reference
+        if reference is None:
+            raise ValueError("Missing reference declaration.")
+        source = self._pack_file(request, reference.source, "reference")
+        if reference.harness is None:
+            return [source]
+        return [self._pack_file(request, reference.harness, "harness"), source]
+
+    @staticmethod
+    def _pack_file(request: GradingRequest, relative, label: str) -> Path:
+        path = request.exercise_path / relative
+        if not path.is_file():
+            raise ValueError(f"Required {label} not found: {path}")
+        return path
 
     @staticmethod
     def _run_test_case(

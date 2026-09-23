@@ -9,7 +9,7 @@ from exam_trainer.adapters.exercise_definition.json_loader import (
     ExerciseDefinitionError,
     JsonExerciseDefinitionLoader,
 )
-from exam_trainer.domain.exercise_definition import ExerciseDefinition
+from exam_trainer.domain.exercise_definition import ExerciseDefinition, ReferenceDefinition
 
 
 def valid_definition_data() -> dict[str, object]:
@@ -188,7 +188,13 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
 
         definition = JsonExerciseDefinitionLoader().load_data(data)
 
-        self.assertEqual(definition.execution.type, "reference_compare")
+        # v1 `reference_compare` é normalizado: execução neutra + reference desacoplada
+        self.assertEqual(definition.execution.declared_type, "reference_compare")
+        self.assertEqual(definition.execution.type, "function_call")
+        self.assertEqual(
+            definition.reference,
+            ReferenceDefinition(source=PurePath("fixtures/reference.c"), harness=PurePath("fixtures/main.c")),
+        )
         self.assertEqual(definition.execution.fixture, PurePath("fixtures/main.c"))
         self.assertEqual(definition.execution.reference, PurePath("fixtures/reference.c"))
         self.assertEqual(definition.tests.cases[0].args, ("alpha", "beta"))

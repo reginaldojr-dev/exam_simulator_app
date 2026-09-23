@@ -36,6 +36,7 @@ from exam_trainer.adapters.ui.qt.components.cursor import CursorController
 from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
 from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
+from exam_trainer.resources import pack_contract_text
 from exam_trainer.application.mvp_models import ActiveExercise, CorrectionOutcome, ExerciseRef
 from exam_trainer.application.use_cases.mvp_coordinator import (
     ExamState,
@@ -1241,136 +1242,24 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _pack_help_content() -> str:
+        """Contrato de pack (fonte única: resources/pack-contract.md) + capabilities ativas."""
         capabilities = default_exercise_capabilities()
         executions = ", ".join(sorted(capabilities.executions.supported))
         generators = ", ".join(sorted(capabilities.generators.supported))
         expectations = ", ".join(sorted(capabilities.expectations.supported))
-        return f"""O 42 Exam Trainer não é limitado ao Rank 02.
-Qualquer rank, trilha ou coleção de exercícios pode virar um pack, desde que siga
-o contrato abaixo e use capabilities suportadas pela engine.
-
-Estrutura mínima:
-
-my_pack/
-├── pack.json
-└── level0/
-    └── steady_echo/
-        ├── exercise.json
-        └── subject.md
-
-Para exercícios de função, adicione uma fixture de main quando necessário:
-
-sum_values/
-├── exercise.json
-├── subject.md
-└── fixtures/
-    └── main.c
-
-pack.json:
-
-{{
-  "id": "my_rank",
-  "name": "My Rank",
-  "version": "1.0.0",
-  "levels": [
-    {{ "id": "level0", "path": "level0" }},
-    {{ "id": "level1", "path": "level1" }}
-  ]
-}}
-
-exercise.json para programa com argv/stdout:
-
-{{
-  "id": "steady_echo",
-  "name": "Steady Echo",
-  "subject": "subject.md",
-  "submission": {{
-    "filename": "steady_echo.c"
-  }},
-  "execution": {{
-    "type": "program_output"
-  }},
-  "tests": {{
-    "generator": "random_arguments",
-    "expectation": "echo_arguments"
-  }},
-  "limits": {{
-    "timeout_seconds": 2
-  }}
-}}
-
-exercise.json para função testada com main.c:
-
-{{
-  "id": "sum_values",
-  "name": "Sum Values",
-  "subject": "subject.md",
-  "submission": {{
-    "filename": "sum_values.c"
-  }},
-  "execution": {{
-    "type": "function_with_main",
-    "fixture": "fixtures/main.c"
-  }},
-  "tests": {{
-    "generator": "random_int_array",
-    "expectation": "sum_integers"
-  }},
-  "limits": {{
-    "timeout_seconds": 2
-  }}
-}}
-
-subject.md:
-
-Use texto em estilo de prova, preservando quebras de linha:
-
-Assignment name  : steady_echo
-Expected files   : steady_echo.c
-Allowed functions: write
---------------------------------------------------------------------------------
-
-Write a program...
-
-Examples:
-
-$> ./steady_echo hello world | cat -e
-hello world$
-$>
-
-Fixtures e arquivos de apoio:
-
-- main.c/fixtures só devem preparar o teste, nunca conter a solução.
-- Caminhos são relativos ao diretório do exercício.
-- Se declarar fixture ou support_files no JSON, o arquivo precisa existir no pack.
-
-Execution types disponíveis:
-{executions}
-
-Generators disponíveis:
-{generators}
-
-Expectations disponíveis:
-{expectations}
-
-Validação e importação:
-
-1. Crie a pasta do pack ou um .zip contendo o pack.
-2. Abra Configurações > Packs.
-3. Clique em [ IMPORTAR PACK ].
-4. O app valida pack.json, exercise.json, subject.md, fixtures e capabilities.
-5. Se qualquer exercício falhar, o pack inteiro é rejeitado.
-6. Se passar, o pack é copiado para o diretório gerenciado do app.
-
-Segurança:
-
-- Packs não declaram comandos shell, graders próprios nem plugins.
-- ATENÇÃO: fixtures (ex.: main.c) e references são COMPILADOS E EXECUTADOS
-  no seu computador durante a correção, com as permissões do seu usuário.
-  Não existe sandbox. Importe apenas packs de fontes confiáveis.
-- A importação nunca executa nada: ela valida ids, caminhos, recusa symlinks
-  e ZIPs perigosos, e pede confirmação se o pack tiver código executável.
-"""
+        languages = ", ".join(sorted(capabilities.languages))
+        active = (
+            "Capabilities deste app\n"
+            f"  linguagens   : {languages}\n"
+            f"  execution    : {executions}\n"
+            f"  generators   : {generators}\n"
+            f"  expectations : {expectations}\n\n"
+        )
+        try:
+            contract = pack_contract_text()
+        except OSError:
+            contract = "Documentação do contrato não encontrada nesta instalação."
+        return active + contract
 
     def _change_workspace(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "Selecionar nova workspace")

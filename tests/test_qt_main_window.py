@@ -197,6 +197,10 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("function_with_main", content)
             self.assertIn("random_arguments", content)
             self.assertIn("echo_arguments", content)
+            # fonte única: a ajuda mostra o mesmo arquivo do contrato que o README referencia
+            from exam_trainer.resources import pack_contract_text
+
+            self.assertIn(pack_contract_text().strip(), content)
 
     def test_global_style_does_not_use_neon_green_as_solid_button_background(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

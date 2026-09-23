@@ -16,7 +16,13 @@ class TraceBuilder:
             (
                 "=== 42 Exam Trainer Trace ===",
                 f"Exercise: {definition.name} ({definition.id})",
-                f"Execution: {definition.execution.type}",
+                f"Execution: {definition.execution.type}"
+                + (
+                    f" (declared: {definition.execution.declared_type})"
+                    if definition.execution.declared_type not in (None, definition.execution.type)
+                    else ""
+                ),
+                f"Language: {definition.language}",
                 f"Workspace: {workspace_path}",
                 "",
             )
