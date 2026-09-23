@@ -9,3 +9,4 @@ Crie um ADR novo que substitui o antigo (não reescreva o histórico).
 | [0002](0002-exam-duration-from-pack.md) | Duração da prova vem do pack, fallback 4h | Aceita |
 | [0003](0003-training-vs-exam-progress.md) | Prova não altera o progresso pedagógico de treino | Aceita |
 | [0004](0004-pack-code-is-executable.md) | Código de pack é executável; sem sandbox | Aceita |
+| [0005](0005-runtime-per-language.md) | Um runtime por linguagem, contrato neutro | Aceita |

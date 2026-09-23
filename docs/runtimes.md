@@ -43,3 +43,17 @@ O preflight da prova e da correção usa a linguagem do pack (`pack.language`):
 3. Registrar o runtime na factory.
 4. Documentar em `src/exam_trainer/resources/pack-contract.md` (seção Linguagens) e criar um pack autoral mínimo com PASS/FAIL/erro/timeout.
 5. Testes: runtime isolado + grader com esse runtime + regressão dos packs C.
+
+## Próximas linguagens (passo 7 — só documentado, nada implementado)
+
+A interface está pronta; nenhuma linguagem além de C e Python é executada hoje. Um pack com
+`language` fora de `c`/`python` é recusado na importação.
+
+| Linguagem | Preparação | `function_call` | Pontos de atenção |
+| --- | --- | --- | --- |
+| C++ | compilar com g++/clang++ (reusar o probe do C) | harness do pack (`main.cpp`) | flags próprias; mesmo formato de saída do C |
+| JavaScript (Node) | `node --check` | harness do app (como Python) | detectar `node` do sistema; `--disallow-code-generation-from-strings` não é sandbox |
+| Java | `javac` para a pasta `.build` | harness do pack (classe `Main`) ou do app | JDK x JRE; tempo de start da JVM pede timeout maior |
+| Shell | `bash -n` | só `program_output` | execução de shell é exatamente o que o app evita: exigir decisão explícita antes |
+
+Decisões que precisam ser tomadas antes de qualquer uma delas: ver ADR 0005.
