@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import tempfile
+import threading
 import unittest
 import os
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
@@ -55,16 +56,61 @@ class AvailableCompiler:
         return CompilationResult(success=True, executable_path=output_path)
 
 
+class BlockingGrader:
+    """Segura a correção até o teste liberar, para observar a UI durante o trabalho."""
+
+    def __init__(self, passed: bool = False) -> None:
+        self.passed = passed
+        self.release = threading.Event()
+        self.started = threading.Event()
+        self.calls = 0
+        self.thread_ids: list[int] = []
+
+    def grade(self, request: GradingRequest) -> GradingResult:
+        self.calls += 1
+        self.thread_ids.append(threading.get_ident())
+        self.started.set()
+        self.release.wait(10)
+        return GradingResult(passed=self.passed, trace_data=TraceData(("trace",)))
+
+
+class FailingGrader:
+    def grade(self, request: GradingRequest) -> GradingResult:
+        raise RuntimeError("compilador sumiu")
+
+
+class SlowProbeCompiler(AvailableCompiler):
+    """Imita o SystemCCompiler: só sabe se há compilador depois de um probe."""
+
+    def __init__(self, found: bool = True) -> None:
+        super().__init__()
+        self.found = found
+        self._cached: str | None = None
+        self.probe_threads: list[int] = []
+
+    def cached_compiler(self) -> str | None:
+        return self._cached
+
+    def is_available(self) -> bool:
+        if self._cached is None:
+            self.probe_threads.append(threading.get_ident())
+            self._cached = "gcc" if self.found else None
+        return self._cached is not None
+
+    def current_compiler(self) -> str | None:
+        return self._cached
+
+
 class MainWindowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication([])
 
-    def _window(self, temp_dir: str, passed: bool = True) -> MainWindow:
+    def _window(self, temp_dir: str, passed: bool = True, grader=None, compiler=None) -> MainWindow:
         root = Path(temp_dir)
         workspace = root / "workspace"
         workspace.mkdir()
-        compiler = AvailableCompiler()
+        compiler = compiler or AvailableCompiler()
         self._compiler = compiler
         coordinator = MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(
@@ -73,7 +119,7 @@ class MainWindowTest(unittest.TestCase):
             ),
             progress_repository=SQLiteProgressRepository(SQLiteStore(root / "trainer.sqlite3")),
             workspace=LocalExerciseWorkspace(),
-            grader=StaticGrader(passed),
+            grader=grader or StaticGrader(passed),
             editor=SubprocessEditor("definitely-not-used"),
             pack_importer=LocalPackImporter(root / "managed"),
             compiler=compiler,
@@ -220,6 +266,7 @@ class MainWindowTest(unittest.TestCase):
             window._show_training_fail_feedback = lambda: None
             window._load_exercise(ref, mode="training", overwrite=True)
             window._submit_current()
+            self.assertTrue(window._tasks.wait())
 
             window._show_history()
 
@@ -260,6 +307,7 @@ class MainWindowTest(unittest.TestCase):
             window._load_exercise(ref, mode="training", overwrite=True)
 
             window._submit_current()
+            self.assertTrue(window._tasks.wait())
 
             self.assertFalse(window._feedback.isHidden())
             self.assertEqual(window._feedback.headline, "[✗] FAIL")
@@ -285,6 +333,98 @@ class MainWindowTest(unittest.TestCase):
 
             self.assertEqual(window._cursor._titles[window._title_home], "EXAM TRAINER")
             self.assertEqual(window.windowTitle(), "42 Exam Trainer")
+
+    def test_grading_runs_off_the_ui_thread_and_blocks_duplicate_submissions(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            grader = BlockingGrader(passed=False)
+            window = self._window(temp_dir, grader=grader)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+
+            window._submit_current()
+            self.assertTrue(grader.started.wait(5))
+            # a UI já voltou: botão travado com o rótulo de progresso
+            self.assertFalse(window._correct_button.isEnabled())
+            self.assertEqual(window._correct_button.text(), "CORRIGINDO...")
+            window._submit_current()  # clique duplicado é ignorado
+            grader.release.set()
+            self.assertTrue(window._tasks.wait())
+
+            self.assertEqual(grader.calls, 1)
+            self.assertNotEqual(grader.thread_ids[0], threading.get_ident())
+            self.assertTrue(window._correct_button.isEnabled())
+            self.assertEqual(window._correct_button.text(), "> CORRIGIR")
+            self.assertEqual(window._feedback.headline, "[✗] FAIL")
+
+    def test_exam_timer_keeps_running_while_grading_and_does_not_finish_mid_correction(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            grader = BlockingGrader(passed=False)
+            window = self._window(temp_dir, grader=grader)
+            state = window._coordinator.start_exam("sample_rank", 60)
+            window._exam_state = state
+            window._load_exercise(window._coordinator.exam_ref(state), mode="exam", overwrite=True)
+
+            window._submit_current()
+            self.assertTrue(grader.started.wait(5))
+            window._tick_exam()  # timer segue desenhando durante a correção
+            self.assertIsNotNone(window._exam_state)
+            self.assertIn("⏱", window._exam_timer_label.text())
+            grader.release.set()
+            self.assertTrue(window._tasks.wait())
+            self.assertIsNotNone(window._exam_state)
+            window._coordinator.finish_exam(window._exam_state, "abandoned", 0)
+
+    def test_grading_error_is_shown_as_message_not_traceback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, grader=FailingGrader())
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+            shown: list[str] = []
+            original = QMessageBox.warning
+            QMessageBox.warning = staticmethod(lambda parent, title, text, *a, **k: shown.append(text))
+            try:
+                window._submit_current()
+                self.assertTrue(window._tasks.wait())
+            finally:
+                QMessageBox.warning = original
+            self.assertEqual(shown, ["compilador sumiu"])
+            self.assertTrue(window._correct_button.isEnabled())
+
+    def test_compiler_redetection_runs_in_background(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            window._refresh_compiler_setting()
+            self.assertTrue(window._tasks.wait())
+            self.assertEqual(self._compiler.redetect_calls, 1)
+            self.assertIn("gcc", window._settings_compiler.text())
+
+    def test_first_compiler_probe_runs_in_background_then_continues(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            compiler = SlowProbeCompiler(found=True)
+            window = self._window(temp_dir, compiler=compiler)
+
+            window._open_exam_setup()
+            self.assertIsNot(window._stack.currentWidget(), window._exam_page)  # ainda detectando
+            self.assertTrue(window._tasks.wait())
+
+            self.assertIs(window._stack.currentWidget(), window._exam_page)
+            self.assertEqual(len(compiler.probe_threads), 1)
+            self.assertNotEqual(compiler.probe_threads[0], threading.get_ident())
+
+    def test_missing_compiler_after_background_probe_opens_settings(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            compiler = SlowProbeCompiler(found=False)
+            window = self._window(temp_dir, compiler=compiler)
+            original = QMessageBox.information
+            QMessageBox.information = staticmethod(lambda *a, **k: None)
+            try:
+                window._open_exam_setup()
+                self.assertTrue(window._tasks.wait())
+            finally:
+                QMessageBox.information = original
+            self.assertIs(window._stack.currentWidget(), window._settings_page)
+            self.assertIsNotNone(window._pending_action)
 
 
 if __name__ == "__main__":

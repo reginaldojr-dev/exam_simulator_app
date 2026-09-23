@@ -445,7 +445,19 @@ Exam mode keeps the existing rules:
 - timeout saves partial score;
 - closing/reopening can resume the active session while there is time left;
 - the exam state is saved on events (start, correction, level change, finish), not every second;
-- finishing removes only `workspace/exam/<session_id>/`.
+- finishing removes only `workspace/exam/<session_id>/`;
+- a correction that is already running when the deadline passes is finished and counted; the exam is then closed as `timeout` with the updated score.
+
+## Responsiveness (UI thread)
+
+Anything that starts an external process or does heavy disk work runs outside the Qt main thread, through `adapters/ui/qt/task_runner.py` (`QThreadPool` + `QRunnable`):
+
+- correcting an exercise (compile + run), in training and in exam;
+- validating and importing a pack (folder or ZIP);
+- detecting/re-detecting the compiler and validating a manually selected compiler;
+- the compiler probe done by the preflight of the exam screens.
+
+While a correction runs the button shows `CORRIGINDO...` and is disabled; a second click is ignored (one task per key). The exam timer keeps ticking. Errors come back as a message box, never as a traceback. Closing the window waits (up to 15 s) for a running correction/import to finish writing.
 
 ## Trace
 

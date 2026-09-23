@@ -219,6 +219,17 @@ class MVPTrainerCoordinator:
     def import_pack(self, source_path: Path) -> PackDefinition:
         return self._pack_importer.import_pack(source_path)
 
+    def compiler_ready(self) -> bool:
+        """True se já se sabe, SEM rodar processo externo, que há compilador válido.
+
+        False significa "ainda não verificado": a UI deve chamar `compiler_available`
+        fora da thread principal.
+        """
+        cached = getattr(self._compiler, "cached_compiler", None)
+        if cached is None:
+            return self._compiler.is_available()  # adapters sem probe (fakes/testes)
+        return cached() is not None
+
     def compiler_available(self) -> bool:
         return self._compiler.is_available()
 
@@ -448,6 +459,10 @@ class MVPTrainerCoordinator:
             self.finish_exam(expired, "timeout", expired.score)
             return None
         return replace(state, remaining_seconds=remaining)
+
+    def remaining_seconds(self, state: ExamState) -> int:
+        """Tempo restante pelo deadline absoluto, sem efeitos colaterais."""
+        return self._remaining(state)
 
     def _remaining(self, state: ExamState) -> int:
         return max(0, int((state.deadline_at - self._clock()).total_seconds()))

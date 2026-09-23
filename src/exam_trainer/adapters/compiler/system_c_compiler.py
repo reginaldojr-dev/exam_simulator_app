@@ -24,6 +24,10 @@ class SystemCCompiler:
     def is_available(self) -> bool:
         return self.find_compiler() is not None
 
+    def cached_compiler(self) -> str | None:
+        """Compilador já validado nesta execução (não roda nenhum processo)."""
+        return self._detected_compiler
+
     def current_compiler(self) -> str | None:
         return self._detected_compiler or self._manual_compiler
 

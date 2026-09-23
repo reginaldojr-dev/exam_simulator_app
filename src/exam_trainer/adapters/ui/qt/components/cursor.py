@@ -91,17 +91,26 @@ class CursorController(QObject):
 
     # ---------- eventos ----------
     def eventFilter(self, source: QObject, event: QEvent) -> bool:
-        if isinstance(source, QPushButton) and source in self._tracked:
-            kind = event.type()
-            if kind in (QEvent.Type.Enter, QEvent.Type.FocusIn):
-                self._focus = source
-                self._render()
-            elif kind in (QEvent.Type.Leave, QEvent.Type.FocusOut):
-                if self._focus is source:
-                    focused = QApplication.focusWidget()
-                    self._focus = focused if isinstance(focused, QPushButton) and focused in self._tracked and focused is not source else None
-                    self._render()
+        # Na destruição da janela o Qt ainda entrega Leave/FocusOut aos botões
+        # enquanto labels/estado já foram liberados: isso não pode virar traceback.
+        try:
+            self._handle_event(source, event)
+        except (AttributeError, RuntimeError):
+            pass
         return False
+
+    def _handle_event(self, source: QObject, event: QEvent) -> None:
+        if not (isinstance(source, QPushButton) and source in self._tracked):
+            return
+        kind = event.type()
+        if kind in (QEvent.Type.Enter, QEvent.Type.FocusIn):
+            self._focus = source
+            self._render()
+        elif kind in (QEvent.Type.Leave, QEvent.Type.FocusOut):
+            if self._focus is source:
+                focused = QApplication.focusWidget()
+                self._focus = focused if isinstance(focused, QPushButton) and focused in self._tracked and focused is not source else None
+                self._render()
 
     # ---------- render ----------
     def _tick(self) -> None:

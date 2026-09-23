@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
 from exam_trainer.adapters.editor.subprocess_editor import resolve_known_editor
 from exam_trainer.adapters.ui.qt.components import widgets as ui
 from exam_trainer.adapters.ui.qt.components.cursor import CursorController
+from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
 from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
 from exam_trainer.application.mvp_models import ActiveExercise, CorrectionOutcome, ExerciseRef
@@ -57,10 +59,12 @@ class MainWindow(QMainWindow):
         workspace_path: Path,
         coordinator: MVPTrainerCoordinator,
         theme_manager: ThemeManager | None = None,
+        task_runner: TaskRunner | None = None,
     ) -> None:
         super().__init__()
         self._workspace_path = workspace_path
         self._coordinator = coordinator
+        self._tasks = task_runner or TaskRunner(self)
         self._active: ActiveExercise | None = None
         self._last_outcome: CorrectionOutcome | None = None
         self._training_options: TrainingOptions | None = None
@@ -602,10 +606,62 @@ class MainWindow(QMainWindow):
         self._go(self._training_page)
 
     def _open_exam_setup(self) -> None:
+        if not self._compiler_checked(self._open_exam_setup):
+            return
         if not self._handle_preflight(self._coordinator.preflight_exam(), self._open_exam_setup):
             return
         self._show_resume_if_needed()
         self._go(self._exam_page)
+
+    # ------------------------------------------------ tarefas em segundo plano
+    def _run_task(
+        self,
+        key: str,
+        work: Callable[[], object],
+        on_done: Callable[[object], None],
+        title: str,
+        on_finally: Callable[[], None] | None = None,
+    ) -> bool:
+        """Roda `work` fora da thread da UI. Erros viram mensagem, nunca traceback."""
+
+        def done(result: object) -> None:
+            if on_finally is not None:
+                on_finally()
+            on_done(result)
+
+        def failed(error: BaseException) -> None:
+            if on_finally is not None:
+                on_finally()
+            QMessageBox.warning(self, title, str(error) or error.__class__.__name__)
+
+        return self._tasks.start(key, work, done, failed)
+
+    def _compiler_checked(self, then: Callable[[], None]) -> bool:
+        """True se o compilador já foi validado. Senão detecta em segundo plano e chama `then` depois.
+
+        A detecção roda processos externos (probe do compilador) e pode demorar.
+        Se não houver compilador, `then` roda de novo e o preflight normal mostra a
+        mensagem de configuração (a verificação seguinte volta a ser em segundo plano).
+        """
+        if self._coordinator.compiler_ready():
+            return True
+        if self._tasks.is_busy("compiler"):
+            return False
+        self._home_status.setText("detectando compilador...")
+        self._run_task(
+            "compiler",
+            self._coordinator.compiler_available,
+            lambda available: then() if available else self._compiler_missing(then),
+            "Compilador",
+            on_finally=self._refresh_home_status,
+        )
+        return False
+
+    def _compiler_missing(self, resume: Callable[[], None]) -> None:
+        self._handle_preflight(
+            PreflightResult.failed("compiler", "Configure um compilador C compatível antes de continuar."),
+            resume,
+        )
 
     def _handle_preflight(self, preflight: PreflightResult, resume: Callable[[], None]) -> bool:
         if preflight.ok:
@@ -761,36 +817,66 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Editor", str(error))
 
     def _submit_current(self) -> None:
-        if self._active is None:
+        if self._active is None or self._tasks.is_busy("submit"):
             return
-        if not self._coordinator.compiler_available():
-            self._handle_preflight(PreflightResult.failed("compiler", "Configure um compilador C compatível antes de corrigir."), self._submit_current)
+        if not self._compiler_checked(self._submit_current):
             return
-        try:
-            if self._mode == "exam" and self._exam_state is not None:
-                outcome, next_state = self._coordinator.submit_exam(self._exam_state, self._active)
-                self._last_outcome = outcome
-                self._trace_button.setEnabled(True)
-                if next_state is None:
-                    self._timer.stop()
-                    self._show_pass_feedback("PROVA CONCLUÍDA — nota 100%.")
-                    self._show_resume_if_needed()
-                    return
-                if outcome.result.passed:
-                    self._exam_state = next_state
-                    self._load_exercise(self._coordinator.exam_ref(next_state), mode="exam")
-                    self._show_pass_feedback("Exercício anterior concluído. Próximo exercício carregado.")
-                    return
-                self._show_fail_feedback("Você continua neste exercício. Corrija e envie de novo.")
+        active = self._active
+        if self._mode == "exam":
+            if self._exam_state is None:
                 return
-            self._last_outcome = self._coordinator.submit_training(self._active)
-            self._trace_button.setEnabled(True)
-            if self._last_outcome.result.passed:
-                self._show_training_pass_feedback()
-            else:
-                self._show_training_fail_feedback()
-        except Exception as error:
-            QMessageBox.warning(self, "Correção", str(error))
+            self._tick_exam()
+            if self._exam_state is None:  # o tempo acabou antes de enviar
+                return
+            state = self._exam_state
+            work = lambda: self._coordinator.submit_exam(state, active)  # noqa: E731
+            on_done = lambda result: self._on_exam_graded(active, result)  # noqa: E731
+        else:
+            work = lambda: self._coordinator.submit_training(active)  # noqa: E731
+            on_done = lambda outcome: self._on_training_graded(active, outcome)  # noqa: E731
+        self._set_grading(True)
+        self._run_task("submit", work, on_done, "Correção", on_finally=lambda: self._set_grading(False))
+
+    def _set_grading(self, busy: bool) -> None:
+        self._correct_button.setEnabled(not busy)
+        self._cursor.set_button_text(self._correct_button, "CORRIGINDO..." if busy else "> CORRIGIR")
+        self._next_button.setEnabled(not busy and self._mode == "training")
+
+    def _on_training_graded(self, active: ActiveExercise, outcome: CorrectionOutcome) -> None:
+        if self._active is not active:
+            return  # o usuário saiu do exercício; a tentativa já foi salva
+        self._last_outcome = outcome
+        self._trace_button.setEnabled(True)
+        if outcome.result.passed:
+            self._show_training_pass_feedback()
+        else:
+            self._show_training_fail_feedback()
+
+    def _on_exam_graded(self, active: ActiveExercise, result: tuple[CorrectionOutcome, ExamState | None]) -> None:
+        outcome, next_state = result
+        self._last_outcome = outcome
+        self._trace_button.setEnabled(True)
+        if next_state is None:
+            self._timer.stop()
+            self._exam_state = None
+            self._show_pass_feedback("PROVA CONCLUÍDA — nota 100%.")
+            self._show_resume_if_needed()
+            return
+        self._exam_state = next_state
+        # Se o prazo venceu enquanto corrigia, encerra agora (com a nota já atualizada).
+        self._tick_exam()
+        if self._exam_state is None:
+            return
+        if outcome.result.passed:
+            try:
+                self._load_exercise(self._coordinator.exam_ref(next_state), mode="exam")
+            except Exception as error:
+                QMessageBox.warning(self, "Prova", str(error))
+                return
+            self._show_pass_feedback("Exercício anterior concluído. Próximo exercício carregado.")
+            return
+        if self._active is active:
+            self._show_fail_feedback("Você continua neste exercício. Corrija e envie de novo.")
 
     def _show_training_fail_feedback(self) -> None:
         self._show_fail_feedback("Veja o trace técnico, ajuste no editor e corrija de novo.")
@@ -836,6 +922,8 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ prova
     def _start_exam(self) -> None:
+        if not self._compiler_checked(self._start_exam):
+            return
         if not self._handle_preflight(self._coordinator.preflight_exam(), self._start_exam):
             return
         pack_id = self._selected_exam_pack_id()
@@ -851,6 +939,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Prova", str(error))
 
     def _show_exam_prepare(self) -> None:
+        if not self._compiler_checked(self._show_exam_prepare):
+            return
         if not self._handle_preflight(self._coordinator.preflight_exam(), self._show_exam_prepare):
             return
         pack_id = self._selected_exam_pack_id()
@@ -913,6 +1003,12 @@ class MainWindow(QMainWindow):
 
     def _tick_exam(self) -> None:
         if self._exam_state is None:
+            return
+        if self._tasks.is_busy("submit"):
+            # Não encerra a prova no meio de uma correção: o timer continua
+            # desenhando e o encerramento acontece quando a correção volta.
+            remaining = self._coordinator.remaining_seconds(self._exam_state)
+            self._render_exam_timer(replace(self._exam_state, remaining_seconds=remaining))
             return
         state = self._coordinator.tick_exam(self._exam_state)
         if state is None:
@@ -1058,35 +1154,52 @@ class MainWindow(QMainWindow):
 
     # ---------------------------------------------------------- configurações
     def _import_pack(self) -> None:
+        if self._tasks.is_busy("import"):
+            return
         source, _ = QFileDialog.getOpenFileName(self, "Selecionar pack ZIP", "", "Pack ZIP (*.zip);;Todos os arquivos (*)")
         if not source:
             source = QFileDialog.getExistingDirectory(self, "Selecionar pasta do pack")
         if not source:
             return
-        try:
-            report = self._coordinator.inspect_pack(Path(source))
-            if report.has_executable_code:
-                listed = "\n".join(f"  - {name}" for name in report.executable_files[:8])
-                more = "" if len(report.executable_files) <= 8 else f"\n  ... e mais {len(report.executable_files) - 8}"
-                answer = QMessageBox.warning(
-                    self,
-                    "Importar Pack",
-                    f"O pack \"{report.pack.name}\" contém código que será compilado e EXECUTADO "
-                    "no seu computador durante a correção (fixtures/references):\n\n"
-                    f"{listed}{more}\n\n"
-                    "Não há sandbox: esse código roda com as permissões do seu usuário. "
-                    "Importe apenas packs de fontes em que você confia.\n\nImportar mesmo assim?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.No,
-                )
-                if answer != QMessageBox.StandardButton.Yes:
-                    return
-            pack = self._coordinator.import_pack(Path(source))
-            QMessageBox.information(self, "Importar Pack", f"Pack importado: {pack.name}")
-            self._refresh_packs()
-            self._resume_pending_if_ready()
-        except Exception as error:
-            QMessageBox.warning(self, "Importar Pack", str(error))
+        path = Path(source)
+        self._packs_summary.setText("validando pack...")
+        self._run_task(
+            "import",
+            lambda: self._coordinator.inspect_pack(path),
+            lambda report: self._confirm_pack_import(path, report),
+            "Importar Pack",
+            on_finally=self._refresh_packs,
+        )
+
+    def _confirm_pack_import(self, path: Path, report) -> None:
+        if report.has_executable_code:
+            listed = "\n".join(f"  - {name}" for name in report.executable_files[:8])
+            more = "" if len(report.executable_files) <= 8 else f"\n  ... e mais {len(report.executable_files) - 8}"
+            answer = QMessageBox.warning(
+                self,
+                "Importar Pack",
+                f"O pack \"{report.pack.name}\" contém código que será compilado e EXECUTADO "
+                "no seu computador durante a correção (fixtures/references):\n\n"
+                f"{listed}{more}\n\n"
+                "Não há sandbox: esse código roda com as permissões do seu usuário. "
+                "Importe apenas packs de fontes em que você confia.\n\nImportar mesmo assim?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self._packs_summary.setText("importando pack...")
+        self._run_task(
+            "import",
+            lambda: self._coordinator.import_pack(path),
+            self._on_pack_imported,
+            "Importar Pack",
+            on_finally=self._refresh_packs,
+        )
+
+    def _on_pack_imported(self, pack) -> None:
+        QMessageBox.information(self, "Importar Pack", f"Pack importado: {pack.name}")
+        self._resume_pending_if_ready()
 
     def _show_settings(self, section: str | None = None) -> None:
         self._set_title_label(self._settings_title, "CONFIGURAÇÕES" if section is None else f"CONFIGURAÇÕES > {section.upper()}")
@@ -1273,7 +1386,11 @@ Segurança:
             QMessageBox.warning(self, "Editor", str(error))
 
     def _refresh_compiler_setting(self) -> None:
-        compiler = self._coordinator.redetect_compiler()
+        self._settings_compiler.setText("● detectando...")
+        ui.set_status(self._settings_compiler, "pending")
+        self._run_task("compiler", self._coordinator.redetect_compiler, self._show_compiler_result, "Compilador")
+
+    def _show_compiler_result(self, compiler: object) -> None:
         if compiler:
             self._settings_compiler.setText(f"● OK   {compiler}")
             ui.set_status(self._settings_compiler, "pass")
@@ -1309,13 +1426,25 @@ Segurança:
         selected, _ = QFileDialog.getOpenFileName(self, "Selecionar compilador C", "", filter_text)
         if not selected:
             return
-        try:
-            self._coordinator.save_manual_compiler(Path(selected))
-            self._refresh_compiler_setting()
+        path = Path(selected)
+        self._settings_compiler.setText("● validando...")
+        ui.set_status(self._settings_compiler, "pending")
+
+        def work() -> object:
+            self._coordinator.save_manual_compiler(path)  # roda o probe do compilador
+            return self._coordinator.current_compiler()
+
+        def done(compiler: object) -> None:
+            self._show_compiler_result(compiler)
             QMessageBox.information(self, "Compilador", "Compilador atualizado.")
             self._resume_pending_if_ready()
-        except Exception as error:
-            QMessageBox.warning(self, "Compilador", str(error))
+
+        self._run_task("compiler", work, done, "Compilador", on_finally=self._show_compiler_cached)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 — API do Qt
+        # Deixa uma correção/importação em andamento terminar de gravar antes de fechar.
+        self._tasks.wait(15_000)
+        super().closeEvent(event)
 
     def _back_from_exercise(self) -> None:
         self._go(self._exam_page if self._mode == "exam" else self._training_page)
