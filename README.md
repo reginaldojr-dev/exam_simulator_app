@@ -278,18 +278,26 @@ CI (`.github/workflows/ci.yml`) runs the same flow on Windows and Linux: fresh `
 Build from the project `.venv`. PyInstaller bundles the dependencies of the interpreter that runs it, so building from the global Python can ship the wrong PySide6 or pick up another copy of the project. `build.py` prints a warning when it is not running inside `.venv`.
 
 ```bash
-python build.py            # build
-python build.py --run      # rebuild only if sources changed, then open the executable
+python build.py            # build only if something changed since the last build
+python build.py --run      # same, then open the executable
 python build.py --force    # always rebuild
 ```
 
-`python build.py --run` exits with code `3` when the build is fine but the operating system refused to open the executable. On Windows this is usually Smart App Control / App Control (`WinError 4551`) blocking an unsigned executable. The build is not broken: run from source with `python -m exam_trainer.main`. Public releases will need signed builds.
+How it decides and what it guarantees:
 
-Build on each target platform separately:
+- **What is hashed**: only what goes into the executable (`src/`, `examples/`, `README.md`, the `.spec`, `pyproject.toml`) plus the environment (Python version, PyInstaller, PySide6, platform). `packs/` is not bundled and not hashed, so local/private packs never trigger a rebuild. A folder named `workspace/` is ignored only at the project root; caches (`__pycache__`, `*.pyc`) are ignored everywhere.
+- **Safe replace**: PyInstaller writes into `build/_staging/`; the current executable in `dist/` is replaced (atomically) only after the new build succeeds. A failed build keeps the previous executable. If the old executable is open and cannot be replaced, the script exits with code `4`, says so, and leaves the new one in `build/_staging/dist/`.
+- **Bundled docs**: the executable ships `README.md` and the pack contract (`exam_trainer/resources/pack-contract.md`), so `Como criar um pack` and the documentation button work from the executable. Only public example packs (`examples/packs`) are bundled.
 
-- Windows: produces a Windows executable.
-- Linux: produces a Linux binary.
-- macOS: produces a macOS app/binary.
+Exit codes: `0` ok, `1` build failed, `3` build ok but the operating system refused to open the executable, `4` build ok but the old executable could not be replaced.
+
+`3` on Windows is usually Smart App Control / App Control (`WinError 4551`) blocking an unsigned executable. The build is not broken: run from source with `python -m exam_trainer.main`. Public releases will need signed builds (no certificate is stored in this repository).
+
+Build on each target platform separately (the executable is `dist/42 Exam Trainer.exe` on Windows and `dist/42 Exam Trainer` on Linux/macOS):
+
+- Windows: Windows executable;
+- Linux: Linux binary;
+- macOS: a plain binary (no `.app` bundle yet).
 
 Packaging stays outside the domain and application layers.
 

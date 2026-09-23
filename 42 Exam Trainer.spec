@@ -5,7 +5,13 @@ a = Analysis(
     ['src/exam_trainer/main.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('examples', 'examples')],
+    # Só conteúdo público: packs de exemplo, README e o contrato de pack.
+    # packs/ (inclusive material privado local) NÃO entra no executável.
+    datas=[
+        ('examples', 'examples'),
+        ('README.md', '.'),
+        ('src/exam_trainer/resources/*.md', 'exam_trainer/resources'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

@@ -36,7 +36,7 @@ from exam_trainer.adapters.ui.qt.components.cursor import CursorController
 from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
 from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
-from exam_trainer.resources import pack_contract_text
+from exam_trainer.resources import PACK_CONTRACT, pack_contract_text, resource_path
 from exam_trainer.application.mvp_models import ActiveExercise, CorrectionOutcome, ExerciseRef
 from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE
 from exam_trainer.application.use_cases.mvp_coordinator import (
@@ -1242,18 +1242,24 @@ class MainWindow(QMainWindow):
         self._go(self._pack_help_page)
 
     def _open_full_documentation(self) -> None:
-        readme = self._documentation_path()
-        if readme is None:
-            QMessageBox.warning(self, "Documentação", "README.md não encontrado.")
+        document = self._documentation_path()
+        if document is None:
+            QMessageBox.warning(self, "Documentação", "Documentação não encontrada nesta instalação.")
             return
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(readme)))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(document)))
 
     @staticmethod
     def _documentation_path() -> Path | None:
-        candidates = (
-            Path(__file__).resolve().parents[5] / "README.md",
-            Path.cwd() / "README.md",
-        )
+        """README do checkout ou o empacotado no executável; senão o contrato de pack."""
+        candidates = []
+        bundle = getattr(sys, "_MEIPASS", None)
+        if bundle:
+            candidates.append(Path(bundle) / "README.md")
+        candidates.append(Path(__file__).resolve().parents[5] / "README.md")
+        try:
+            candidates.append(resource_path(PACK_CONTRACT))
+        except (OSError, TypeError, ValueError):
+            pass
         for candidate in candidates:
             if candidate.is_file():
                 return candidate
