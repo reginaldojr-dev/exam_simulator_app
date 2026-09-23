@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "id": "shout_args",
+  "name": "Shout Args",
+  "subject": "subject.md",
+  "topics": [
+    "strings",
+    "argv"
+  ],
+  "submission": {
+    "filename": "shout_args.py"
+  },
+  "execution": {
+    "type": "program_output"
+  },
+  "reference": {
+    "source": "solution/shout_args.py"
+  },
+  "tests": {
+    "generator": "random_arguments",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": []
+      },
+      {
+        "args": [
+          "hello",
+          "World"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

@@ -27,6 +27,12 @@ class AppSettingsRepository(ConfigRepository, Protocol):
     def save_compiler_path(self, compiler_path: str | None) -> None:
         raise NotImplementedError
 
+    def load_runtime_path(self, language: str) -> str | None:
+        raise NotImplementedError
+
+    def save_runtime_path(self, language: str, path: str | None) -> None:
+        raise NotImplementedError
+
     def load_theme(self) -> str | None:
         raise NotImplementedError
 

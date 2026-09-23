@@ -59,7 +59,7 @@ meu_pack/
         ├── subject.md
         ├── harness/
         │   └── main.c
-        └── reference/
+        └── solution/
             └── sum_values.c
 ```
 
@@ -125,6 +125,15 @@ Quem fornece o harness de `function_call` depende da linguagem:
 
 - **C**: o PACK fornece o harness (`execution.harness`, um `main.c` que chama a função).
   `entry`/`args_format` não são usados em C.
+- **Python**: o APP fornece o harness. O pack declara só:
+  - `execution.entry`: nome da função que o aluno escreve (ex.: `"add"`);
+  - `execution.args_format`: como cada argumento do caso vira argumento da função:
+    `json` (padrão: `"42"` → 42, `"[1, 2]"` → lista, `"\"abc\""` → string) ou `str`
+    (o texto como está).
+  O harness chama `entry(*args)` e, se o retorno não for `None`, imprime
+  `json.dumps(retorno)` + quebra de linha (ex.: `"cba"` sai como `"cba"` com aspas; `None`
+  não imprime nada). O que a função imprimir com `print` também entra na saída.
+  `execution.harness` é recusado em Python.
 
 Aliases do v1 (continuam aceitos; prefira os tipos neutros em packs novos):
 
@@ -140,8 +149,11 @@ O tipo `custom` não é suportado e é recusado.
 ### 5.3 reference — solução de referência (v2)
 
 ```json
-"reference": { "source": "reference/sum_values.c", "harness": "harness/main.c" }
+"reference": { "source": "solution/sum_values.c", "harness": "harness/main.c" }
 ```
+
+Dica: neste repositório uma pasta chamada `reference/` é ignorada pelo Git (proteção de
+material privado); em packs públicos use outro nome, como `solution/`.
 
 A referência roda com os mesmos casos; a saída dela vira a saída esperada
 (`expectation: reference_output`). `harness` é opcional (use quando a referência é uma
@@ -205,7 +217,7 @@ Função com referência (v2):
   "topics": ["arrays"],
   "submission": { "filename": "sum_values.c" },
   "execution": { "type": "function_call", "harness": "harness/main.c" },
-  "reference": { "source": "reference/sum_values.c", "harness": "harness/main.c" },
+  "reference": { "source": "solution/sum_values.c", "harness": "harness/main.c" },
   "tests": { "generator": "random_int_array", "expectation": "reference_output" },
   "limits": { "timeout_seconds": 2 }
 }
@@ -235,6 +247,36 @@ hello world$
 | Linguagem | `language` | `function_call` | Requisito na máquina |
 | --- | --- | --- | --- |
 | C | `c` | harness do pack | compilador C compatível (gcc/clang/MinGW) |
+| Python | `python` | harness do app (`entry` + `args_format`) | Python 3.9+ instalado no sistema |
+
+Python:
+
+- o app usa o Python INSTALADO no computador (`py -3`, `python3` ou `python` do PATH, ou o
+  executável escolhido em `Configurações > Python`), validado rodando o interpretador de
+  verdade. O executável do app nunca é usado como Python;
+- a submissão passa por `py_compile` antes de rodar (erro de sintaxe = falha de preparação,
+  mostrada no trace);
+- execução com `python -I -B -X utf8`: modo isolado (ignora variáveis `PYTHON*`, o site do
+  usuário e o diretório atual no `sys.path`), sem `.pyc` na workspace, saída em UTF-8. Isso
+  NÃO é sandbox;
+- programas (`program_output`) recebem os argumentos do caso em `sys.argv[1:]`.
+
+Exemplo Python (`function_call`):
+
+```json
+{
+  "schema_version": 2,
+  "id": "reverse_text",
+  "name": "Reverse Text",
+  "subject": "subject.md",
+  "submission": { "filename": "reverse_text.py" },
+  "execution": { "type": "function_call", "entry": "reverse_text", "args_format": "str" },
+  "reference": { "source": "solution/reverse_text.py" },
+  "tests": { "generator": "random_string", "expectation": "reference_output" }
+}
+```
+
+O pack de exemplo `examples/packs/python-basics` usa `program_output` e `function_call`.
 
 Uma linguagem só aparece aqui quando o app tem um runtime para ela. Pack com linguagem não
 listada é recusado na importação.

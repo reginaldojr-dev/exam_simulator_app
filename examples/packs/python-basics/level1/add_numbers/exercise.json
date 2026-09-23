@@ -1,0 +1,54 @@
+{
+  "schema_version": 2,
+  "id": "add_numbers",
+  "name": "Add Numbers",
+  "subject": "subject.md",
+  "topics": [
+    "functions",
+    "integers"
+  ],
+  "submission": {
+    "filename": "add_numbers.py"
+  },
+  "execution": {
+    "type": "function_call",
+    "entry": "add",
+    "args_format": "json"
+  },
+  "reference": {
+    "source": "solution/add_numbers.py"
+  },
+  "tests": {
+    "generator": "fixed_cases",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": [
+          "1",
+          "2"
+        ]
+      },
+      {
+        "args": [
+          "-5",
+          "5"
+        ]
+      },
+      {
+        "args": [
+          "1000000",
+          "1"
+        ]
+      },
+      {
+        "args": [
+          "0",
+          "0"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

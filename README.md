@@ -47,7 +47,8 @@ Settings centralizes:
 
 - Python 3.12+
 - PySide6
-- A compatible C compiler
+- A compatible C compiler (for C packs)
+- Python 3.9+ installed on the system (only for Python packs; the app never uses its own bundled Python to run exercises)
 
 On Windows, the compiler must be MinGW/LLVM-MinGW compatible with POSIX-style exercise code. The detector validates candidates by compiling, linking, and running a console C program using:
 
@@ -219,7 +220,7 @@ Exam mode keeps the existing rules:
 
 ## Grading architecture
 
-`GenericGrader` → `ExecutionStrategy` → `RuntimeRegistry` → language runtime (`CRuntime` today). The grader owns test cases, expectations, comparison, fail-fast, trace and seeds; the runtime owns availability, build/prepare, execution and timeouts. Preflight uses the pack language. See [`docs/runtimes.md`](docs/runtimes.md).
+`GenericGrader` → `ExecutionStrategy` → `RuntimeRegistry` → language runtime (`CRuntime`, `PythonRuntime`). The grader owns test cases, expectations, comparison, fail-fast, trace and seeds; the runtime owns availability, build/prepare, execution and timeouts. Preflight uses the pack language. See [`docs/runtimes.md`](docs/runtimes.md).
 
 ## Responsiveness (UI thread)
 

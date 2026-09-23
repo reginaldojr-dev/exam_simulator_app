@@ -205,9 +205,14 @@ class MVPTrainerCoordinator:
         return self.runtime(DEFAULT_LANGUAGE).redetect()
 
     def save_manual_compiler(self, compiler_path: Path) -> None:
-        self.runtime(DEFAULT_LANGUAGE).configure_manual(compiler_path)
+        self.save_manual_runtime(DEFAULT_LANGUAGE, compiler_path)
+
+    def save_manual_runtime(self, language: str, path: Path) -> str:
+        """Valida (roda o probe) e grava a ferramenta escolhida para a linguagem."""
+        configured = self.runtime(language).configure_manual(path)
         if self._config_repository is not None:
-            self._config_repository.save_compiler_path(str(compiler_path))
+            self._config_repository.save_runtime_path(language, str(path))
+        return configured
 
     def exercise_history_rows(self) -> list[dict[str, object]]:
         """Uma linha por exercício de cada pack instalado + tentativas de packs ausentes/legados.

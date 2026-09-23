@@ -1,0 +1,51 @@
+{
+  "schema_version": 2,
+  "id": "max_value",
+  "name": "Max Value",
+  "subject": "subject.md",
+  "topics": [
+    "functions",
+    "lists"
+  ],
+  "submission": {
+    "filename": "max_value.py"
+  },
+  "execution": {
+    "type": "function_call",
+    "entry": "max_value",
+    "args_format": "json"
+  },
+  "tests": {
+    "generator": "fixed_cases",
+    "expectation": "literal",
+    "cases": [
+      {
+        "args": [
+          "[3, 9, 2]"
+        ],
+        "expected": "9\n"
+      },
+      {
+        "args": [
+          "[-4, -1, -7]"
+        ],
+        "expected": "-1\n"
+      },
+      {
+        "args": [
+          "[5]"
+        ],
+        "expected": "5\n"
+      },
+      {
+        "args": [
+          "[]"
+        ],
+        "expected": ""
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

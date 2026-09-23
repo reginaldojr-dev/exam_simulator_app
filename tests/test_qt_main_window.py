@@ -114,6 +114,26 @@ class MainWindowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication([])
+        # Diálogos modais travam o modo offscreen para sempre: nos testes eles só são
+        # registrados (testes que querem verificar a mensagem trocam por conta própria).
+        cls._dialogs: list[tuple[str, str]] = []
+        cls._original_dialogs = {
+            name: getattr(QMessageBox, name) for name in ("information", "warning", "question", "critical")
+        }
+        for name in cls._original_dialogs:
+            setattr(
+                QMessageBox,
+                name,
+                staticmethod(
+                    lambda parent, title, text, *args, _name=name, **kwargs: cls._dialogs.append((_name, text))
+                    or QMessageBox.StandardButton.Yes
+                ),
+            )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        for name, original in cls._original_dialogs.items():
+            setattr(QMessageBox, name, original)
 
     def _window(self, temp_dir: str, passed: bool = True, grader=None, compiler=None) -> MainWindow:
         root = Path(temp_dir)
@@ -135,7 +155,11 @@ class MainWindowTest(unittest.TestCase):
             workspace_root=workspace,
             workspace_port=LocalWorkspace(),
         )
-        return MainWindow(workspace, coordinator)
+        window = MainWindow(workspace, coordinator)
+        # os testes de UI usam o pack C de exemplo (há também o python-basics embutido)
+        for combo in (window._training_pack_combo, window._exam_pack_combo):
+            combo.setCurrentIndex(combo.findData("sample_rank"))
+        return window
 
     def test_home_navigates_to_training_exam_history_and_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

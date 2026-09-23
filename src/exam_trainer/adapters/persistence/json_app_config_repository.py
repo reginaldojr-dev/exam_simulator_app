@@ -46,6 +46,30 @@ class JsonAppConfigRepository:
             data["compiler_path"] = normalized
         self._save_data(data)
 
+    def load_runtime_path(self, language: str) -> str | None:
+        """Ferramenta escolhida manualmente para a linguagem (C = compiler_path, legado)."""
+        if language == "c":
+            return self.load_compiler_path()
+        paths = self._load_data().get("runtime_paths")
+        if not isinstance(paths, dict):
+            return None
+        return self._normalize_local_path(self._read_string(paths, language))
+
+    def save_runtime_path(self, language: str, path: str | None) -> None:
+        if language == "c":
+            self.save_compiler_path(path)
+            return
+        data = self._load_data()
+        paths = data.get("runtime_paths")
+        paths = dict(paths) if isinstance(paths, dict) else {}
+        normalized = self._normalize_local_path(path)
+        if normalized is None:
+            paths.pop(language, None)
+        else:
+            paths[language] = normalized
+        data["runtime_paths"] = paths
+        self._save_data(data)
+
     def load_theme(self) -> str | None:
         return self._read_string(self._load_data(), "theme")
 

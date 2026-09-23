@@ -1,0 +1,40 @@
+{
+  "schema_version": 2,
+  "id": "reverse_text",
+  "name": "Reverse Text",
+  "subject": "subject.md",
+  "topics": [
+    "functions",
+    "strings"
+  ],
+  "submission": {
+    "filename": "reverse_text.py"
+  },
+  "execution": {
+    "type": "function_call",
+    "entry": "reverse_text",
+    "args_format": "str"
+  },
+  "reference": {
+    "source": "solution/reverse_text.py"
+  },
+  "tests": {
+    "generator": "random_string",
+    "expectation": "reference_output",
+    "cases": [
+      {
+        "args": [
+          "abc"
+        ]
+      },
+      {
+        "args": [
+          "a"
+        ]
+      }
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 2
+  }
+}

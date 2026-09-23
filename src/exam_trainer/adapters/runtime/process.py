@@ -13,13 +13,17 @@ def run_process(
     stdin: str,
     timeout_seconds: int,
     cwd: Path | None = None,
+    encoding: str | None = None,
 ) -> ProcessOutcome:
+    """`encoding=None` mantém o comportamento antigo (encoding do sistema, usado pelo C)."""
     try:
         completed = subprocess.run(
             argv,
             input=stdin,
             capture_output=True,
             text=True,
+            encoding=encoding,
+            errors="replace" if encoding else None,
             check=False,
             timeout=timeout_seconds,
             cwd=None if cwd is None else str(cwd),

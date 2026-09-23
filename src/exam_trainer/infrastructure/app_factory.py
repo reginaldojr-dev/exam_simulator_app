@@ -14,6 +14,7 @@ from exam_trainer.adapters.editor.subprocess_editor import (
 )
 from exam_trainer.adapters.grader.generic_grader import GenericGrader
 from exam_trainer.adapters.runtime.c_runtime import CRuntime
+from exam_trainer.adapters.runtime.python_runtime import PythonRuntime
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
@@ -48,7 +49,12 @@ class AppFactory:
         config = JsonAppConfigRepository(app_config_file_path())
         workspace = LocalWorkspace()
         compiler = SystemCCompiler(manual_compiler=config.load_compiler_path())
-        runtimes = RuntimeRegistry([CRuntime(compiler, manager=compiler)])
+        runtimes = RuntimeRegistry(
+            [
+                CRuntime(compiler, manager=compiler),
+                PythonRuntime(manual_python=config.load_runtime_path("python")),
+            ]
+        )
         editor_command = config.load_editor_command()
         return MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(

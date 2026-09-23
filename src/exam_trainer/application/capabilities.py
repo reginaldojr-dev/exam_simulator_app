@@ -73,6 +73,13 @@ C_LANGUAGE = LanguageSupport(
     function_harness=HARNESS_FROM_PACK,
 )
 
+PYTHON_LANGUAGE = LanguageSupport(
+    language="python",
+    executions=frozenset((PROGRAM_OUTPUT, FUNCTION_CALL)),
+    function_harness=HARNESS_FROM_APP,
+    args_formats=frozenset(("json", "str")),
+)
+
 # Expectations "embutidas" por exercício. Continuam aceitas, mas packs novos devem
 # preferir `reference_output` (solução de referência) ou `literal` (casos fixos).
 LEGACY_BUILTIN_EXPECTATIONS = frozenset(("echo_arguments", "sum_integers"))
@@ -96,5 +103,5 @@ def default_exercise_capabilities() -> ExerciseCapabilities:
         expectations=ExpectationRegistry.from_values(
             ("literal", "reference_output", "echo_arguments", "sum_integers")
         ),
-        languages={C_LANGUAGE.language: C_LANGUAGE},
+        languages={support.language: support for support in (C_LANGUAGE, PYTHON_LANGUAGE)},
     )

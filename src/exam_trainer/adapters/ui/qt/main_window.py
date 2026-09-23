@@ -38,6 +38,7 @@ from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
 from exam_trainer.resources import pack_contract_text
 from exam_trainer.application.mvp_models import ActiveExercise, CorrectionOutcome, ExerciseRef
+from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE
 from exam_trainer.application.use_cases.mvp_coordinator import (
     ExamState,
     MVPTrainerCoordinator,
@@ -501,6 +502,26 @@ class MainWindow(QMainWindow):
                 [("[ DETECTAR NOVAMENTE ]", self._refresh_compiler_setting), ("[ SELECIONAR COMPILADOR ]", self._choose_manual_compiler)],
             )
         )
+
+        # outras linguagens: um card genérico por runtime registrado (C usa o card COMPILADOR)
+        self._runtime_labels: dict[str, QLabel] = {}
+        for language in self._coordinator.supported_languages():
+            if language == DEFAULT_LANGUAGE:
+                continue
+            runtime = self._coordinator.runtime(language)
+            label = ui.label("", wrap=True)
+            label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            self._runtime_labels[language] = label
+            sections.addWidget(
+                self._settings_card(
+                    runtime.display_name.upper(),
+                    [label],
+                    [
+                        ("[ DETECTAR NOVAMENTE ]", lambda lang=language: self._redetect_runtime(lang)),
+                        (f"[ SELECIONAR {runtime.display_name.upper()} ]", lambda lang=language: self._choose_manual_runtime(lang)),
+                    ],
+                )
+            )
 
         # packs
         self._packs_summary = ui.label("", wrap=True)
@@ -1212,6 +1233,8 @@ class MainWindow(QMainWindow):
         self._settings_workspace.setText(str(self._coordinator.workspace_root))
         self._settings_editor.setText(self._coordinator.editor_command())
         self._show_compiler_cached()
+        for language in self._runtime_labels:
+            self._show_runtime_result(language, self._coordinator.runtime(language).current_tool(), cached=True)
         self._go(self._settings_page)
 
     def _show_pack_help(self) -> None:
@@ -1300,6 +1323,51 @@ class MainWindow(QMainWindow):
         else:
             self._settings_compiler.setText("● não verificado — use [ DETECTAR NOVAMENTE ]")
             ui.set_status(self._settings_compiler, "pending")
+
+    def _show_runtime_result(self, language: str, tool: object, cached: bool = False) -> None:
+        label = self._runtime_labels[language]
+        if tool:
+            label.setText(f"● {'' if cached else 'OK   '}{tool}")
+            ui.set_status(label, "pass")
+        elif cached:
+            label.setText("● não verificado — use [ DETECTAR NOVAMENTE ]")
+            ui.set_status(label, "pending")
+        else:
+            label.setText("● não encontrado — selecione o executável manualmente")
+            ui.set_status(label, "fail")
+
+    def _redetect_runtime(self, language: str) -> None:
+        label = self._runtime_labels[language]
+        label.setText("● detectando...")
+        ui.set_status(label, "pending")
+        self._run_task(
+            "runtime",
+            lambda: self._coordinator.runtime(language).redetect(),
+            lambda tool: self._show_runtime_result(language, tool),
+            self._coordinator.runtime(language).display_name,
+        )
+
+    def _choose_manual_runtime(self, language: str) -> None:
+        runtime = self._coordinator.runtime(language)
+        filter_text = "Executáveis (*.exe);;Todos os arquivos (*)" if sys.platform == "win32" else "Todos os arquivos (*)"
+        selected, _ = QFileDialog.getOpenFileName(self, f"Selecionar {runtime.display_name}", "", filter_text)
+        if not selected:
+            return
+        path = Path(selected)
+        self._runtime_labels[language].setText("● validando...")
+
+        def done(tool: object) -> None:
+            self._show_runtime_result(language, runtime.current_tool())
+            QMessageBox.information(self, runtime.display_name, f"{runtime.display_name} atualizado.")
+            self._resume_pending_if_ready()
+
+        self._run_task(
+            "runtime",
+            lambda: self._coordinator.save_manual_runtime(language, path),
+            done,
+            runtime.display_name,
+            on_finally=lambda: self._show_runtime_result(language, runtime.current_tool(), cached=True),
+        )
 
     def _editor_preset_changed(self, label: str) -> None:
         if label == "Outro...":

@@ -15,6 +15,8 @@ GenericGrader            casos, expectations, comparação, fail-fast, trace, se
 - `application/engine/runtime_registry.py`: `RuntimeRegistry`.
 - `adapters/grader/generic_grader.py`: `GenericGrader`. `GenericCGrader` ficou como wrapper de compatibilidade.
 - `adapters/runtime/c_runtime.py`: `CRuntime` (usa o `SystemCCompiler`; o `CompilerPort` fica interno ao runtime).
+- `adapters/runtime/python_runtime.py`: `PythonRuntime` (Python do sistema, probe real, `py_compile`, `-I -B -X utf8`).
+- `adapters/runtime/python_harness.py`: harness do app para `function_call` em Python (texto gravado na pasta `.build`).
 - `adapters/runtime/process.py`: execução de processo comum (lista de argumentos, sem shell, com timeout).
 
 A factory (`infrastructure/app_factory.py`) monta o registry e injeta o mesmo registry no grader e no coordinator.
