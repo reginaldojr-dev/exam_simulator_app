@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import os
 import re
-import sys
 import unittest
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout

@@ -84,6 +84,8 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[build]"
 ```
 
+Shortcut: `powershell -ExecutionPolicy Bypass -File .\scripts\dev-setup.ps1 -RunTests` (Windows) or `./scripts/dev-setup.sh --run-tests` (Linux/macOS) creates the `.venv`, installs the project, checks where `exam_trainer` is imported from and runs the tests. The scripts never uninstall anything from the global Python; they only warn when another copy is installed there.
+
 If PowerShell refuses to run `Activate.ps1`, allow scripts for your user once: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
 
 Linux/macOS:
@@ -457,7 +459,9 @@ python -m unittest discover -s tests
 python -m compileall -q src tests
 ```
 
-Tests that need the private `packs/rank02-original` fail when that folder is absent.
+Tests that need the private `packs/rank02-original` are **skipped** when that folder is absent (public clones, CI) and run normally when it exists locally. Qt tests run headless with `QT_QPA_PLATFORM=offscreen` (set automatically by the tests).
+
+CI (`.github/workflows/ci.yml`) runs the same flow on Windows and Linux: fresh `.venv`, `pip install -e ".[build]"`, import-origin check, `unittest`, `compileall`.
 
 ## Build With PyInstaller
 
