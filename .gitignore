@@ -50,6 +50,9 @@ Claude outputs/
 # Original/private 42 material
 reference/
 packs/rank02-original/
+packs/*-original/
+packs/_private_backup/
+packs/_private_notes/
 
 # Python packaging
 *.egg-info/
