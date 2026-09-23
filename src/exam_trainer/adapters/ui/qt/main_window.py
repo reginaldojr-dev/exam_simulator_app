@@ -1053,6 +1053,23 @@ class MainWindow(QMainWindow):
         if not source:
             return
         try:
+            report = self._coordinator.inspect_pack(Path(source))
+            if report.has_executable_code:
+                listed = "\n".join(f"  - {name}" for name in report.executable_files[:8])
+                more = "" if len(report.executable_files) <= 8 else f"\n  ... e mais {len(report.executable_files) - 8}"
+                answer = QMessageBox.warning(
+                    self,
+                    "Importar Pack",
+                    f"O pack \"{report.pack.name}\" contém código que será compilado e EXECUTADO "
+                    "no seu computador durante a correção (fixtures/references):\n\n"
+                    f"{listed}{more}\n\n"
+                    "Não há sandbox: esse código roda com as permissões do seu usuário. "
+                    "Importe apenas packs de fontes em que você confia.\n\nImportar mesmo assim?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
             pack = self._coordinator.import_pack(Path(source))
             QMessageBox.information(self, "Importar Pack", f"Pack importado: {pack.name}")
             self._refresh_packs()
@@ -1212,8 +1229,14 @@ Validação e importação:
 5. Se qualquer exercício falhar, o pack inteiro é rejeitado.
 6. Se passar, o pack é copiado para o diretório gerenciado do app.
 
-Packs não podem trazer comandos shell arbitrários nem código Python executável.
-O conteúdo externo apenas declara o contrato; a engine do app executa o grader.
+Segurança:
+
+- Packs não declaram comandos shell, graders próprios nem plugins.
+- ATENÇÃO: fixtures (ex.: main.c) e references são COMPILADOS E EXECUTADOS
+  no seu computador durante a correção, com as permissões do seu usuário.
+  Não existe sandbox. Importe apenas packs de fontes confiáveis.
+- A importação nunca executa nada: ela valida ids, caminhos, recusa symlinks
+  e ZIPs perigosos, e pede confirmação se o pack tiver código executável.
 """
 
     def _change_workspace(self) -> None:

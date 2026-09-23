@@ -8,6 +8,12 @@ from exam_trainer.application.capabilities import (
     ExerciseCapabilities,
     default_exercise_capabilities,
 )
+from exam_trainer.domain.identifiers import (
+    UnsafeValueError,
+    parse_relative_path,
+    validate_identifier,
+    validate_simple_filename,
+)
 from exam_trainer.domain.exercise_definition import (
     ExerciseDefinition,
     ExecutionDefinition,
@@ -175,11 +181,10 @@ class JsonExerciseDefinitionLoader:
 
     def _require_identifier(self, data: dict[str, Any], field_name: str) -> str:
         value = self._require_non_empty_string(data, field_name)
-        if any(separator in value for separator in (" ", "/", "\\")):
-            raise ExerciseDefinitionError(
-                f"{field_name} must be a stable identifier without spaces or path separators."
-            )
-        return value
+        try:
+            return validate_identifier(value, field_name)
+        except UnsafeValueError as error:
+            raise ExerciseDefinitionError(str(error)) from error
 
     @staticmethod
     def _require_non_empty_string(data: dict[str, Any], field_name: str) -> str:
@@ -204,16 +209,14 @@ class JsonExerciseDefinitionLoader:
     def _read_relative_path_value(value: Any, field_name: str) -> PurePath:
         if not isinstance(value, str):
             raise ExerciseDefinitionError(f"{field_name} must be a string.")
-        if not value.strip():
-            raise ExerciseDefinitionError(f"{field_name} cannot be empty.")
-
-        path = PurePath(value)
-        if path.is_absolute() or ".." in path.parts:
-            raise ExerciseDefinitionError(f"{field_name} must be a relative path.")
-        return path
+        try:
+            return parse_relative_path(value, field_name)
+        except UnsafeValueError as error:
+            raise ExerciseDefinitionError(str(error)) from error
 
     @staticmethod
     def _validate_filename(filename: str) -> None:
-        path = PurePath(filename)
-        if path.is_absolute() or len(path.parts) != 1 or filename in (".", ".."):
-            raise ExerciseDefinitionError("submission.filename must be a simple filename.")
+        try:
+            validate_simple_filename(filename, "submission.filename")
+        except UnsafeValueError as error:
+            raise ExerciseDefinitionError(str(error)) from error

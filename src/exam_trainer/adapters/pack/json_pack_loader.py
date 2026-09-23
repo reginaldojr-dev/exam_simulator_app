@@ -4,7 +4,10 @@ import json
 from pathlib import Path, PurePath
 from typing import Any
 
+from exam_trainer.domain.identifiers import UnsafeValueError, parse_relative_path, validate_identifier
 from exam_trainer.domain.pack_definition import PackDefinition, PackLevelDefinition
+
+MAX_EXAM_DURATION_MINUTES = 24 * 60
 
 
 class PackDefinitionError(ValueError):
@@ -36,10 +39,14 @@ class JsonPackLoader:
             raise PackDefinitionError("levels must be a non-empty list.")
 
         levels: list[PackLevelDefinition] = []
+        seen: set[str] = set()
         for index, raw_level in enumerate(raw_levels):
             level_data = self._require_object(raw_level, f"levels[{index}]")
             level_id = self._require_identifier(level_data, "id")
             level_path = self._require_relative_path(level_data, "path")
+            if level_id in seen:
+                raise PackDefinitionError(f"Duplicated level id: {level_id}.")
+            seen.add(level_id)
             levels.append(PackLevelDefinition(id=level_id, path=level_path))
         return tuple(levels)
 
@@ -51,11 +58,10 @@ class JsonPackLoader:
 
     def _require_identifier(self, data: dict[str, Any], field_name: str) -> str:
         value = self._require_non_empty_string(data, field_name)
-        if any(separator in value for separator in (" ", "/", "\\")):
-            raise PackDefinitionError(
-                f"{field_name} must be an identifier without spaces or path separators."
-            )
-        return value
+        try:
+            return validate_identifier(value, field_name)
+        except UnsafeValueError as error:
+            raise PackDefinitionError(str(error)) from error
 
     @staticmethod
     def _require_non_empty_string(data: dict[str, Any], field_name: str) -> str:
@@ -70,7 +76,7 @@ class JsonPackLoader:
 
     def _require_relative_path(self, data: dict[str, Any], field_name: str) -> PurePath:
         value = self._require_non_empty_string(data, field_name)
-        path = PurePath(value)
-        if path.is_absolute() or ".." in path.parts:
-            raise PackDefinitionError(f"{field_name} must be a relative path.")
-        return path
+        try:
+            return parse_relative_path(value, field_name)
+        except UnsafeValueError as error:
+            raise PackDefinitionError(str(error)) from error

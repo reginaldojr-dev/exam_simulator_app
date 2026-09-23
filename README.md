@@ -168,7 +168,17 @@ The importer validates the pack before copying it into the app-managed pack dire
 
 42 Exam Trainer is not limited to Rank 02. Any rank, practice track, school list, or personal collection can be added as a pack as long as it follows the app contract and uses capabilities supported by the engine.
 
-The program defines the contract; exercises adapt to the program. Packs cannot provide arbitrary shell commands, Python code, custom graders, or hidden executable logic.
+The program defines the contract; exercises adapt to the program. Packs cannot declare shell commands, custom graders or plugins.
+
+**Packs can contain executable code.** Fixtures (`main.c` harnesses) and reference solutions are compiled and **executed on your machine during correction**, with your user permissions. There is no sandbox: only import packs from sources you trust. The importer shows the list of executable files and asks for confirmation.
+
+What the importer guarantees (it never runs pack content while importing):
+
+- ids (`pack.id`, level ids, exercise ids) match `[A-Za-z0-9][A-Za-z0-9_-]{0,63}` and are not reserved Windows names, so they cannot escape a folder (`..`, `C:`, dots, separators are rejected);
+- every declared path (level path, subject, fixture, reference, support files) is relative, has no `..`, drive, UNC or `:` and resolves inside the pack;
+- symbolic links and junctions anywhere in the pack are rejected;
+- ZIP entries are checked before extraction (absolute paths, `..`, symlinks, entry count and uncompressed size limits);
+- the destination is resolved and must stay inside the app-managed packs folder.
 
 ### Minimal Directory Layout
 

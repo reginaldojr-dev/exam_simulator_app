@@ -204,6 +204,10 @@ class MVPTrainerCoordinator:
             )
         return rows
 
+    def inspect_pack(self, source_path: Path):
+        """Valida um pack sem copiá-lo; informa se ele traz código executável."""
+        return self._pack_importer.inspect_pack(source_path)
+
     def import_pack(self, source_path: Path) -> PackDefinition:
         return self._pack_importer.import_pack(source_path)
 
