@@ -69,33 +69,51 @@ with:
 
 The app does not adapt exercises to MSVC and does not remove `unistd.h`.
 
-## Install
+## Development Setup (official)
 
-```bash
+Always work inside a **project-local virtual environment** (`.venv` at the repository root). Never install the project into the global Python: an old editable install of another copy of this repository (for example `Documents\...\exam_simullator`) will silently win the `import exam_trainer` and you will run or test the wrong code.
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/reginaldojr-dev/exam_simulator_app.git exam_simullator
+cd exam_simullator
 python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -e .
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[build]"
 ```
 
-On Linux/macOS:
+If PowerShell refuses to run `Activate.ps1`, allow scripts for your user once: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+Linux/macOS:
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install --upgrade pip
+python -m pip install -e ".[build]"
 ```
+
+The distribution name is `42-exam-trainer` (see `pyproject.toml`); the import package is `exam_trainer` under `src/`. The `build` extra installs PyInstaller in the same environment.
+
+Check that the import comes from this checkout:
+
+```bash
+python -c "import exam_trainer, inspect; print(inspect.getfile(exam_trainer))"
+```
+
+It must print `<this repository>/src/exam_trainer/__init__.py`. `tests/test_environment.py` checks the same thing.
 
 ## Run
 
-```bash
-exam-trainer
-```
-
-Or:
+With the `.venv` active:
 
 ```bash
 python -m exam_trainer.main
 ```
+
+Or the console script `exam-trainer`.
 
 On first launch, choose a workspace. You can change it later in `Configurações > Workspace`.
 
@@ -432,17 +450,26 @@ To add a theme, create a new `ThemeTokens` in `themes.py` and register it in `TH
 
 ## Tests
 
+With the `.venv` active, from the repository root:
+
 ```bash
 python -m unittest discover -s tests
 python -m compileall -q src tests
 ```
 
+Tests that need the private `packs/rank02-original` fail when that folder is absent.
+
 ## Build With PyInstaller
 
+Build from the project `.venv`. PyInstaller bundles the dependencies of the interpreter that runs it, so building from the global Python can ship the wrong PySide6 or pick up another copy of the project. `build.py` prints a warning when it is not running inside `.venv`.
+
 ```bash
-python -m pip install pyinstaller
-python -m PyInstaller "42 Exam Trainer.spec" --noconfirm
+python build.py            # build
+python build.py --run      # rebuild only if sources changed, then open the executable
+python build.py --force    # always rebuild
 ```
+
+`python build.py --run` exits with code `3` when the build is fine but the operating system refused to open the executable. On Windows this is usually Smart App Control / App Control (`WinError 4551`) blocking an unsigned executable. The build is not broken: run from source with `python -m exam_trainer.main`. Public releases will need signed builds.
 
 Build on each target platform separately:
 
@@ -451,3 +478,9 @@ Build on each target platform separately:
 - macOS: produces a macOS app/binary.
 
 Packaging stays outside the domain and application layers.
+
+## Troubleshooting
+
+**`ModuleNotFoundError: No module named 'exam_trainer.adapters...'` or a traceback pointing to another folder.** Another copy of the project is installed in the Python you are using. Check with `python -m pip show 42-exam-trainer` (look at `Editable project location`). Fix: activate this repository's `.venv` and run `python -m pip install -e ".[build]"`. If the old copy is installed in the global Python, remove it there with `python -m pip uninstall 42-exam-trainer`.
+
+**`WinError 4551` when opening the executable.** Windows App Control blocked an unsigned executable. See "Build With PyInstaller".

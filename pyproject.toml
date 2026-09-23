@@ -8,6 +8,11 @@ dependencies = [
     "PySide6>=6.8",
 ]
 
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.0",
+]
+
 [project.scripts]
 exam-trainer = "exam_trainer.main:main"
 

@@ -12,6 +12,18 @@ DIST_DIR = ROOT / "dist"
 SPEC_FILE = ROOT / "42 Exam Trainer.spec"
 EXE_PATH = DIST_DIR / "42 Exam Trainer.exe"
 STATE_FILE = DIST_DIR / ".build_state.json"
+PROJECT_VENV = ROOT / ".venv"
+PROJECT_SRC = ROOT / "src"
+
+# Códigos de saída
+EXIT_OK = 0
+EXIT_LAUNCH_BLOCKED = 3  # build ok, mas o sistema operacional impediu abrir o exe
+
+# WinError de bloqueio por política do Windows (Smart App Control / WDAC / AppLocker).
+WINDOWS_POLICY_BLOCK_ERRORS = {
+    4551: "uma política de Controle de Aplicativo bloqueou este arquivo",
+    1260: "uma política de grupo bloqueou este programa",
+}
 
 # Pastas que podem alterar o executável.
 SOURCE_DIRS = (
@@ -173,8 +185,56 @@ def run_executable() -> int:
         return 1
 
     print(f"Abrindo: {EXE_PATH}")
-    subprocess.Popen([str(EXE_PATH)], cwd=DIST_DIR)
-    return 0
+    try:
+        subprocess.Popen([str(EXE_PATH)], cwd=DIST_DIR)
+    except OSError as error:
+        return report_launch_error(error)
+    return EXIT_OK
+
+
+def report_launch_error(error: OSError) -> int:
+    """Erro ao ABRIR o exe não é erro de build: explica sem despejar traceback."""
+    winerror = getattr(error, "winerror", None)
+    print()
+    print("Build concluído com sucesso.")
+    if winerror in WINDOWS_POLICY_BLOCK_ERRORS:
+        print(
+            "O Windows bloqueou a execução do executável: "
+            f"{WINDOWS_POLICY_BLOCK_ERRORS[winerror]} (WinError {winerror})."
+        )
+        print("Isso costuma ser o Controle Inteligente de Aplicativos com um exe sem assinatura digital.")
+        print("Para testar agora, rode pelo código-fonte: python -m exam_trainer.main")
+    else:
+        print(f"Não foi possível abrir o executável: {error}")
+    print(f"Executável: {EXE_PATH}")
+    return EXIT_LAUNCH_BLOCKED
+
+
+def check_environment() -> None:
+    """Avisa quando o build roda fora do ambiente do projeto.
+
+    PyInstaller empacota as dependências do interpretador que o executa;
+    fora da .venv do projeto, o exe pode sair com versões erradas.
+    """
+    in_project_venv = Path(sys.prefix).resolve() == PROJECT_VENV.resolve()
+    if not in_project_venv:
+        print(
+            "AVISO: build rodando fora da .venv do projeto.\n"
+            f"  Python em uso: {sys.executable}\n"
+            f"  Recomendado : {PROJECT_VENV / ('Scripts' if sys.platform == 'win32' else 'bin')}"
+            " (ative a .venv antes de rodar build.py)"
+        )
+    try:
+        import exam_trainer  # noqa: PLC0415
+    except ImportError:
+        return
+    origin = Path(exam_trainer.__file__).resolve()
+    if PROJECT_SRC.resolve() not in origin.parents:
+        print(
+            "AVISO: neste Python, 'exam_trainer' vem de outra cópia do projeto:\n"
+            f"  {origin}\n"
+            "  Rode 'python -m pip install -e .' dentro da .venv deste projeto."
+        )
 
 
 def main() -> int:
@@ -187,7 +247,8 @@ def main() -> int:
         action="store_true",
         help=(
             "Abre o executável. Se não houve mudanças desde a última build, "
-            "não recompila; se houve, gera uma nova build antes de abrir."
+            "não recompila; se houve, gera uma nova build antes de abrir. "
+            "Sai com código 3 se o build existe mas o sistema bloqueou a abertura."
         ),
     )
     parser.add_argument(
@@ -197,6 +258,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    check_environment()
     source_hash = calculate_source_hash()
 
     if args.run and not args.force and executable_is_current(source_hash):
