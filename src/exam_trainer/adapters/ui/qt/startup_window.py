@@ -33,7 +33,7 @@ class StartupWindow(QWidget):
         self.setWindowTitle("Configurar Workspace")
         self.setMinimumSize(480, 260)
 
-        title = ui.title_label("42 EXAM TRAINER")
+        title = ui.title_label("EXAM TRAINER")
         description = ui.label(
             "Escolha onde a workspace local do aplicativo deve ser criada.",
             wrap=True,

@@ -284,5 +284,13 @@ class MainWindowTest(unittest.TestCase):
             self.assertNotIn(first.value, window._selected_levels())
 
 
+    def test_home_shows_exam_trainer_brand_and_keeps_technical_window_title(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            self.assertEqual(window._cursor._titles[window._title_home], "EXAM TRAINER")
+            self.assertEqual(window.windowTitle(), "42 Exam Trainer")
+
+
 if __name__ == "__main__":
     unittest.main()

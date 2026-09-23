@@ -192,7 +192,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ home
     def _build_home_page(self) -> QWidget:
         page, layout = self._page(margins=34)
-        self._title_home = self._title("42 EXAM TRAINER")
+        self._title_home = self._title("EXAM TRAINER")
         self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
         layout.addWidget(self._title_home)
         layout.addWidget(self._workspace_label)
