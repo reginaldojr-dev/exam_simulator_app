@@ -205,7 +205,9 @@ class MigrationTest(unittest.TestCase):
             store.initialize()
 
             self.assertGreaterEqual(store.schema_version, 1)
-            row = sqlite3.connect(database).execute("SELECT deadline_at, duration_seconds FROM exam_sessions").fetchone()
+            check = sqlite3.connect(database)
+            row = check.execute("SELECT deadline_at, duration_seconds FROM exam_sessions").fetchone()
+            check.close()
             deadline = datetime.fromisoformat(row[0])
             remaining = (deadline - datetime.now(timezone.utc)).total_seconds()
             self.assertTrue(590 <= remaining <= 600)

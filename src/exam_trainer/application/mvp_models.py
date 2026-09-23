@@ -25,6 +25,7 @@ class ProgressEntry:
     best_passed: bool
     best_score: float | None
     last_mode: str | None
+    pack_id: str = ""
 
 
 @dataclass(frozen=True)

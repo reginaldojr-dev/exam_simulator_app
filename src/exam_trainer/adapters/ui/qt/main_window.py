@@ -1083,13 +1083,22 @@ class MainWindow(QMainWindow):
 
     def _populate_history_table(self, rows: list[dict[str, object]]) -> None:
         self._history_table.setRowCount(len(rows))
-        sorted_rows = sorted(rows, key=lambda row: (str(row["level"]), str(row["exercise_id"])))
+        # Agrupa por (pack, level): o mesmo id de level/exercício pode existir em packs diferentes.
+        multi_pack = len({str(row.get("pack_id", row["pack"])) for row in rows}) > 1
+
+        def group_of(row: dict[str, object]) -> str:
+            level = str(row["level"])
+            if not multi_pack:
+                return level
+            return str(row["pack"]) if level == "-" else f"{row.get('pack_id', row['pack'])}/{level}"
+
+        sorted_rows = sorted(rows, key=lambda row: (group_of(row), str(row["exercise_id"])))
         totals: dict[str, int] = {}
         for row in sorted_rows:
-            totals[str(row["level"])] = totals.get(str(row["level"]), 0) + 1
+            totals[group_of(row)] = totals.get(group_of(row), 0) + 1
         seen: dict[str, int] = {}
         for row_index, row in enumerate(sorted_rows):
-            level = str(row["level"])
+            level = group_of(row)
             seen[level] = seen.get(level, 0) + 1
             branch = "└──" if seen[level] == totals[level] else "├──"
             status = str(row["status"])

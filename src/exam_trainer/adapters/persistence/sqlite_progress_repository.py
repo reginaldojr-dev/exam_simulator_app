@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
+from exam_trainer.adapters.persistence.migrations import rebuild_progress
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.application.mvp_models import ProgressEntry
+from exam_trainer.domain.attempt_modes import ATTEMPT_MODES, LEGACY_PACK_ID, TRAINING_MODE
 from exam_trainer.domain.entities import Attempt
 from exam_trainer.domain.grading import GradingResult
 from exam_trainer.domain.value_objects import AttemptStatus, Grade
@@ -15,123 +17,99 @@ class SQLiteProgressRepository:
         self._store = store
         self._store.initialize()
 
-    def save_attempt(self, attempt: Attempt) -> None:
+    def save_attempt(
+        self,
+        attempt: Attempt,
+        pack_id: str = LEGACY_PACK_ID,
+        mode: str = TRAINING_MODE,
+    ) -> None:
         passed = None if attempt.grade is None else int(attempt.grade.passed)
-        score = None if attempt.grade is None else attempt.grade.score
-        message = None if attempt.grade is None else attempt.grade.message
-        submitted_at = (
-            None if attempt.submitted_at is None else attempt.submitted_at.isoformat()
+        self._insert_attempt(
+            attempt_id=str(attempt.id),
+            pack_id=pack_id,
+            exercise_id=attempt.exercise_id,
+            status=attempt.status.value,
+            passed=passed,
+            score=None if attempt.grade is None else attempt.grade.score,
+            message=None if attempt.grade is None else attempt.grade.message,
+            submitted_at=None if attempt.submitted_at is None else attempt.submitted_at.isoformat(),
+            mode=mode,
+            session_id=None,
         )
-
-        with self._store.session() as connection:
-            connection.execute(
-                """
-                INSERT OR REPLACE INTO attempts (
-                    id, exercise_id, status, passed, score, message, submitted_at, mode
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    str(attempt.id),
-                    attempt.exercise_id,
-                    attempt.status.value,
-                    passed,
-                    score,
-                    message,
-                    submitted_at,
-                    None,
-                ),
-            )
-            connection.execute(
-                """
-                INSERT INTO progress (
-                    exercise_id, status, attempts_count, last_attempt_at,
-                    best_passed, best_score, last_mode
-                )
-                VALUES (?, ?, 1, ?, ?, ?, ?)
-                ON CONFLICT(exercise_id) DO UPDATE SET
-                    status = excluded.status,
-                    attempts_count = progress.attempts_count + 1,
-                    last_attempt_at = excluded.last_attempt_at,
-                    best_passed = MAX(progress.best_passed, excluded.best_passed),
-                    best_score = CASE
-                        WHEN progress.best_score IS NULL THEN excluded.best_score
-                        WHEN excluded.best_score IS NULL THEN progress.best_score
-                        ELSE MAX(progress.best_score, excluded.best_score)
-                    END,
-                    last_mode = excluded.last_mode
-                """,
-                (
-                    attempt.exercise_id,
-                    self._progress_status(attempt),
-                    submitted_at,
-                    0 if passed is None else passed,
-                    score,
-                    None,
-                ),
-            )
 
     def save_grading_result(
         self,
+        pack_id: str,
         exercise_id: str,
         result: GradingResult,
         mode: str,
         submitted_at: datetime | None = None,
+        session_id: str | None = None,
     ) -> None:
         attempt = Attempt(exercise_id=exercise_id)
         attempt.mark_submitted(submitted_at or datetime.now())
-        attempt.mark_graded(
-            Grade(
-                passed=result.passed,
-                score=100 if result.passed else 0,
-                message=f"seed={result.seed}",
-            )
+        score = 100 if result.passed else 0
+        attempt.mark_graded(Grade(passed=result.passed, score=score, message=f"seed={result.seed}"))
+        self._insert_attempt(
+            attempt_id=str(attempt.id),
+            pack_id=pack_id,
+            exercise_id=exercise_id,
+            status=attempt.status.value,
+            passed=int(result.passed),
+            score=score,
+            message=f"seed={result.seed}",
+            submitted_at=attempt.submitted_at.isoformat() if attempt.submitted_at else None,
+            mode=mode,
+            session_id=session_id,
         )
-        passed = int(result.passed)
-        submitted_iso = attempt.submitted_at.isoformat() if attempt.submitted_at else None
+
+    def _insert_attempt(self, **row: object) -> None:
+        if row["mode"] not in ATTEMPT_MODES:
+            raise ValueError(f"Unknown attempt mode: {row['mode']!r}")
         with self._store.session() as connection:
             connection.execute(
                 """
                 INSERT OR REPLACE INTO attempts (
-                    id, exercise_id, status, passed, score, message, submitted_at, mode
+                    id, pack_id, exercise_id, status, passed, score, message,
+                    submitted_at, mode, session_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    str(attempt.id),
-                    exercise_id,
-                    attempt.status.value,
-                    passed,
-                    100 if result.passed else 0,
-                    f"seed={result.seed}",
-                    submitted_iso,
-                    mode,
-                ),
-            )
-            connection.execute(
-                """
-                INSERT INTO progress (
-                    exercise_id, status, attempts_count, last_attempt_at,
-                    best_passed, best_score, last_mode
+                VALUES (
+                    :attempt_id, :pack_id, :exercise_id, :status, :passed, :score, :message,
+                    :submitted_at, :mode, :session_id
                 )
-                VALUES (?, ?, 1, ?, ?, ?, ?)
-                ON CONFLICT(exercise_id) DO UPDATE SET
-                    status = excluded.status,
-                    attempts_count = progress.attempts_count + 1,
-                    last_attempt_at = excluded.last_attempt_at,
-                    best_passed = MAX(progress.best_passed, excluded.best_passed),
-                    best_score = MAX(COALESCE(progress.best_score, 0), excluded.best_score),
-                    last_mode = excluded.last_mode
                 """,
-                (
-                    exercise_id,
-                    "completed" if result.passed else "attempted",
-                    submitted_iso,
-                    passed,
-                    100 if result.passed else 0,
-                    mode,
-                ),
+                row,
             )
+            if row["mode"] == TRAINING_MODE:
+                # Só treino mexe no progresso pedagógico (ADR 0003).
+                rebuild_progress(connection, str(row["pack_id"]), str(row["exercise_id"]))
+
+    def adopt_legacy_attempts(self, exercise_packs: dict[str, str]) -> int:
+        """Associa tentativas `_legacy` ao pack do catálogo (exercise_id -> pack_id único).
+
+        Só recebe ids que existem em exatamente um pack instalado; o resto continua legado.
+        Retorna quantas tentativas foram associadas.
+        """
+        if not exercise_packs:
+            return 0
+        adopted = 0
+        with self._store.session() as connection:
+            rows = connection.execute(
+                "SELECT DISTINCT exercise_id FROM attempts WHERE pack_id = ?",
+                (LEGACY_PACK_ID,),
+            ).fetchall()
+            for row in rows:
+                pack_id = exercise_packs.get(row["exercise_id"])
+                if pack_id is None:
+                    continue
+                cursor = connection.execute(
+                    "UPDATE attempts SET pack_id = ? WHERE pack_id = ? AND exercise_id = ?",
+                    (pack_id, LEGACY_PACK_ID, row["exercise_id"]),
+                )
+                adopted += cursor.rowcount
+                rebuild_progress(connection, LEGACY_PACK_ID, row["exercise_id"])
+                rebuild_progress(connection, pack_id, row["exercise_id"])
+        return adopted
 
     def list_attempts(self) -> list[Attempt]:
         with self._store.session() as connection:
@@ -166,16 +144,19 @@ class SQLiteProgressRepository:
             )
         return attempts
 
-    def list_progress(self) -> list[ProgressEntry]:
+    def list_progress(self, pack_id: str | None = None) -> list[ProgressEntry]:
+        """Progresso pedagógico (só treino), opcionalmente de um pack."""
+        query = """
+            SELECT pack_id, exercise_id, status, attempts_count, last_attempt_at,
+                   best_passed, best_score, last_mode
+            FROM progress
+        """
+        params: tuple[str, ...] = ()
+        if pack_id is not None:
+            query += " WHERE pack_id = ?"
+            params = (pack_id,)
         with self._store.session() as connection:
-            rows = connection.execute(
-                """
-                SELECT exercise_id, status, attempts_count, last_attempt_at,
-                       best_passed, best_score, last_mode
-                FROM progress
-                ORDER BY exercise_id
-                """
-            ).fetchall()
+            rows = connection.execute(query + " ORDER BY pack_id, exercise_id", params).fetchall()
         return [
             ProgressEntry(
                 exercise_id=row["exercise_id"],
@@ -185,16 +166,31 @@ class SQLiteProgressRepository:
                 best_passed=bool(row["best_passed"]),
                 best_score=row["best_score"],
                 last_mode=row["last_mode"],
+                pack_id=row["pack_id"],
             )
             for row in rows
         ]
 
-    def progress_by_exercise(self) -> dict[str, ProgressEntry]:
-        return {entry.exercise_id: entry for entry in self.list_progress()}
+    def progress_by_exercise(self, pack_id: str) -> dict[str, ProgressEntry]:
+        return {entry.exercise_id: entry for entry in self.list_progress(pack_id)}
 
-    def attempts_count(self, exercise_id: str) -> int:
-        entry = self.progress_by_exercise().get(exercise_id)
-        return 0 if entry is None else entry.attempts_count
+    def progress_by_key(self) -> dict[tuple[str, str], ProgressEntry]:
+        return {(entry.pack_id, entry.exercise_id): entry for entry in self.list_progress()}
+
+    def attempts_count(
+        self,
+        pack_id: str,
+        exercise_id: str,
+        mode: str = TRAINING_MODE,
+        session_id: str | None = None,
+    ) -> int:
+        query = "SELECT COUNT(*) FROM attempts WHERE pack_id = ? AND exercise_id = ? AND mode = ?"
+        params: tuple[str, ...] = (pack_id, exercise_id, mode)
+        if session_id is not None:
+            query += " AND session_id = ?"
+            params += (session_id,)
+        with self._store.session() as connection:
+            return int(connection.execute(query, params).fetchone()[0])
 
     def save_active_exam(self, state: dict[str, object]) -> None:
         with self._store.session() as connection:
@@ -334,39 +330,36 @@ class SQLiteProgressRepository:
             ).fetchall()
         return [dict(row) for row in rows]
 
-    def latest_attempts_by_exercise(self) -> dict[str, dict[str, object]]:
+    def latest_attempts(self) -> dict[tuple[str, str], dict[str, object]]:
+        """Última tentativa (treino ou prova) de cada (pack_id, exercise_id)."""
         with self._store.session() as connection:
             rows = connection.execute(
                 """
-                SELECT a.exercise_id, a.passed, a.submitted_at, a.mode
+                SELECT a.pack_id, a.exercise_id, a.passed, a.submitted_at, a.mode
                 FROM attempts a
                 INNER JOIN (
-                    SELECT exercise_id, MAX(submitted_at) AS submitted_at
+                    SELECT pack_id, exercise_id, MAX(submitted_at) AS submitted_at
                     FROM attempts
-                    GROUP BY exercise_id
+                    GROUP BY pack_id, exercise_id
                 ) latest
-                ON latest.exercise_id = a.exercise_id
+                ON latest.pack_id = a.pack_id
+                AND latest.exercise_id = a.exercise_id
                 AND latest.submitted_at = a.submitted_at
                 """
             ).fetchall()
-        return {row["exercise_id"]: dict(row) for row in rows}
+        return {(row["pack_id"], row["exercise_id"]): dict(row) for row in rows}
 
-    def modes_by_exercise(self) -> dict[str, set[str]]:
+    def modes_by_key(self) -> dict[tuple[str, str], set[str]]:
         with self._store.session() as connection:
             rows = connection.execute(
-                """
-                SELECT DISTINCT exercise_id, mode
-                FROM attempts
-                WHERE mode IS NOT NULL
-                """
+                "SELECT DISTINCT pack_id, exercise_id, mode FROM attempts WHERE mode IS NOT NULL"
             ).fetchall()
-        modes: dict[str, set[str]] = {}
+        modes: dict[tuple[str, str], set[str]] = {}
         for row in rows:
-            modes.setdefault(row["exercise_id"], set()).add(row["mode"])
+            modes.setdefault((row["pack_id"], row["exercise_id"]), set()).add(row["mode"])
         return modes
 
-    @staticmethod
-    def _progress_status(attempt: Attempt) -> str:
-        if attempt.grade is None:
-            return "attempted"
-        return "completed" if attempt.grade.passed else "attempted"
+    def attempt_keys(self) -> set[tuple[str, str]]:
+        with self._store.session() as connection:
+            rows = connection.execute("SELECT DISTINCT pack_id, exercise_id FROM attempts").fetchall()
+        return {(row["pack_id"], row["exercise_id"]) for row in rows}

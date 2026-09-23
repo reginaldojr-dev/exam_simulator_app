@@ -126,9 +126,10 @@ Training and exam files are kept separate:
 ```text
 workspace/
 ├── training/
-│   └── <exercise>/
-│       ├── subject.txt
-│       └── <expected_file>.c
+│   └── <pack_id>/
+│       └── <exercise>/
+│           ├── subject.txt
+│           └── <expected_file>.c
 └── exam/
     └── <session_id>/
         └── <exercise>/
@@ -137,6 +138,8 @@ workspace/
 ```
 
 Training work remains saved. Starting a new implementation only clears that training exercise. Exam cleanup removes only the finished session directory under `exam/<session_id>/`.
+
+Workspaces from older versions (`training/<exercise>/`) are moved to `training/<pack_id>/<exercise>/` the first time that exercise is opened (only if the new folder does not exist yet). Nothing is deleted.
 
 ## Editor/IDE
 
@@ -428,6 +431,10 @@ Training supports:
 - only uncompleted exercises;
 - all exercises;
 - allowing or disallowing repeats.
+
+Progress is tracked per `(pack_id, exercise_id)`: the same exercise id in two packs is two different exercises. Only **training** attempts count for progress ("não feito / tentado / concluído" and the uncompleted-first selection). Exam attempts stay in the history (column "modes" and exam history) but never change training progress. See `docs/decisions/0003-training-vs-exam-progress.md`.
+
+The database has a schema version (`schema_meta`). Before migrating an existing database the app copies it to `trainer.sqlite3.bak-v<N>-<date>`. Migration 2 keeps the old `progress` table as `progress_legacy_v0`; attempts from older versions whose pack cannot be determined unambiguously stay under the pack id `_legacy` and are shown in the history as "(legado)".
 
 On FAIL, training shows a small failure dialog with actions to view the trace, reopen the editor, or return to fix the code. The app does not provide solution hints.
 

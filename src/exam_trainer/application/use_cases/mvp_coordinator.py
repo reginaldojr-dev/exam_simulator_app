@@ -20,6 +20,7 @@ from exam_trainer.application.mvp_models import (
     ExerciseRef,
     ProgressEntry,
 )
+from exam_trainer.domain.attempt_modes import EXAM_MODE, LEGACY_PACK_ID, TRAINING_MODE
 from exam_trainer.domain.grading import GradingPolicy, GradingResult
 from exam_trainer.domain.pack_definition import PackDefinition
 from exam_trainer.domain.workspace import Workspace
@@ -91,10 +92,30 @@ class MVPTrainerCoordinator:
         self._config_repository = config_repository
         self._workspace_port = workspace_port
         self._workspace_root = workspace_root
-        self._seen_training_exercises: set[str] = set()
+        self._seen_training_exercises: set[tuple[str, str]] = set()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._random = rng or random.Random()
         self._expired_exam: ExamState | None = None
+        self.adopt_legacy_progress()
+
+    def adopt_legacy_progress(self) -> int:
+        """Associa tentativas antigas (sem pack) ao pack instalado que declara o exercício.
+
+        Só quando o exercise_id existe em exatamente um pack; nunca apaga nada. Falhas
+        aqui não podem impedir o app de abrir.
+        """
+        adopt = getattr(self._progress_repository, "adopt_legacy_attempts", None)
+        if adopt is None:
+            return 0
+        try:
+            owners: dict[str, set[str]] = {}
+            for pack in self.list_packs():
+                for ref in self._pack_catalog.list_exercises(pack.id):
+                    owners.setdefault(ref.definition.id, set()).add(pack.id)
+            unique = {exercise_id: next(iter(packs)) for exercise_id, packs in owners.items() if len(packs) == 1}
+            return adopt(unique)
+        except Exception:  # noqa: BLE001 — migração oportunista, nunca bloqueia
+            return 0
 
     def list_packs(self) -> list[PackDefinition]:
         return self._pack_catalog.list_packs()
@@ -173,30 +194,42 @@ class MVPTrainerCoordinator:
             self._config_repository.save_compiler_path(str(compiler_path))
 
     def exercise_history_rows(self) -> list[dict[str, object]]:
-        progress = self._progress_repository.progress_by_exercise()
-        latest = self._progress_repository.latest_attempts_by_exercise()
-        modes = self._progress_repository.modes_by_exercise()
+        """Uma linha por exercício de cada pack instalado + tentativas de packs ausentes/legados.
+
+        Status/tentativas refletem só o TREINO (ADR 0003); `modes` mostra se já foi feito em prova.
+        """
+        progress = self._progress_repository.progress_by_key()
+        latest = self._progress_repository.latest_attempts()
+        modes = self._progress_repository.modes_by_key()
         rows: list[dict[str, object]] = []
+        shown: set[tuple[str, str]] = set()
+
+        def row(pack_name: str, level: str, name: str, key: tuple[str, str]) -> dict[str, object]:
+            entry = progress.get(key)
+            status = "não feito"
+            if entry is not None:
+                status = "concluído" if entry.best_passed else "tentado"
+            return {
+                "pack": pack_name,
+                "pack_id": key[0],
+                "level": level,
+                "name": name,
+                "exercise_id": key[1],
+                "status": status,
+                "attempts": 0 if entry is None else entry.attempts_count,
+                "latest_result": self._format_latest_result(latest.get(key, {})),
+                "last_attempt_at": None if entry is None else entry.last_attempt_at,
+                "modes": ", ".join(sorted(modes.get(key, set()))),
+            }
+
         for pack in self.list_packs():
             for ref in self._pack_catalog.list_exercises(pack.id):
-                entry = progress.get(ref.definition.id)
-                latest_attempt = latest.get(ref.definition.id, {})
-                status = "não feito"
-                if entry is not None:
-                    status = "concluído" if entry.best_passed else "tentado"
-                rows.append(
-                    {
-                        "pack": pack.name,
-                        "level": ref.level_id,
-                        "name": ref.definition.name,
-                        "exercise_id": ref.definition.id,
-                        "status": status,
-                        "attempts": 0 if entry is None else entry.attempts_count,
-                        "latest_result": self._format_latest_result(latest_attempt),
-                        "last_attempt_at": None if entry is None else entry.last_attempt_at,
-                        "modes": ", ".join(sorted(modes.get(ref.definition.id, set()))),
-                    }
-                )
+                key = (pack.id, ref.definition.id)
+                shown.add(key)
+                rows.append(row(pack.name, ref.level_id, ref.definition.name, key))
+        for key in sorted(self._progress_repository.attempt_keys() - shown):
+            label = "(legado)" if key[0] == LEGACY_PACK_ID else f"{key[0]} (não instalado)"
+            rows.append(row(label, "-", key[1], key))
         return rows
 
     def exam_history_rows(self) -> list[dict[str, object]]:
@@ -270,9 +303,13 @@ class MVPTrainerCoordinator:
         if not refs:
             raise ValueError("No exercises available for selected levels.")
 
-        progress = self._progress_repository.progress_by_exercise()
+        progress = self._progress_repository.progress_by_exercise(options.pack_id)
         if not options.allow_repeated:
-            unseen = [ref for ref in refs if ref.definition.id not in self._seen_training_exercises]
+            unseen = [
+                ref
+                for ref in refs
+                if (options.pack_id, ref.definition.id) not in self._seen_training_exercises
+            ]
             if unseen:
                 refs = unseen
 
@@ -295,15 +332,20 @@ class MVPTrainerCoordinator:
             if uncompleted:
                 refs = uncompleted
 
-        selected = random.choice(refs)
-        self._seen_training_exercises.add(selected.definition.id)
+        selected = self._random.choice(refs)
+        self._seen_training_exercises.add((options.pack_id, selected.definition.id))
         return selected
 
+    def training_workspace_root(self, pack_id: str) -> Path:
+        return self._workspace_root / "training" / pack_id
+
     def prepare_exercise(self, ref: ExerciseRef, overwrite: bool = False) -> ActiveExercise:
+        training_root = self.training_workspace_root(ref.pack.id)
+        self._migrate_legacy_training_workspace(training_root, ref.definition.id)
         prepared = self._workspace.prepare(
             definition=ref.definition,
             exercise_content_path=ref.content_path,
-            workspace_root=self._workspace_root / "training",
+            workspace_root=training_root,
             overwrite=overwrite,
         )
         return ActiveExercise(
@@ -313,6 +355,22 @@ class MVPTrainerCoordinator:
             submission_path=prepared.submission_path,
             had_existing_submission=prepared.had_existing_submission,
         )
+
+    def _migrate_legacy_training_workspace(self, training_root: Path, exercise_id: str) -> None:
+        """Move `training/<exercise_id>/` (layout antigo) para `training/<pack_id>/<exercise_id>/`.
+
+        Só move quando o destino ainda não existe e a pasta antiga é mesmo um workspace de
+        exercício (tem `subject.txt`). Nunca apaga nada; se não der para mover, deixa como está.
+        """
+        legacy = self._workspace_root / "training" / exercise_id
+        target = training_root / exercise_id
+        if legacy == training_root or target.exists() or not (legacy / "subject.txt").is_file():
+            return
+        try:
+            training_root.mkdir(parents=True, exist_ok=True)
+            legacy.rename(target)
+        except OSError:
+            pass
 
     def prepare_exam_exercise(
         self,
@@ -345,7 +403,7 @@ class MVPTrainerCoordinator:
 
     def submit_training(self, active: ActiveExercise) -> CorrectionOutcome:
         result = self._grade(active, GradingPolicy.training())
-        return self._persist_outcome(active, result, "training")
+        return self._persist_outcome(active, result, TRAINING_MODE)
 
     def start_exam(self, pack_id: str, duration_seconds: int | None = None) -> ExamState:
         pack = self._pack(pack_id)
@@ -415,13 +473,13 @@ class MVPTrainerCoordinator:
 
     def submit_exam(self, state: ExamState, active: ActiveExercise) -> tuple[CorrectionOutcome, ExamState | None]:
         result = self._grade(active, GradingPolicy.exam(), seed=state.seed)
-        outcome = self._persist_outcome(active, result, "exam")
+        outcome = self._persist_outcome(active, result, EXAM_MODE, session_id=state.id)
         self._progress_repository.record_exam_level_result(
             state.id,
             state.level_index,
             active.ref.definition.id,
             result.passed,
-            self._progress_repository.attempts_count(active.ref.definition.id),
+            outcome.attempts_count,
         )
         if not result.passed:
             self._save_exam_state(state, "active")
@@ -510,19 +568,27 @@ class MVPTrainerCoordinator:
         active: ActiveExercise,
         result: GradingResult,
         mode: str,
+        session_id: str | None = None,
     ) -> CorrectionOutcome:
+        pack_id = active.ref.pack.id
+        exercise_id = active.ref.definition.id
         self._progress_repository.save_grading_result(
-            active.ref.definition.id,
+            pack_id,
+            exercise_id,
             result,
             mode,
             datetime.now(),
+            session_id=session_id,
         )
         trace_path = active.exercise_workspace_path / "trace.txt"
         trace_path.write_text(result.trace_data.as_text(), encoding="utf-8")
         return CorrectionOutcome(
             result=result,
             trace_path=trace_path,
-            attempts_count=self._progress_repository.attempts_count(active.ref.definition.id),
+            # treino: tentativas de treino desse exercício; prova: tentativas nesta sessão
+            attempts_count=self._progress_repository.attempts_count(
+                pack_id, exercise_id, mode, session_id=session_id
+            ),
         )
 
     def _save_exam_state(self, state: ExamState, status: str) -> None:
