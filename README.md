@@ -408,6 +408,16 @@ The UI renders subjects as plain monospaced text to preserve whitespace and line
 
 Each level contains exercise folders with `exercise.json` and `subject.md`. Function exercises may declare fixtures such as `main.c`.
 
+Levels are used **in the order declared in `pack.json`** (training and exam); ids are never sorted alphabetically, so `level10` comes after `level9`.
+
+Optional exam duration:
+
+```json
+{ "exam": { "duration_minutes": 180 } }
+```
+
+Packs that do not declare it keep the legacy 4 hour duration.
+
 ## Training
 
 Training supports:
@@ -429,8 +439,12 @@ Exam mode keeps the existing rules:
 - FAIL keeps the same exercise and workspace code;
 - PASS advances automatically;
 - 100% completes the exam;
+- the exam uses an **absolute deadline**: closing the app does not pause the clock; if the deadline passes while the app is closed, the exam is closed as `timeout` with the partial score the next time the app opens;
+- the duration comes from the pack (`exam.duration_minutes`), falling back to 4 hours;
+- the first exercise of each level is drawn at random among that level's exercises, levels follow `pack.json` order;
 - timeout saves partial score;
-- closing/reopening can resume the active session;
+- closing/reopening can resume the active session while there is time left;
+- the exam state is saved on events (start, correction, level change, finish), not every second;
 - finishing removes only `workspace/exam/<session_id>/`.
 
 ## Trace

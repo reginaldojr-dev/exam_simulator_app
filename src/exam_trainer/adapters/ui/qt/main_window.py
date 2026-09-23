@@ -42,7 +42,6 @@ from exam_trainer.application.use_cases.mvp_coordinator import (
     TrainingOptions,
 )
 
-EXAM_DURATION_LABEL = "04:00:00"
 MENU_WIDTH = 460
 EXAM_STATUS_LABELS = {
     "completed": ("[✓] aprovada", "success"),
@@ -871,15 +870,17 @@ class MainWindow(QMainWindow):
             "Estrutura da prova baseada no pack real:",
             *(f"  {index}. {level}" for index, level in enumerate(levels, start=1)),
             "",
-            f"Duração   : {EXAM_DURATION_LABEL}",
+            f"Duração   : {self._format_seconds(self._coordinator.exam_duration_seconds(pack_id))}"
+            + ("" if pack.exam_duration_seconds else "  (padrão; o pack não declara exam.duration_minutes)"),
             "Aprovação : 100%",
             "",
             "Regras:",
             "- ao errar, permanece no mesmo exercício;",
             "- ao passar, avança automaticamente;",
             "- não é permitido trocar exercício;",
+            "- o relógio NÃO pausa: fechar o app não para o tempo;",
             "- se o tempo acabar, a prova encerra e salva nota parcial;",
-            "- se fechar no meio, a sessão pode ser retomada.",
+            "- se fechar no meio, a sessão pode ser retomada enquanto houver tempo.",
         ]
         self._exam_prepare_text.setPlainText("\n".join(lines))
         self._go(self._exam_prepare_page)
@@ -935,6 +936,16 @@ class MainWindow(QMainWindow):
 
     def _show_resume_if_needed(self) -> None:
         state = self._coordinator.load_active_exam()
+        expired = self._coordinator.pop_expired_exam()
+        if expired is not None:
+            self._timer.stop()
+            self._exam_state = None
+            QMessageBox.information(
+                self,
+                "Prova",
+                "O tempo da prova terminou enquanto o app estava fechado.\n"
+                f"A prova foi encerrada com nota parcial de {expired.score:.0f}%.",
+            )
         has_state = state is not None
         self._exam_resume_card.setVisible(has_state)
         self._resume_exam_button.setVisible(has_state)

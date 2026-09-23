@@ -212,9 +212,9 @@ class SQLiteProgressRepository:
                 INSERT OR REPLACE INTO exam_sessions (
                     id, rank, current_level, current_exercise_id, score,
                     remaining_seconds, seed, status, workspace_path,
-                    started_at, finished_at
+                    started_at, finished_at, deadline_at, duration_seconds
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     state["id"],
@@ -228,6 +228,8 @@ class SQLiteProgressRepository:
                     state["workspace_path"],
                     started_at,
                     state.get("finished_at"),
+                    state.get("deadline_at"),
+                    state.get("duration_seconds"),
                 ),
             )
 
@@ -237,7 +239,7 @@ class SQLiteProgressRepository:
                 """
                 SELECT id, rank, current_level, current_exercise_id, score,
                        remaining_seconds, seed, status, workspace_path,
-                       started_at, finished_at
+                       started_at, finished_at, deadline_at, duration_seconds
                 FROM exam_sessions
                 WHERE status = 'active'
                 ORDER BY started_at DESC

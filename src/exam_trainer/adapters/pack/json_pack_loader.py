@@ -29,7 +29,29 @@ class JsonPackLoader:
         name = self._require_non_empty_string(data, "name")
         version = self._require_non_empty_string(data, "version")
         levels = self._read_levels(data)
-        return PackDefinition(id=pack_id, name=name, version=version, levels=levels)
+        exam_duration_seconds = self._read_exam_duration(data)
+        return PackDefinition(
+            id=pack_id,
+            name=name,
+            version=version,
+            levels=levels,
+            exam_duration_seconds=exam_duration_seconds,
+        )
+
+    def _read_exam_duration(self, data: dict[str, Any]) -> int | None:
+        if "exam" not in data:
+            return None
+        exam = self._require_object(data["exam"], "exam")
+        if "duration_minutes" not in exam:
+            return None
+        minutes = exam["duration_minutes"]
+        if not isinstance(minutes, int) or isinstance(minutes, bool):
+            raise PackDefinitionError("exam.duration_minutes must be an integer.")
+        if not 1 <= minutes <= MAX_EXAM_DURATION_MINUTES:
+            raise PackDefinitionError(
+                f"exam.duration_minutes must be between 1 and {MAX_EXAM_DURATION_MINUTES}."
+            )
+        return minutes * 60
 
     def _read_levels(self, data: dict[str, Any]) -> tuple[PackLevelDefinition, ...]:
         if "levels" not in data:

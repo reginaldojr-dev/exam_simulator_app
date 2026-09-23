@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
@@ -33,6 +34,17 @@ class StaticGrader:
         )
 
 
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += timedelta(seconds=seconds)
+
+
 class InMemoryConfig:
     def __init__(self) -> None:
         self.workspace_path: Path | None = None
@@ -54,6 +66,7 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
         temp_dir: str,
         passed: bool = True,
         config: InMemoryConfig | None = None,
+        clock: "FakeClock | None" = None,
     ) -> MVPTrainerCoordinator:
         root = Path(temp_dir)
         return MVPTrainerCoordinator(
@@ -72,6 +85,7 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
             workspace_root=root / "workspace",
             config_repository=config,
             workspace_port=LocalWorkspace(),
+            clock=clock,
         )
 
     def test_training_selection_prioritizes_uncompleted_exercises(self) -> None:
@@ -116,9 +130,12 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
     def test_exam_timeout_finishes_active_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             coordinator = self._coordinator(temp_dir)
+            clock = FakeClock()
+            coordinator = self._coordinator(temp_dir, clock=clock)
             state = coordinator.start_exam("sample_rank", duration_seconds=1)
+            clock.advance(1)
 
-            updated = coordinator.tick_exam(state, seconds=1)
+            updated = coordinator.tick_exam(state)
 
             self.assertIsNone(updated)
             self.assertIsNone(coordinator.load_active_exam())

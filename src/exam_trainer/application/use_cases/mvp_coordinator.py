@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import random
 import shutil
-from dataclasses import dataclass
-from datetime import datetime
+from collections.abc import Callable
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
@@ -45,6 +46,8 @@ class ExamState:
     remaining_seconds: int
     seed: int
     workspace_path: Path
+    deadline_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    duration_seconds: int = 0
 
 
 @dataclass(frozen=True)
@@ -75,6 +78,8 @@ class MVPTrainerCoordinator:
         workspace_root: Path,
         config_repository=None,
         workspace_port=None,
+        clock: Callable[[], datetime] | None = None,
+        rng: random.Random | None = None,
     ) -> None:
         self._pack_catalog = pack_catalog
         self._progress_repository = progress_repository
@@ -87,6 +92,9 @@ class MVPTrainerCoordinator:
         self._workspace_port = workspace_port
         self._workspace_root = workspace_root
         self._seen_training_exercises: set[str] = set()
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._random = rng or random.Random()
+        self._expired_exam: ExamState | None = None
 
     def list_packs(self) -> list[PackDefinition]:
         return self._pack_catalog.list_packs()
@@ -328,49 +336,71 @@ class MVPTrainerCoordinator:
         result = self._grade(active, GradingPolicy.training())
         return self._persist_outcome(active, result, "training")
 
-    def start_exam(self, pack_id: str, duration_seconds: int = 4 * 60 * 60) -> ExamState:
-        refs = self._pack_catalog.list_exercises(pack_id)
-        if not refs:
+    def start_exam(self, pack_id: str, duration_seconds: int | None = None) -> ExamState:
+        pack = self._pack(pack_id)
+        levels = self._exam_levels(pack)
+        if not levels:
             raise ValueError("No exercises available for exam.")
-        first = sorted(refs, key=lambda ref: ref.level_id)[0]
+        duration = duration_seconds or pack.exam_duration_seconds_or_default
+        first = self._random.choice(levels[0][1])
         session_id = str(uuid4())
+        now = self._clock()
         state = ExamState(
             id=session_id,
             pack_id=pack_id,
             level_index=0,
             exercise_id=first.definition.id,
             score=0,
-            remaining_seconds=duration_seconds,
+            remaining_seconds=duration,
             seed=random.SystemRandom().randint(1, 2**31),
             workspace_path=self._workspace_root / "exam" / session_id / first.definition.id,
+            deadline_at=now + timedelta(seconds=duration),
+            duration_seconds=duration,
         )
         self._save_exam_state(state, "active")
         return state
 
     def load_active_exam(self) -> ExamState | None:
+        """Carrega a prova ativa. Se o prazo absoluto já passou (inclusive com o app
+        fechado), encerra como timeout com a nota parcial e devolve None."""
         row = self._progress_repository.load_active_exam()
         if row is None:
             return None
-        return ExamState(
+        now = self._clock()
+        deadline = _parse_datetime(row.get("deadline_at"))
+        if deadline is None:
+            deadline = now + timedelta(seconds=int(row.get("remaining_seconds") or 0))
+        state = ExamState(
             id=str(row["id"]),
             pack_id=str(row["rank"]),
             level_index=int(row["current_level"]),
             exercise_id=str(row["current_exercise_id"]),
             score=float(row["score"]),
-            remaining_seconds=int(row["remaining_seconds"]),
+            remaining_seconds=max(0, int((deadline - now).total_seconds())),
             seed=int(row["seed"]),
             workspace_path=Path(str(row["workspace_path"])),
+            deadline_at=deadline,
+            duration_seconds=int(row.get("duration_seconds") or row.get("remaining_seconds") or 0),
         )
+        if state.remaining_seconds <= 0:
+            self.finish_exam(state, "timeout", state.score)
+            self._expired_exam = state
+            return None
+        return state
+
+    def pop_expired_exam(self) -> ExamState | None:
+        """Prova que expirou enquanto o app estava fechado (para avisar o usuário uma vez)."""
+        expired, self._expired_exam = self._expired_exam, None
+        return expired
 
     def exam_ref(self, state: ExamState) -> ExerciseRef:
-        refs = sorted(
-            self._pack_catalog.list_exercises(state.pack_id),
-            key=lambda ref: ref.level_id,
-        )
-        for ref in refs:
+        for ref in self._pack_catalog.list_exercises(state.pack_id):
             if ref.definition.id == state.exercise_id:
                 return ref
         raise ValueError("Active exam exercise is no longer available.")
+
+    def exam_duration_seconds(self, pack_id: str) -> int:
+        return self._pack(pack_id).exam_duration_seconds_or_default
 
     def submit_exam(self, state: ExamState, active: ActiveExercise) -> tuple[CorrectionOutcome, ExamState | None]:
         result = self._grade(active, GradingPolicy.exam(), seed=state.seed)
@@ -386,40 +416,57 @@ class MVPTrainerCoordinator:
             self._save_exam_state(state, "active")
             return outcome, state
 
-        refs = sorted(
-            self._pack_catalog.list_exercises(state.pack_id),
-            key=lambda ref: ref.level_id,
-        )
-        level_ids = list(dict.fromkeys(ref.level_id for ref in refs))
+        levels = self._exam_levels(self._pack(state.pack_id))
         next_index = state.level_index + 1
-        score = 100 if next_index >= len(level_ids) else (next_index / len(level_ids)) * 100
-        if next_index >= len(level_ids):
+        if next_index >= len(levels):
             self.finish_exam(state, "completed", 100)
             return outcome, None
 
-        next_refs = [ref for ref in refs if ref.level_id == level_ids[next_index]]
-        next_ref = random.choice(next_refs)
-        next_state = ExamState(
-            id=state.id,
-            pack_id=state.pack_id,
+        score = (next_index / len(levels)) * 100
+        next_ref = self._random.choice(levels[next_index][1])
+        next_state = replace(
+            state,
             level_index=next_index,
             exercise_id=next_ref.definition.id,
             score=score,
-            remaining_seconds=state.remaining_seconds,
+            remaining_seconds=self._remaining(state),
             seed=random.SystemRandom().randint(1, 2**31),
             workspace_path=self._workspace_root / "exam" / state.id / next_ref.definition.id,
         )
         self._save_exam_state(next_state, "active")
         return outcome, next_state
 
-    def tick_exam(self, state: ExamState, seconds: int = 1) -> ExamState | None:
-        remaining = max(0, state.remaining_seconds - seconds)
-        updated = ExamState(**{**state.__dict__, "remaining_seconds": remaining})
+    def tick_exam(self, state: ExamState) -> ExamState | None:
+        """Recalcula o tempo restante a partir do deadline absoluto.
+
+        Não grava nada no banco: o deadline já está persistido. Só quando o prazo
+        acaba a prova é encerrada (timeout, nota parcial).
+        """
+        remaining = self._remaining(state)
         if remaining <= 0:
-            self.finish_exam(updated, "timeout", updated.score)
+            expired = replace(state, remaining_seconds=0)
+            self.finish_exam(expired, "timeout", expired.score)
             return None
-        self._save_exam_state(updated, "active")
-        return updated
+        return replace(state, remaining_seconds=remaining)
+
+    def _remaining(self, state: ExamState) -> int:
+        return max(0, int((state.deadline_at - self._clock()).total_seconds()))
+
+    def _pack(self, pack_id: str) -> PackDefinition:
+        for pack in self.list_packs():
+            if pack.id == pack_id:
+                return pack
+        raise ValueError(f"Pack not found: {pack_id}")
+
+    def _exam_levels(self, pack: PackDefinition) -> list[tuple[str, list[ExerciseRef]]]:
+        """Levels na ordem declarada no pack.json (nunca ordem alfabética), sem levels vazios."""
+        refs = self._pack_catalog.list_exercises(pack.id)
+        grouped: list[tuple[str, list[ExerciseRef]]] = []
+        for level_id in pack.level_ids:
+            level_refs = [ref for ref in refs if ref.level_id == level_id]
+            if level_refs:
+                grouped.append((level_id, level_refs))
+        return grouped
 
     def finish_exam(self, state: ExamState, status: str, final_score: float | None = None) -> None:
         self._progress_repository.finish_exam(state.id, status, state.score if final_score is None else final_score)
@@ -477,6 +524,8 @@ class MVPTrainerCoordinator:
                 "workspace_path": str(state.workspace_path),
                 "started_at": datetime.now().isoformat(),
                 "finished_at": None,
+                "deadline_at": state.deadline_at.isoformat(),
+                "duration_seconds": state.duration_seconds,
             }
         )
 
@@ -485,3 +534,13 @@ class MVPTrainerCoordinator:
         if not latest_attempt:
             return "-"
         return "PASS" if bool(latest_attempt.get("passed")) else "FAIL"
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
