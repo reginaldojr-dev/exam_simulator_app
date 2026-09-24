@@ -1,18 +1,23 @@
 {
+  "schema_version": 3,
   "id": "echo_args",
+  "type": "exercise",
   "name": "Echo Args",
   "subject": "subject.md",
+  "topics": [],
   "submission": {
     "filename": "echo_args.c"
   },
-  "execution": {
-    "type": "program_output"
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "random_arguments",
+      "expectation": "echo_arguments"
+    },
+    "limits": {
+      "timeout_seconds": 2
+    }
   },
-  "tests": {
-    "generator": "random_arguments",
-    "expectation": "echo_arguments"
-  },
-  "limits": {
-    "timeout_seconds": 2
-  }
+  "programming_language": "c",
+  "content_language": "pt-BR"
 }

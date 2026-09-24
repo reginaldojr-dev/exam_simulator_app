@@ -14,9 +14,15 @@ class TraceBuilder:
     def add_environment(self, definition: ExerciseDefinition, workspace_path: Path) -> None:
         self._lines.extend(
             (
-                "=== 42 Exam Trainer Trace ===",
+                "=== Exam Trainer Trace ===",
                 f"Exercise: {definition.name} ({definition.id})",
-                f"Execution: {definition.execution.type}",
+                f"Execution: {definition.execution.type}"
+                + (
+                    f" (declared: {definition.execution.declared_type})"
+                    if definition.execution.declared_type not in (None, definition.execution.type)
+                    else ""
+                ),
+                f"Language: {definition.language}",
                 f"Workspace: {workspace_path}",
                 "",
             )
@@ -73,3 +79,4 @@ class TraceBuilder:
 
     def build(self) -> TraceData:
         return TraceData(lines=tuple(self._lines))
+

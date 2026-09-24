@@ -5,9 +5,16 @@ import shutil
 import sys
 from pathlib import Path
 
+from exam_trainer.ports.editor_port import EditorLaunchError
 
-class EditorLaunchError(RuntimeError):
-    pass
+__all__ = [
+    "EditorLaunchError",
+    "SubprocessEditor",
+    "SubprocessEditorFactory",
+    "editor_display_name",
+    "resolve_known_editor",
+    "validate_editor_executable",
+]
 
 
 class SubprocessEditor:
@@ -78,3 +85,19 @@ def validate_editor_executable(executable: str | Path) -> Path:
     if not path.is_file():
         raise EditorLaunchError(f"Editor executable must be a file: {path}")
     return path
+
+
+class SubprocessEditorFactory:
+    """Implementação padrão de `EditorFactory` (application/ports) via subprocess."""
+
+    def display_name(self, command: str) -> str:
+        return editor_display_name(command)
+
+    def validate(self, command: str) -> Path:
+        return validate_editor_executable(command)
+
+    def create(self, executable: str) -> SubprocessEditor:
+        return SubprocessEditor(executable, editor_display_name(executable))
+
+    def resolve_known(self, label: str) -> str | None:
+        return resolve_known_editor(label)

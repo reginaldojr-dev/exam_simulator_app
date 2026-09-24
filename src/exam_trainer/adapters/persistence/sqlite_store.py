@@ -5,6 +5,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+from exam_trainer.adapters.persistence import migrations
+
 
 class SQLiteStore:
     def __init__(self, database_path: Path) -> None:
@@ -33,6 +35,12 @@ class SQLiteStore:
             connection.close()
 
     def initialize(self) -> None:
+        had_data = self._database_path.is_file() and self._database_path.stat().st_size > 0
+        self._create_base_tables()
+        self.schema_version = migrations.migrate(self._database_path, self.connect, had_data)
+
+    def _create_base_tables(self) -> None:
+        """Tabelas da versão 0 (legado). Mudanças posteriores vêm das migrações."""
         with self.session() as connection:
             connection.executescript(
                 """

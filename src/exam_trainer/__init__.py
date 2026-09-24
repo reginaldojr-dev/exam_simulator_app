@@ -1,1 +1,2 @@
-"""42 Exam Trainer application package."""
+"""Exam Trainer application package."""
+

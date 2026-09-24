@@ -4,7 +4,27 @@ import json
 from pathlib import Path, PurePath
 from typing import Any
 
-from exam_trainer.domain.pack_definition import PackDefinition, PackLevelDefinition
+from exam_trainer.adapters.contract_fields import read_schema_version, read_topics
+from exam_trainer.application.capabilities import default_exercise_capabilities
+from exam_trainer.domain.identifiers import UnsafeValueError, parse_relative_path, validate_identifier
+from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition, PackLevelDefinition
+
+MAX_EXAM_DURATION_MINUTES = 24 * 60
+V2_PACK_KEYS = frozenset(
+    (
+        "schema_version",
+        "id",
+        "name",
+        "version",
+        "language",
+        "languages",
+        "content_language",
+        "topics",
+        "description",
+        "exam",
+        "levels",
+    )
+)
 
 
 class PackDefinitionError(ValueError):
@@ -12,6 +32,12 @@ class PackDefinitionError(ValueError):
 
 
 class JsonPackLoader:
+    def __init__(self, supported_languages: frozenset[str] | None = None) -> None:
+        # None = pega das capabilities padrão do app.
+        if supported_languages is None:
+            supported_languages = frozenset(default_exercise_capabilities().languages)
+        self._languages = supported_languages
+
     def load(self, pack_json_path: Path | str) -> PackDefinition:
         path = Path(pack_json_path)
         try:
@@ -22,11 +48,103 @@ class JsonPackLoader:
             raise PackDefinitionError(f"Could not read pack definition: {error}.") from error
 
         data = self._require_object(raw_data, "pack definition")
+        schema_version = read_schema_version(data, PackDefinitionError)
+        if schema_version >= 3:
+            unknown = sorted(set(data) - V2_PACK_KEYS)
+            if unknown:
+                raise PackDefinitionError(f"Unknown field(s) in pack.json v3: {', '.join(unknown)}.")
+            language = self._read_optional_pack_language(data)
+            content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
+            topics = read_topics(data.get("topics", []), PackDefinitionError)
+            self._read_languages_metadata(data.get("languages", []))
+        elif schema_version >= 2:
+            unknown = sorted(set(data) - V2_PACK_KEYS)
+            if unknown:
+                raise PackDefinitionError(f"Unknown field(s) in pack.json v2: {', '.join(unknown)}.")
+            language = self._require_identifier(data, "language") if "language" in data else DEFAULT_LANGUAGE
+            content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
+            topics = read_topics(data.get("topics", []), PackDefinitionError)
+            self._read_languages_metadata(data.get("languages", []))
+        else:
+            # v1: sem language/topics. Campos extras continuam ignorados como antes.
+            language, content_language, topics = DEFAULT_LANGUAGE, "pt-BR", ()
+        if language not in self._languages:
+            supported = ", ".join(sorted(self._languages))
+            raise PackDefinitionError(f"Unsupported language: {language} (supported: {supported}).")
         pack_id = self._require_identifier(data, "id")
         name = self._require_non_empty_string(data, "name")
         version = self._require_non_empty_string(data, "version")
         levels = self._read_levels(data)
-        return PackDefinition(id=pack_id, name=name, version=version, levels=levels)
+        exam_duration_seconds = self._read_exam_duration(data)
+        return PackDefinition(
+            id=pack_id,
+            name=name,
+            version=version,
+            levels=levels,
+            exam_duration_seconds=exam_duration_seconds,
+            schema_version=schema_version,
+            language=language,
+            content_language=content_language,
+            topics=topics,
+        )
+
+    def _read_optional_pack_language(self, data: dict[str, Any]) -> str:
+        if "language" not in data:
+            languages = data.get("languages")
+            if isinstance(languages, list) and languages:
+                first = languages[0]
+                if not isinstance(first, str):
+                    raise PackDefinitionError("languages[0] must be a string.")
+                try:
+                    return validate_identifier(first, "languages[0]")
+                except UnsafeValueError as error:
+                    raise PackDefinitionError(str(error)) from error
+            return DEFAULT_LANGUAGE
+        return self._require_identifier(data, "language")
+
+    def _read_languages_metadata(self, raw: Any) -> tuple[str, ...]:
+        if raw in (None, []):
+            return ()
+        if not isinstance(raw, list):
+            raise PackDefinitionError("languages must be a list.")
+        values: list[str] = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, str):
+                raise PackDefinitionError(f"languages[{index}] must be a string.")
+            try:
+                language = validate_identifier(item, f"languages[{index}]")
+            except UnsafeValueError as error:
+                raise PackDefinitionError(str(error)) from error
+            if language not in self._languages:
+                supported = ", ".join(sorted(self._languages))
+                raise PackDefinitionError(f"Unsupported language: {language} (supported: {supported}).")
+            values.append(language)
+        return tuple(values)
+
+    @staticmethod
+    def _read_locale(value: Any, field_name: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise PackDefinitionError(f"{field_name} must be a non-empty locale string.")
+        locale = value.strip()
+        parts = locale.replace("_", "-").split("-")
+        if not 1 <= len(parts) <= 3 or not all(part.isalnum() and 2 <= len(part) <= 8 for part in parts):
+            raise PackDefinitionError(f"{field_name} must be a locale like pt-BR or en.")
+        return locale
+
+    def _read_exam_duration(self, data: dict[str, Any]) -> int | None:
+        if "exam" not in data:
+            return None
+        exam = self._require_object(data["exam"], "exam")
+        if "duration_minutes" not in exam:
+            return None
+        minutes = exam["duration_minutes"]
+        if not isinstance(minutes, int) or isinstance(minutes, bool):
+            raise PackDefinitionError("exam.duration_minutes must be an integer.")
+        if not 1 <= minutes <= MAX_EXAM_DURATION_MINUTES:
+            raise PackDefinitionError(
+                f"exam.duration_minutes must be between 1 and {MAX_EXAM_DURATION_MINUTES}."
+            )
+        return minutes * 60
 
     def _read_levels(self, data: dict[str, Any]) -> tuple[PackLevelDefinition, ...]:
         if "levels" not in data:
@@ -36,10 +154,14 @@ class JsonPackLoader:
             raise PackDefinitionError("levels must be a non-empty list.")
 
         levels: list[PackLevelDefinition] = []
+        seen: set[str] = set()
         for index, raw_level in enumerate(raw_levels):
             level_data = self._require_object(raw_level, f"levels[{index}]")
             level_id = self._require_identifier(level_data, "id")
             level_path = self._require_relative_path(level_data, "path")
+            if level_id in seen:
+                raise PackDefinitionError(f"Duplicated level id: {level_id}.")
+            seen.add(level_id)
             levels.append(PackLevelDefinition(id=level_id, path=level_path))
         return tuple(levels)
 
@@ -51,11 +173,10 @@ class JsonPackLoader:
 
     def _require_identifier(self, data: dict[str, Any], field_name: str) -> str:
         value = self._require_non_empty_string(data, field_name)
-        if any(separator in value for separator in (" ", "/", "\\")):
-            raise PackDefinitionError(
-                f"{field_name} must be an identifier without spaces or path separators."
-            )
-        return value
+        try:
+            return validate_identifier(value, field_name)
+        except UnsafeValueError as error:
+            raise PackDefinitionError(str(error)) from error
 
     @staticmethod
     def _require_non_empty_string(data: dict[str, Any], field_name: str) -> str:
@@ -70,7 +191,7 @@ class JsonPackLoader:
 
     def _require_relative_path(self, data: dict[str, Any], field_name: str) -> PurePath:
         value = self._require_non_empty_string(data, field_name)
-        path = PurePath(value)
-        if path.is_absolute() or ".." in path.parts:
-            raise PackDefinitionError(f"{field_name} must be a relative path.")
-        return path
+        try:
+            return parse_relative_path(value, field_name)
+        except UnsafeValueError as error:
+            raise PackDefinitionError(str(error)) from error

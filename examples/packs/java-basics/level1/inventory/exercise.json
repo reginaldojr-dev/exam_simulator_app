@@ -1,0 +1,51 @@
+{
+  "schema_version": 3,
+  "id": "inventory",
+  "type": "exercise",
+  "name": "Inventory",
+  "subject": "subject.md",
+  "programming_language": "java",
+  "content_language": "pt-BR",
+  "topics": [
+    "java",
+    "basics"
+  ],
+  "submission": {
+    "filename": "InventoryApp.java",
+    "extra_files": [
+      "Inventory.java"
+    ]
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/InventoryApp.java",
+      "extra_files": [
+        "solution/Inventory.java"
+      ]
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "2",
+            "5"
+          ]
+        },
+        {
+          "args": [
+            "10",
+            "-3",
+            "1"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "InventoryApp"
+  }
+}

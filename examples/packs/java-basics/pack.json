@@ -1,0 +1,28 @@
+{
+  "schema_version": 3,
+  "id": "java-basics",
+  "name": "Java Basics",
+  "version": "1.0.0",
+  "languages": [
+    "java"
+  ],
+  "content_language": "pt-BR",
+  "topics": [
+    "java",
+    "basics"
+  ],
+  "description": "Authorial Java Basics pack for Exam Trainer runtime validation.",
+  "exam": {
+    "duration_minutes": 60
+  },
+  "levels": [
+    {
+      "id": "level0",
+      "path": "level0"
+    },
+    {
+      "id": "level1",
+      "path": "level1"
+    }
+  ]
+}

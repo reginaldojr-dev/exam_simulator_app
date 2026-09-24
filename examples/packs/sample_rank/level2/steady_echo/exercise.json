@@ -1,18 +1,23 @@
 {
+  "schema_version": 3,
   "id": "steady_echo",
+  "type": "exercise",
   "name": "Steady Echo",
   "subject": "subject.md",
+  "topics": [],
   "submission": {
     "filename": "steady_echo.c"
   },
-  "execution": {
-    "type": "program_output"
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "random_arguments",
+      "expectation": "echo_arguments"
+    },
+    "limits": {
+      "timeout_seconds": 1
+    }
   },
-  "tests": {
-    "generator": "random_arguments",
-    "expectation": "echo_arguments"
-  },
-  "limits": {
-    "timeout_seconds": 1
-  }
+  "programming_language": "c",
+  "content_language": "pt-BR"
 }

@@ -15,10 +15,6 @@ env/
 .coverage
 htmlcov/
 
-# Build / PyInstaller
-build/
-dist/
-
 # Local databases
 *.db
 *.sqlite
@@ -28,10 +24,6 @@ dist/
 .env
 .env.*
 *.local.json
-
-# User workspace
-workspace/
-42-exam-trainer/
 
 # IDE / editor
 .vscode/
@@ -47,12 +39,9 @@ desktop.ini
 *.tmp
 *.temp
 
-# Original/private 42 material
-reference/
-packs/rank02-original/
+# Local project artifacts (agent outputs, private packs, scratch workspaces)
+_local/
 
 # Python packaging
 *.egg-info/
 .eggs/
-
-docs/rank02_analysis.md

@@ -1,0 +1,47 @@
+{
+  "schema_version": 3,
+  "id": "parse_sum",
+  "type": "exercise",
+  "name": "Parse Sum",
+  "subject": "subject.md",
+  "programming_language": "c",
+  "content_language": "pt-BR",
+  "topics": [
+    "c",
+    "basics"
+  ],
+  "submission": {
+    "filename": "parse_sum.c"
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/reference.c"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "1",
+            "2",
+            "3"
+          ]
+        },
+        {
+          "args": [
+            "-4",
+            "10"
+          ]
+        },
+        {
+          "args": []
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor
+from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.grader.generic_c_grader import GenericCGrader
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
 from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
+from exam_trainer.adapters.runtime.c_runtime import CRuntime
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
+from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import (
     MVPTrainerCoordinator,
     TrainingOptions,
@@ -31,6 +34,17 @@ class StaticGrader:
             seed=request.seed,
             trace_data=TraceData((f"Result: {self.passed}",)),
         )
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += timedelta(seconds=seconds)
 
 
 class InMemoryConfig:
@@ -54,8 +68,10 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
         temp_dir: str,
         passed: bool = True,
         config: InMemoryConfig | None = None,
+        clock: "FakeClock | None" = None,
     ) -> MVPTrainerCoordinator:
         root = Path(temp_dir)
+        compiler = SystemCCompiler(candidates=("definitely-not-a-c-compiler",))
         return MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(
                 managed_packs_dir=root / "managed",
@@ -68,10 +84,12 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
             grader=StaticGrader(passed),
             editor=SubprocessEditor("definitely-not-used"),
             pack_importer=LocalPackImporter(root / "managed"),
-            compiler=SystemCCompiler(candidates=("definitely-not-a-c-compiler",)),
+            runtimes=RuntimeRegistry([CRuntime(compiler, manager=compiler)]),
             workspace_root=root / "workspace",
+            editor_factory=SubprocessEditorFactory(),
             config_repository=config,
             workspace_port=LocalWorkspace(),
+            clock=clock,
         )
 
     def test_training_selection_prioritizes_uncompleted_exercises(self) -> None:
@@ -116,9 +134,12 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
     def test_exam_timeout_finishes_active_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             coordinator = self._coordinator(temp_dir)
+            clock = FakeClock()
+            coordinator = self._coordinator(temp_dir, clock=clock)
             state = coordinator.start_exam("sample_rank", duration_seconds=1)
+            clock.advance(1)
 
-            updated = coordinator.tick_exam(state, seconds=1)
+            updated = coordinator.tick_exam(state)
 
             self.assertIsNone(updated)
             self.assertIsNone(coordinator.load_active_exam())

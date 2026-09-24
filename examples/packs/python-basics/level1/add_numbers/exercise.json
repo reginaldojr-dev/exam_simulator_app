@@ -1,0 +1,45 @@
+{
+  "schema_version": 3,
+  "id": "add_numbers",
+  "type": "exercise",
+  "name": "Add Numbers",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "submission": {
+    "filename": "add_numbers.py"
+  },
+  "validation": {
+    "strategy": "function_call",
+    "reference": {
+      "source": "solution/add_numbers.py"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "2",
+            "3"
+          ]
+        },
+        {
+          "args": [
+            "-4",
+            "10"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "add",
+    "args_format": "json"
+  }
+}

@@ -1,1 +1,2 @@
-"""Infrastructure composition for 42 Exam Trainer."""
+"""Infrastructure composition for Exam Trainer."""
+

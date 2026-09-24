@@ -1,11 +1,16 @@
 [project]
-name = "42-exam-trainer"
+name = "exam-trainer"
 version = "0.1.0"
 description = "Desktop study trainer foundation for 42-style exams."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "PySide6>=6.8",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.0",
 ]
 
 [project.scripts]
@@ -18,6 +23,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+exam_trainer = ["resources/*.md"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+

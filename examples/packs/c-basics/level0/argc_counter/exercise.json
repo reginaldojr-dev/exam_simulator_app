@@ -1,0 +1,47 @@
+{
+  "schema_version": 3,
+  "id": "argc_counter",
+  "type": "exercise",
+  "name": "Argc Counter",
+  "subject": "subject.md",
+  "programming_language": "c",
+  "content_language": "pt-BR",
+  "topics": [
+    "c",
+    "basics"
+  ],
+  "submission": {
+    "filename": "argc_counter.c"
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/reference.c"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": []
+        },
+        {
+          "args": [
+            "a",
+            "b"
+          ]
+        },
+        {
+          "args": [
+            "one",
+            "two",
+            "three"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

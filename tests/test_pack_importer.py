@@ -44,6 +44,12 @@ def create_minimal_pack(root: Path) -> None:
     )
 
 
+
+PACKS_ROOT = Path(__file__).resolve().parent.parent / "_local" / "packs"
+EXAMPLES_ROOT = Path(__file__).resolve().parent.parent / "examples" / "packs"
+C_BASICS = EXAMPLES_ROOT / "c-basics"
+PRIVATE_ORIGINAL = PACKS_ROOT / "rank02-original"
+
 class PackImporterTest(unittest.TestCase):
     def test_imports_valid_pack_to_managed_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -97,30 +103,38 @@ class PackImporterTest(unittest.TestCase):
             self.assertTrue((managed / "sample_rank" / "level0").is_dir())
             self.assertTrue((managed / "sample_rank" / "level1").is_dir())
 
-    def test_repository_rank02_packs_are_valid(self) -> None:
+    def test_public_c_basics_pack_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             managed = Path(temp_dir) / "managed"
-            packs_root = Path(__file__).parent.parent / "packs"
-            importer = LocalPackImporter(managed)
+            pack = LocalPackImporter(managed).import_pack(C_BASICS)
 
-            original = importer.import_pack(packs_root / "rank02-original")
-            practice = importer.import_pack(packs_root / "rank02-practice")
+            self.assertEqual(pack.id, "c-basics")
+            self.assertTrue((managed / "c-basics" / "level1").is_dir())
+
+    def test_public_c_basics_pack_exercise_ids_are_unique(self) -> None:
+        self._assert_unique_ids(C_BASICS, expected=4)
+
+    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
+    def test_private_original_pack_is_valid(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            managed = Path(temp_dir) / "managed"
+            original = LocalPackImporter(managed).import_pack(PRIVATE_ORIGINAL)
 
             self.assertEqual(original.id, "rank02-original")
-            self.assertEqual(practice.id, "rank02-practice")
             self.assertTrue((managed / "rank02-original" / "level3").is_dir())
-            self.assertTrue((managed / "rank02-practice" / "level3").is_dir())
 
-    def test_repository_rank02_exercise_ids_are_unique(self) -> None:
-        packs_root = Path(__file__).parent.parent / "packs"
-        for pack_root in (packs_root / "rank02-original", packs_root / "rank02-practice"):
-            ids: set[str] = set()
-            for exercise_json in pack_root.glob("level*/*/exercise.json"):
-                data = json.loads(exercise_json.read_text(encoding="utf-8"))
-                exercise_id = str(data["id"])
-                self.assertNotIn(exercise_id, ids, msg=str(exercise_json))
-                ids.add(exercise_id)
-            self.assertEqual(len(ids), 55, msg=str(pack_root))
+    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
+    def test_private_original_pack_exercise_ids_are_unique(self) -> None:
+        self._assert_unique_ids(PRIVATE_ORIGINAL, expected=55)
+
+    def _assert_unique_ids(self, pack_root: Path, expected: int) -> None:
+        ids: set[str] = set()
+        for exercise_json in pack_root.glob("level*/*/exercise.json"):
+            data = json.loads(exercise_json.read_text(encoding="utf-8"))
+            exercise_id = str(data["id"])
+            self.assertNotIn(exercise_id, ids, msg=str(exercise_json))
+            ids.add(exercise_id)
+        self.assertEqual(len(ids), expected, msg=str(pack_root))
 
     def test_imports_pack_from_zip(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

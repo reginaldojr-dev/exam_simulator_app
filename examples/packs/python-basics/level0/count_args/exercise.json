@@ -1,0 +1,40 @@
+{
+  "schema_version": 3,
+  "id": "count_args",
+  "type": "exercise",
+  "name": "Count Args",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "submission": {
+    "filename": "count_args.py"
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/count_args.py"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": []
+        },
+        {
+          "args": [
+            "a",
+            "b"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}
