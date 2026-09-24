@@ -6,7 +6,7 @@ a = Analysis(
     pathex=['src'],
     binaries=[],
     # Só conteúdo público: packs de exemplo, README e o contrato de pack.
-    # packs/ (inclusive material privado local) NÃO entra no executável.
+    # _local/ (material privado local e artefatos de agentes) NÃO entra no executável.
     datas=[
         ('examples', 'examples'),
         ('README.md', '.'),
@@ -28,7 +28,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='42 Exam Trainer',
+    name='Exam Trainer',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -42,3 +42,4 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
+

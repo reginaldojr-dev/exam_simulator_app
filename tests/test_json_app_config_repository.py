@@ -20,7 +20,7 @@ class JsonAppConfigRepositoryTest(unittest.TestCase):
     def test_saves_and_loads_workspace_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "config" / "config.json"
-            workspace_path = Path(temp_dir) / "42-exam-trainer"
+            workspace_path = Path(temp_dir) / "exam-trainer"
             repository = JsonAppConfigRepository(config_path)
 
             repository.save_workspace_path(workspace_path)
@@ -64,3 +64,4 @@ class JsonAppConfigRepositoryTest(unittest.TestCase):
             repository.save_compiler_path(str(compiler))
 
             self.assertEqual(repository.load_compiler_path(), str(compiler))
+

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 
-APP_DIR_NAME = "42-exam-trainer"
+APP_DIR_NAME = "exam-trainer"
 
 
 def user_config_dir() -> Path:
@@ -36,3 +36,4 @@ def bundled_sample_packs_dir() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / "examples" / "packs"
     return Path(__file__).resolve().parents[3] / "examples" / "packs"
+

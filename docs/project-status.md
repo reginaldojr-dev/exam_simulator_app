@@ -87,7 +87,7 @@ src/exam_trainer/
 
 - **`language == "c"` na config:** `adapters/persistence/json_app_config_repository.py` mapeia `compiler_path` (legado). Está na lista de exceções até a migração de configuração da S2.
 - **Grader:** o `GenericGrader` mora em `adapters/grader/`; a árvore-alvo o coloca em `application/grading/` (S1/S2). Não foi movido na S1 — não fazia parte das 5 violações registradas em `KNOWN_VIOLATIONS`; fica para a extração dos services (Obj. 9/10) numa sessão seguinte.
-- **Teste tautológico:** `tests/test_pack_contract_v2.py::PracticePackGradingRegressionTest` corrige o `rank02-practice` usando as referências dele mesmo. Como as 55 referências são o mesmo echo, o teste não prova nada sobre o caminho C. Continua falhando (esperado): será substituído na sessão que reescrever o pack (Objetivo 13.2, "Geração de packs").
+- **Teste tautológico histórico:** `rank02-practice` foi usado temporariamente como pack público de regressão, mas não era uma boa fonte de verdade. Na S3, os testes públicos passaram a usar os packs autorais em `examples/packs/`, e `_local/packs/` virou a área local ignorada pelo Git.
 - **Finais de linha:** o repositório guarda blobs com LF (`core.autocrlf` no Windows). O espelho da série anterior tinha CRLF no `.spec` e no `rank02-practice`; a S0 refez a série sobre blobs LF (ADR 0006).
 
 ## Diário
@@ -123,10 +123,10 @@ src/exam_trainer/
   - `tests/test_runtime_layer.py::PreflightByLanguageTest.test_pack_language_without_runtime_is_blocked`
   - `tests/test_qt_main_window.py::MainWindowTest._window`
 - **Testes de arquitetura:** as 5 entradas de `KNOWN_VIOLATIONS` com sessão "S1" saem do dicionário; os `@expected_until` correspondentes são removidos. `tests/test_architecture.py`: 11 passed, 1 xfailed (só `test_language_checks_only_in_language_aware_modules`, S2).
-- **Suíte completa (ambiente de nuvem, Linux, sem packs privados nem PyInstaller):** 185 passed, 14 failed, 2 skipped, 1 xfailed, 44 subtests passed. Comparado bit a bit com a mesma suíte antes da mudança (`git stash`): **exatamente o mesmo conjunto de 14 falhas antes e depois** — nenhuma regressão. As 14 falhas restantes são pré-existentes e fora do escopo desta sessão:
+- **Suíte completa naquele momento (ambiente de nuvem, Linux, sem packs privados nem PyInstaller):** 185 passed, 14 failed, 2 skipped, 1 xfailed, 44 subtests passed. Comparado bit a bit com a mesma suíte antes da mudança (`git stash`): **exatamente o mesmo conjunto de 14 falhas antes e depois** — nenhuma regressão. As 14 falhas restantes eram pré-existentes e fora do escopo daquela sessão:
   - `tests/test_build_script.py` (10): dependem de um build real (PyInstaller/`dist/`), não disponível no espelho da nuvem;
-  - `tests/test_pack_contract_v2.py` / `tests/test_pack_importer.py` (4, incl. 1 subtest): `rank02-practice` é o pack tautológico já documentado em "Outros achados" — só será corrigido quando o Objetivo 13.2 (reescrita do pack) rodar.
-- **Suíte completa no computador do usuário (Windows, `.venv` do projeto, com os packs privados):** foi validada posteriormente durante o fechamento real da S1 no repositório local. O histórico operacional antigo em `Claude outputs/` está obsoleto; a área local atual para artefatos de agentes é `agents_outputs/`.
+  - `tests/test_pack_contract_v2.py` / `tests/test_pack_importer.py` (4, incl. 1 subtest): naquele momento ainda dependiam do `rank02-practice` tautológico; a S3 substituiu essa cobertura pelos packs autorais em `examples/packs/`.
+- **Suíte completa no computador do usuário (Windows, `.venv` do projeto, com os packs privados):** foi validada posteriormente durante o fechamento real da S1 no repositório local. O histórico operacional antigo em `Claude outputs/` está obsoleto; a área local atual para artefatos de agentes é `_local/agents_outputs/`.
 - **ADR criado:** 0007 (`docs/decisions/0007-s1-application-service-boundaries.md`).
 - **Pendências desta sessão:** a extração dos services/view models completos (Obj. 9/10) e a migração do `GenericGrader` para `application/grading/` ficam para a sessão seguinte que assumir essas fases do protocolo (D.2, fases 2 em diante) — não estavam cobertas pelo board de violações verificado nesta rodada e não foram tocadas para não expandir o escopo sem um teste que as trave.
 
@@ -153,7 +153,7 @@ src/exam_trainer/
 
 ### S3 — Runtimes obrigatórios, pack v3, Activity/Validation e conteúdo pt-BR
 
-- **Roadmap oficial atualizado:** `agents_outputs/roadmap-fechamento-v1-final-v8.md` substitui cumulativamente o v7 e registra a separação entre linguagem de programação e idioma humano do conteúdo.
+- **Roadmap oficial atualizado:** `_local/agents_outputs/roadmap-fechamento-v1-final-v8.md` substitui cumulativamente o v7 e registra a separação entre linguagem de programação e idioma humano do conteúdo.
 - **Objetivo:** completar a base genérica de runtimes/contrato/validação da V1, preparar o núcleo para `ActivityDefinition`/`ValidationPlan` e entregar packs autorais por runtime obrigatório.
 - **Mudanças principais:**
   1. `RuntimeDescriptor` passa a expor capabilities consultáveis por runtime; `RuntimeRegistry` lista descriptors.
@@ -163,13 +163,13 @@ src/exam_trainer/
   5. `ExerciseDefinition` expõe `ActivityDefinition`, `ValidationPlan` e `ValidationStep` como fronteira neutra para evolução futura.
   6. `submission.extra_files` e `reference.extra_files` suportam exercícios multi-file.
   7. `src/exam_trainer/resources/pack-contract.md` passa a documentar o contrato v3.
-  8. Packs públicos `c-basics`, `cpp-basics`, `python-basics`, `java-basics`, `sample_rank` e `rank02-practice` foram migrados/gerados em v3.
-  9. Packs locais privados `rank02-original` a `rank06-original` foram migrados localmente para v3 e continuam ignorados pelo Git.
+  8. Packs públicos versionados em `examples/packs/`: `c-basics`, `cpp-basics`, `python-basics`, `java-basics` e `sample_rank` foram migrados/gerados em v3.
+  9. Packs locais em `_local/packs/` (`rank02-practice` e `rank02-original` a `rank06-original`) foram migrados localmente para v3 e continuam ignorados pelo Git.
   10. `docs/HANDOFF_REPORT.md` foi removido por ser handoff histórico obsoleto que apontava para artefatos antigos.
 - **Decisão arquitetural:** ADR 0009.
 - **Validações:**
-  - packs públicos importáveis: `c-basics` 4, `cpp-basics` 3, `python-basics` 8, `java-basics` 3, `sample_rank` 3, `rank02-practice` 55;
-  - packs privados locais importáveis: `rank02-original` 55, `rank03-original` 8, `rank04-original` 5, `rank05-original` 5, `rank06-original` 2;
+  - packs públicos importáveis: `c-basics` 4, `cpp-basics` 3, `python-basics` 8, `java-basics` 3, `sample_rank` 3;
+  - packs locais importáveis e não versionados: `rank02-practice` 55, `rank02-original` 55, `rank03-original` 8, `rank04-original` 5, `rank05-original` 5, `rank06-original` 2;
   - referências de `python-basics` e `java-basics` passam no grader real neste ambiente;
   - `tests/test_content_language_contract.py` prova `programming_language` independente de `content_language`, subject UTF-8/pt-BR e grading sem dependência do idioma humano;
   - suíte completa local: 208 passed, 5 skipped, 7 warnings, 48 subtests passed.

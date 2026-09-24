@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
         self._theme = theme_manager or ThemeManager(self._saved_theme_key())
         self._cursor = CursorController(self)
 
-        self.setWindowTitle("42 Exam Trainer")
+        self.setWindowTitle("Exam Trainer")
         self.setMinimumSize(760, 560)
 
         self._stack = QStackedWidget()
@@ -1401,3 +1401,4 @@ class MainWindow(QMainWindow):
 
     def _back_from_exercise(self) -> None:
         self._go(self._exam_page if self._mode == "exam" else self._training_page)
+

@@ -7,7 +7,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples" / "packs"
-PACKS = ROOT / "packs"
+PACKS = ROOT / "_local" / "packs"
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -369,9 +369,16 @@ def main() -> None:
     generate_cpp_basics()
     generate_java_basics()
     generate_python_basics()
-    for root in [EXAMPLES / "sample_rank", PACKS / "rank02-practice"]:
+    for root in [EXAMPLES / "sample_rank"]:
         migrate_pack(root)
-    for name in ("rank02-original", "rank03-original", "rank04-original", "rank05-original", "rank06-original"):
+    for name in (
+        "rank02-practice",
+        "rank02-original",
+        "rank03-original",
+        "rank04-original",
+        "rank05-original",
+        "rank06-original",
+    ):
         private_root = PACKS / name
         migrate_pack(private_root)
         if private_root.exists():

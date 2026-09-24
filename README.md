@@ -1,6 +1,6 @@
-# 42 Exam Trainer
+# Exam Trainer
 
-42 Exam Trainer is a Python/PySide6 desktop app for practicing C exam workflows inspired by the 42 ecosystem.
+Exam Trainer is a Python/PySide6 desktop app for practicing C exam workflows inspired by the 42 ecosystem.
 
 This public repository contains the generic app engine: workspace management, pack validation, C compilation, grading, trace output, training mode, exam mode, SQLite progress/history, and a compact desktop UI.
 
@@ -98,7 +98,7 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[build]"
 ```
 
-The distribution name is `42-exam-trainer` (see `pyproject.toml`); the import package is `exam_trainer` under `src/`. The `build` extra installs PyInstaller in the same environment.
+The distribution name is `exam-trainer` (see `pyproject.toml`); the import package is `exam_trainer` under `src/`. The `build` extra installs PyInstaller in the same environment.
 
 Check that the import comes from this checkout:
 
@@ -270,7 +270,7 @@ python -m unittest discover -s tests
 python -m compileall -q src tests
 ```
 
-Tests that need the private `packs/rank02-original` are **skipped** when that folder is absent (public clones, CI) and run normally when it exists locally. Qt tests run headless with `QT_QPA_PLATFORM=offscreen` (set automatically by the tests).
+Tests that need the private `_local/packs/rank02-original` are **skipped** when that folder is absent (public clones, CI) and run normally when it exists locally. Qt tests run headless with `QT_QPA_PLATFORM=offscreen` (set automatically by the tests).
 
 CI (`.github/workflows/ci.yml`) runs the same flow on Windows and Linux: fresh `.venv`, `pip install -e ".[build]"`, import-origin check, `unittest`, `compileall`.
 
@@ -286,7 +286,7 @@ python build.py --force    # always rebuild
 
 How it decides and what it guarantees:
 
-- **What is hashed**: only what goes into the executable (`src/`, `examples/`, `README.md`, the `.spec`, `pyproject.toml`) plus the environment (Python version, PyInstaller, PySide6, platform). `packs/` is not bundled and not hashed, so local/private packs never trigger a rebuild. A folder named `workspace/` is ignored only at the project root; caches (`__pycache__`, `*.pyc`) are ignored everywhere.
+- **What is hashed**: only what goes into the executable (`src/`, `examples/`, `README.md`, the `.spec`, `pyproject.toml`) plus the environment (Python version, PyInstaller, PySide6, platform). `_local/` is not bundled and not hashed, so local/private packs, agent outputs, and scratch workspaces never trigger a rebuild. Caches (`__pycache__`, `*.pyc`) are ignored everywhere.
 - **Safe replace**: PyInstaller writes into `build/_staging/`; the current executable in `dist/` is replaced (atomically) only after the new build succeeds. A failed build keeps the previous executable. If the old executable is open and cannot be replaced, the script exits with code `4`, says so, and leaves the new one in `build/_staging/dist/`.
 - **Bundled docs**: the executable ships `README.md` and the pack contract (`exam_trainer/resources/pack-contract.md`), so `Como criar um pack` and the documentation button work from the executable. Only public example packs (`examples/packs`) are bundled.
 
@@ -294,7 +294,7 @@ Exit codes: `0` ok, `1` build failed, `3` build ok but the operating system refu
 
 `3` on Windows is usually Smart App Control / App Control (`WinError 4551`) blocking an unsigned executable. The build is not broken: run from source with `python -m exam_trainer.main`. Public releases will need signed builds (no certificate is stored in this repository).
 
-Build on each target platform separately (the executable is `dist/42 Exam Trainer.exe` on Windows and `dist/42 Exam Trainer` on Linux/macOS):
+Build on each target platform separately (the executable is `_local/dist/Exam Trainer.exe` on Windows and `_local/dist/Exam Trainer` on Linux/macOS):
 
 - Windows: Windows executable;
 - Linux: Linux binary;
@@ -304,6 +304,7 @@ Packaging stays outside the domain and application layers.
 
 ## Troubleshooting
 
-**`ModuleNotFoundError: No module named 'exam_trainer.adapters...'` or a traceback pointing to another folder.** Another copy of the project is installed in the Python you are using. Check with `python -m pip show 42-exam-trainer` (look at `Editable project location`). Fix: activate this repository's `.venv` and run `python -m pip install -e ".[build]"`. If the old copy is installed in the global Python, remove it there with `python -m pip uninstall 42-exam-trainer`.
+**`ModuleNotFoundError: No module named 'exam_trainer.adapters...'` or a traceback pointing to another folder.** Another copy of the project is installed in the Python you are using. Check with `python -m pip show exam-trainer` (look at `Editable project location`). Fix: activate this repository's `.venv` and run `python -m pip install -e ".[build]"`. If the old copy is installed in the global Python, remove it there with `python -m pip uninstall exam-trainer`.
 
 **`WinError 4551` when opening the executable.** Windows App Control blocked an unsigned executable. See "Build With PyInstaller".
+

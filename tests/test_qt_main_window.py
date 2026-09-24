@@ -374,7 +374,7 @@ class MainWindowTest(unittest.TestCase):
             window = self._window(temp_dir)
 
             self.assertEqual(window._cursor._titles[window._title_home], "EXAM TRAINER")
-            self.assertEqual(window.windowTitle(), "42 Exam Trainer")
+            self.assertEqual(window.windowTitle(), "Exam Trainer")
 
     def test_grading_runs_off_the_ui_thread_and_blocks_duplicate_submissions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -471,3 +471,4 @@ class MainWindowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

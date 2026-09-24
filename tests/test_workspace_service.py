@@ -46,7 +46,7 @@ class WorkspaceServiceTest(unittest.TestCase):
 
     def test_startup_state_uses_existing_saved_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir) / "42-exam-trainer"
+            workspace_path = Path(temp_dir) / "exam-trainer"
             service = WorkspaceService(
                 config_repository=InMemoryConfigRepository(workspace_path),
                 workspace_file_system=InMemoryWorkspaceFileSystem({workspace_path}),
@@ -61,7 +61,7 @@ class WorkspaceServiceTest(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir) / "42-exam-trainer"
+            workspace_path = Path(temp_dir) / "exam-trainer"
             service = WorkspaceService(
                 config_repository=InMemoryConfigRepository(workspace_path),
                 workspace_file_system=InMemoryWorkspaceFileSystem(),
@@ -74,7 +74,7 @@ class WorkspaceServiceTest(unittest.TestCase):
 
     def test_configure_workspace_creates_and_saves_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir) / "42-exam-trainer"
+            workspace_path = Path(temp_dir) / "exam-trainer"
             config_repository = InMemoryConfigRepository()
             file_system = InMemoryWorkspaceFileSystem()
             service = WorkspaceService(config_repository, file_system)
@@ -84,3 +84,4 @@ class WorkspaceServiceTest(unittest.TestCase):
             self.assertEqual(workspace.path, workspace_path)
             self.assertEqual(config_repository.workspace_path, workspace_path)
             self.assertEqual(file_system.created_paths, [workspace_path])
+

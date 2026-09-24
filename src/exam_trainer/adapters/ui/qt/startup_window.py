@@ -58,7 +58,7 @@ class StartupWindow(QWidget):
         if not selected_parent:
             return
 
-        workspace_path = Path(selected_parent) / "42-exam-trainer"
+        workspace_path = Path(selected_parent) / "exam-trainer"
         try:
             workspace = self._initialize_application.configure_workspace(workspace_path)
         except WorkspaceError as error:
@@ -73,3 +73,4 @@ class StartupWindow(QWidget):
             return
 
         self.workspace_configured.emit(workspace.path)
+

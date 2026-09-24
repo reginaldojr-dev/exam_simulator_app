@@ -45,7 +45,9 @@ def create_minimal_pack(root: Path) -> None:
 
 
 
-PACKS_ROOT = Path(__file__).resolve().parent.parent / "packs"
+PACKS_ROOT = Path(__file__).resolve().parent.parent / "_local" / "packs"
+EXAMPLES_ROOT = Path(__file__).resolve().parent.parent / "examples" / "packs"
+C_BASICS = EXAMPLES_ROOT / "c-basics"
 PRIVATE_ORIGINAL = PACKS_ROOT / "rank02-original"
 
 class PackImporterTest(unittest.TestCase):
@@ -101,18 +103,18 @@ class PackImporterTest(unittest.TestCase):
             self.assertTrue((managed / "sample_rank" / "level0").is_dir())
             self.assertTrue((managed / "sample_rank" / "level1").is_dir())
 
-    def test_public_practice_pack_is_valid(self) -> None:
+    def test_public_c_basics_pack_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             managed = Path(temp_dir) / "managed"
-            practice = LocalPackImporter(managed).import_pack(PACKS_ROOT / "rank02-practice")
+            pack = LocalPackImporter(managed).import_pack(C_BASICS)
 
-            self.assertEqual(practice.id, "rank02-practice")
-            self.assertTrue((managed / "rank02-practice" / "level3").is_dir())
+            self.assertEqual(pack.id, "c-basics")
+            self.assertTrue((managed / "c-basics" / "level1").is_dir())
 
-    def test_public_practice_pack_exercise_ids_are_unique(self) -> None:
-        self._assert_unique_ids(PACKS_ROOT / "rank02-practice", expected=55)
+    def test_public_c_basics_pack_exercise_ids_are_unique(self) -> None:
+        self._assert_unique_ids(C_BASICS, expected=4)
 
-    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado packs/rank02-original ausente (esperado em clones públicos)")
+    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
     def test_private_original_pack_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             managed = Path(temp_dir) / "managed"
@@ -121,7 +123,7 @@ class PackImporterTest(unittest.TestCase):
             self.assertEqual(original.id, "rank02-original")
             self.assertTrue((managed / "rank02-original" / "level3").is_dir())
 
-    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado packs/rank02-original ausente (esperado em clones públicos)")
+    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
     def test_private_original_pack_exercise_ids_are_unique(self) -> None:
         self._assert_unique_ids(PRIVATE_ORIGINAL, expected=55)
 

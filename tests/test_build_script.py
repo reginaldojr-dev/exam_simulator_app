@@ -64,7 +64,7 @@ class BuildScriptInputsTest(unittest.TestCase):
             "examples/packs/demo/pack.json",
             "README.md",
             "pyproject.toml",
-            "42 Exam Trainer.spec",
+            "Exam Trainer.spec",
         ):
             path = self.root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -76,11 +76,11 @@ class BuildScriptInputsTest(unittest.TestCase):
             "BUILD_DIR": self.root / "build",
             "DIST_DIR": dist,
             "STAGING_DIR": self.root / "build" / "_staging",
-            "SPEC_FILE": self.root / "42 Exam Trainer.spec",
+            "SPEC_FILE": self.root / "Exam Trainer.spec",
             "EXE_PATH": dist / build.EXE_NAME,
             "STATE_FILE": dist / ".build_state.json",
             "SOURCE_DIRS": (self.root / "src", self.root / "examples"),
-            "SOURCE_FILES": (self.root / "42 Exam Trainer.spec", self.root / "pyproject.toml", self.root / "README.md"),
+            "SOURCE_FILES": (self.root / "Exam Trainer.spec", self.root / "pyproject.toml", self.root / "README.md"),
         }
         for name, value in patches.items():
             patcher = mock.patch.object(build, name, value)
@@ -97,17 +97,17 @@ class BuildScriptInputsTest(unittest.TestCase):
     def inputs(self) -> set[str]:
         return {path.relative_to(self.root).as_posix() for path in self.build.iter_build_inputs()}
 
-    def test_workspace_is_ignored_only_at_root(self) -> None:
-        self.write("workspace/training/x/x.c")
+    def test_local_folder_is_ignored_only_at_root(self) -> None:
+        self.write("_local/workspace/training/x/x.c")
         self.write("src/exam_trainer/__pycache__/main.cpython-313.pyc")
         inputs = self.inputs()
         self.assertIn("src/exam_trainer/adapters/workspace/local.py", inputs)
-        self.assertFalse(any(item.startswith("workspace/") for item in inputs))
+        self.assertFalse(any(item.startswith("_local/") for item in inputs))
         self.assertFalse(any("__pycache__" in item for item in inputs))
 
     def test_private_packs_folder_does_not_change_the_hash(self) -> None:
         before = self.build.calculate_source_hash()
-        self.write("packs/rank02-original/level0/x/exercise.json", "private")
+        self.write("_local/packs/rank02-original/level0/x/exercise.json", "private")
         self.assertEqual(before, self.build.calculate_source_hash())
         self.write("src/exam_trainer/new_module.py")
         self.assertNotEqual(before, self.build.calculate_source_hash())
@@ -168,12 +168,13 @@ class BuildScriptInputsTest(unittest.TestCase):
         self.assertIn("Feche o app", out.getvalue())
         self.assertFalse(self.build.STATE_FILE.exists())
 
-    def test_spec_bundles_docs_and_never_the_packs_folder(self) -> None:
-        spec = (ROOT / "42 Exam Trainer.spec").read_text(encoding="utf-8")
+    def test_spec_bundles_docs_and_never_the_local_folder(self) -> None:
+        spec = (ROOT / "Exam Trainer.spec").read_text(encoding="utf-8")
         self.assertIn("('README.md', '.')", spec)
         self.assertIn("exam_trainer/resources", spec)
-        self.assertNotIn("('packs'", spec)
+        self.assertNotIn("('_local'", spec)
 
 
 if __name__ == "__main__":
     unittest.main()
+

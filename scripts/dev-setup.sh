@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Prepara o ambiente de desenvolvimento do 42 Exam Trainer (Linux/macOS).
+# Prepara o ambiente de desenvolvimento do Exam Trainer (Linux/macOS).
 #   ./scripts/dev-setup.sh            # cria .venv e instala
 #   ./scripts/dev-setup.sh --run-tests
 set -eu
@@ -23,3 +23,4 @@ if [ "${1:-}" = "--run-tests" ]; then
   QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s tests
 fi
 echo "Pronto. Ative com: source .venv/bin/activate"
+

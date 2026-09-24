@@ -1,1 +1,2 @@
-"""Application use cases for 42 Exam Trainer."""
+"""Application use cases for Exam Trainer."""
+

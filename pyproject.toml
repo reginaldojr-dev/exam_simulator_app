@@ -1,5 +1,5 @@
 [project]
-name = "42-exam-trainer"
+name = "exam-trainer"
 version = "0.1.0"
 description = "Desktop study trainer foundation for 42-style exams."
 readme = "README.md"
@@ -29,3 +29,4 @@ exam_trainer = ["resources/*.md"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+

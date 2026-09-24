@@ -1,4 +1,4 @@
-"""Build helper do 42 Exam Trainer (PyInstaller).
+"""Build helper do Exam Trainer (PyInstaller).
 
 Uso (com a .venv do projeto ativa):
     python build.py            gera o executável (pula se nada mudou)
@@ -10,7 +10,8 @@ Garantias:
   numa pasta de staging e só no fim o exe é trocado);
 - o hash considera só o que entra no executável (src/, examples/, README.md, .spec,
   pyproject.toml) e as versões do ambiente (Python, PyInstaller, PySide6, plataforma);
-- packs/ (inclusive material privado local) não entra no executável nem no hash;
+- _local/ (packs privados locais, artefatos de agentes e rascunhos) não entra no
+  executável nem no hash;
 - erro de política do Windows ao abrir o exe (WinError 4551/1260) é explicado, sem traceback.
 """
 
@@ -25,11 +26,12 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent
-BUILD_DIR = ROOT / "build"
-DIST_DIR = ROOT / "dist"
+LOCAL_DIR = ROOT / "_local"
+BUILD_DIR = LOCAL_DIR / "build"
+DIST_DIR = LOCAL_DIR / "dist"
 STAGING_DIR = BUILD_DIR / "_staging"
-SPEC_FILE = ROOT / "42 Exam Trainer.spec"
-APP_NAME = "42 Exam Trainer"
+SPEC_FILE = ROOT / "Exam Trainer.spec"
+APP_NAME = "Exam Trainer"
 EXE_NAME = f"{APP_NAME}.exe" if sys.platform == "win32" else APP_NAME
 EXE_PATH = DIST_DIR / EXE_NAME
 STATE_FILE = DIST_DIR / ".build_state.json"
@@ -67,8 +69,8 @@ IGNORED_ANYWHERE = {
     ".ruff_cache",
 }
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
-# Ignorados SÓ na raiz do projeto (ex.: `workspace/` do usuário). Uma pasta com o mesmo
-# nome dentro de src/ (como src/exam_trainer/adapters/workspace/) continua no hash.
+# Ignorados SÓ na raiz do projeto. Uma pasta com o mesmo nome dentro de src/
+# (como src/exam_trainer/adapters/workspace/) continua no hash.
 IGNORED_AT_ROOT = {
     ".git",
     ".venv",
@@ -77,8 +79,7 @@ IGNORED_AT_ROOT = {
     "build",
     "dist",
     "tests",
-    "workspace",
-    "packs",
+    "_local",
     "Claude outputs",
 }
 
@@ -197,7 +198,7 @@ def run_build(source_hash: str | None = None) -> int:
         "--workpath",
         str(staging_work),
     ]
-    print("=== 42 Exam Trainer Build ===")
+    print("=== Exam Trainer Build ===")
     print("Gerando executável (o executável atual só é trocado se o build der certo)...")
     result = subprocess.run(command, cwd=ROOT)
     if result.returncode != 0:
@@ -291,7 +292,7 @@ def check_environment() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build helper do 42 Exam Trainer")
+    parser = argparse.ArgumentParser(description="Build helper do Exam Trainer")
     parser.add_argument(
         "-r",
         "--run",
@@ -320,3 +321,4 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

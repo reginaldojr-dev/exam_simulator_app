@@ -22,8 +22,8 @@ from exam_trainer.domain.grading import GradingPolicy
 from exam_trainer.ports.grader_port import GradingRequest
 
 REPO = Path(__file__).resolve().parent.parent
-PRACTICE = REPO / "packs" / "rank02-practice"
 SAMPLE = REPO / "examples" / "packs" / "sample_rank"
+C_BASICS = REPO / "examples" / "packs" / "c-basics"
 
 
 def v1_exercise(**overrides: object) -> dict[str, object]:
@@ -264,7 +264,7 @@ class PackContractTest(unittest.TestCase):
             LocalPackImporter(self.root / "managed").inspect_pack(root)
 
     def test_bundled_packs_use_v3_contract(self) -> None:
-        for pack_root, expected in ((SAMPLE, None), (PRACTICE, 55)):
+        for pack_root, expected in ((SAMPLE, None), (C_BASICS, 4)):
             with self.subTest(pack=pack_root.name):
                 report = LocalPackImporter(self.root / "managed").inspect_pack(pack_root)
                 self.assertEqual(report.pack.schema_version, 3)
@@ -273,17 +273,17 @@ class PackContractTest(unittest.TestCase):
 
 
 @unittest.skipUnless(SystemCCompiler().is_available(), "no compatible C compiler")
-class PracticePackGradingRegressionTest(unittest.TestCase):
-    """Não-regressão do caminho C: cada referência do rank02-practice passa como submissão."""
+class CBasicsPackGradingRegressionTest(unittest.TestCase):
+    """Não-regressão do caminho C: cada referência do c-basics passa como submissão."""
 
     def test_every_reference_passes_and_empty_submission_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            shutil.copytree(PRACTICE, root / "bundled" / PRACTICE.name)
+            shutil.copytree(C_BASICS, root / "bundled" / C_BASICS.name)
             catalog = LocalPackCatalog(root / "managed", bundled_packs_dir=root / "bundled")
             grader = GenericCGrader(SystemCCompiler())
-            refs = catalog.list_exercises("rank02-practice")
-            self.assertEqual(len(refs), 55)
+            refs = catalog.list_exercises("c-basics")
+            self.assertEqual(len(refs), 4)
             failures = []
             for index, ref in enumerate(refs):
                 definition = ref.definition
