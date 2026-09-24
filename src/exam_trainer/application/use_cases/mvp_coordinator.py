@@ -1,19 +1,12 @@
 from __future__ import annotations
 
 import random
-import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from exam_trainer.adapters.editor.subprocess_editor import (
-    EditorLaunchError,
-    SubprocessEditor,
-    editor_display_name,
-    validate_editor_executable,
-)
 from exam_trainer.application.mvp_models import (
     ActiveExercise,
     CorrectionOutcome,
@@ -24,12 +17,11 @@ from exam_trainer.domain.attempt_modes import EXAM_MODE, LEGACY_PACK_ID, TRAININ
 from exam_trainer.domain.grading import GradingPolicy, GradingResult
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
-from exam_trainer.ports.compiler_port import ConfigurableCompilerPort
 from exam_trainer.ports.config_repository import AppSettingsRepository
 from exam_trainer.ports.progress_repository import TrainerProgressRepository
 from exam_trainer.ports.runtime_port import LanguageRuntime
 from exam_trainer.domain.workspace import Workspace
-from exam_trainer.ports.editor_port import EditorPort
+from exam_trainer.ports.editor_port import EditorFactory, EditorLaunchError, EditorPort
 from exam_trainer.ports.exercise_workspace_port import ExerciseWorkspacePort
 from exam_trainer.ports.grader_port import GraderPort, GradingRequest
 
@@ -80,28 +72,26 @@ class MVPTrainerCoordinator:
         grader: GraderPort,
         editor: EditorPort,
         pack_importer,
-        compiler: ConfigurableCompilerPort | None,
+        runtimes: RuntimeRegistry,
         workspace_root: Path,
+        editor_factory: EditorFactory,
         config_repository: AppSettingsRepository | None = None,
         workspace_port=None,
         clock: Callable[[], datetime] | None = None,
         rng: random.Random | None = None,
-        runtimes: RuntimeRegistry | None = None,
     ) -> None:
-        """`runtimes`: um runtime por linguagem. Sem ele, registra só o CRuntime do `compiler`."""
+        """`runtimes`: um runtime por linguagem, montado por quem compõe o app
+        (composition root ou o próprio teste) — a application nunca instancia um adapter
+        de runtime concreto. O mesmo vale para `editor_factory`: quem sabe criar/validar
+        um editor concreto é o adapter, não o coordinator."""
         self._pack_catalog = pack_catalog
         self._progress_repository = progress_repository
         self._workspace = workspace
         self._grader = grader
         self._editor = editor
         self._pack_importer = pack_importer
-        if runtimes is None:
-            if compiler is None:
-                raise ValueError("Provide runtimes or a C compiler.")
-            from exam_trainer.adapters.runtime.c_runtime import CRuntime
-
-            runtimes = RuntimeRegistry([CRuntime(compiler, manager=compiler)])
         self._runtimes = runtimes
+        self._editor_factory = editor_factory
         self._config_repository = config_repository
         self._workspace_port = workspace_port
         self._workspace_root = workspace_root
@@ -166,13 +156,16 @@ class MVPTrainerCoordinator:
         return self._config_repository.load_editor_command()
 
     def editor_display_name(self) -> str:
-        return editor_display_name(self.editor_command())
+        return self._editor_factory.display_name(self.editor_command())
+
+    def resolve_known_editor(self, label: str) -> str | None:
+        return self._editor_factory.resolve_known(label)
 
     def save_editor_command(self, command: str) -> None:
-        executable = validate_editor_executable(command)
+        executable = self._editor_factory.validate(command)
         if self._config_repository is not None:
             self._config_repository.save_editor_command(str(executable))
-        self._editor = SubprocessEditor(str(executable), editor_display_name(str(executable)))
+        self._editor = self._editor_factory.create(str(executable))
 
     # ---------------------------------------------------------------- runtimes
     def runtime(self, language: str) -> LanguageRuntime:
@@ -308,7 +301,7 @@ class MVPTrainerCoordinator:
 
     def preflight_editor(self) -> PreflightResult:
         try:
-            validate_editor_executable(self.editor_command())
+            self._editor_factory.validate(self.editor_command())
         except EditorLaunchError:
             return PreflightResult.failed(
                 "editor",
@@ -388,11 +381,7 @@ class MVPTrainerCoordinator:
         target = training_root / exercise_id
         if legacy == training_root or target.exists() or not (legacy / "subject.txt").is_file():
             return
-        try:
-            training_root.mkdir(parents=True, exist_ok=True)
-            legacy.rename(target)
-        except OSError:
-            pass
+        self._workspace.move_directory(legacy, target)
 
     def prepare_exam_exercise(
         self,
@@ -566,8 +555,8 @@ class MVPTrainerCoordinator:
     def finish_exam(self, state: ExamState, status: str, final_score: float | None = None) -> None:
         self._progress_repository.finish_exam(state.id, status, state.score if final_score is None else final_score)
         session_root = state.workspace_path.parent
-        if session_root.exists() and session_root.parent == self._workspace_root / "exam":
-            shutil.rmtree(session_root)
+        if session_root.parent == self._workspace_root / "exam":
+            self._workspace.remove_directory(session_root)
 
     def _grade(
         self,

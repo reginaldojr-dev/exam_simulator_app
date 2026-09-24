@@ -8,10 +8,7 @@ from exam_trainer.adapters.persistence.sqlite_progress_repository import (
 )
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.editor.subprocess_editor import (
-    SubprocessEditor,
-    editor_display_name,
-)
+from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditorFactory
 from exam_trainer.adapters.grader.generic_grader import GenericGrader
 from exam_trainer.adapters.runtime.c_runtime import CRuntime
 from exam_trainer.adapters.runtime.python_runtime import PythonRuntime
@@ -56,6 +53,7 @@ class AppFactory:
             ]
         )
         editor_command = config.load_editor_command()
+        editor_factory = SubprocessEditorFactory()
         return MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(
                 managed_packs_dir(),
@@ -64,13 +62,13 @@ class AppFactory:
             progress_repository=self.create_progress_repository(),
             workspace=LocalExerciseWorkspace(),
             grader=GenericGrader(runtimes),
-            editor=SubprocessEditor(editor_command, editor_display_name(editor_command)),
+            editor=editor_factory.create(editor_command),
             pack_importer=LocalPackImporter(managed_packs_dir()),
-            compiler=compiler,
             config_repository=config,
             workspace_port=workspace,
             workspace_root=workspace_root,
             runtimes=runtimes,
+            editor_factory=editor_factory,
         )
 
     def create_config_repository(self) -> JsonAppConfigRepository:
