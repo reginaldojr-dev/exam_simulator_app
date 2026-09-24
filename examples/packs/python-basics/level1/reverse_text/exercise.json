@@ -1,40 +1,43 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "id": "reverse_text",
+  "type": "exercise",
   "name": "Reverse Text",
   "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
   "topics": [
-    "functions",
-    "strings"
+    "python",
+    "basics"
   ],
   "submission": {
     "filename": "reverse_text.py"
   },
-  "execution": {
-    "type": "function_call",
+  "validation": {
+    "strategy": "function_call",
+    "reference": {
+      "source": "solution/reverse_text.py"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "abc"
+          ]
+        },
+        {
+          "args": [
+            "Python"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
     "entry": "reverse_text",
     "args_format": "str"
-  },
-  "reference": {
-    "source": "solution/reverse_text.py"
-  },
-  "tests": {
-    "generator": "random_string",
-    "expectation": "reference_output",
-    "cases": [
-      {
-        "args": [
-          "abc"
-        ]
-      },
-      {
-        "args": [
-          "a"
-        ]
-      }
-    ]
-  },
-  "limits": {
-    "timeout_seconds": 2
   }
 }

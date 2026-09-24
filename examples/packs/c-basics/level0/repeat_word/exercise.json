@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "id": "repeat_word",
+  "type": "exercise",
+  "name": "Repeat Word",
+  "subject": "subject.md",
+  "programming_language": "c",
+  "content_language": "pt-BR",
+  "topics": [
+    "c",
+    "basics"
+  ],
+  "submission": {
+    "filename": "repeat_word.c"
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/reference.c"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "3",
+            "ha"
+          ]
+        },
+        {
+          "args": [
+            "1",
+            "x"
+          ]
+        },
+        {
+          "args": [
+            "0",
+            "z"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

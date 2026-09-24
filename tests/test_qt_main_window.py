@@ -225,14 +225,16 @@ class MainWindowTest(unittest.TestCase):
 
             self.assertIs(window._stack.currentWidget(), window._pack_help_page)
             content = window._pack_help_text.toPlainText()
-            self.assertIn("não é limitado ao Rank 02", content)
+            self.assertIn("Contrato de Pack — Exam Trainer", content)
             self.assertIn("pack.json", content)
             self.assertIn("exercise.json", content)
             self.assertIn("subject.md", content)
+            self.assertIn("programming_language", content)
+            self.assertIn("content_language", content)
             self.assertIn("program_output", content)
-            self.assertIn("function_with_main", content)
+            self.assertIn("function_call", content)
             self.assertIn("random_arguments", content)
-            self.assertIn("echo_arguments", content)
+            self.assertIn("reference_output", content)
             # fonte única: a ajuda mostra o mesmo arquivo do contrato que o README referencia
             from exam_trainer.resources import pack_contract_text
 

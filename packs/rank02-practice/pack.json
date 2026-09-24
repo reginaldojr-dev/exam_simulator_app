@@ -1,7 +1,13 @@
 {
+  "schema_version": 3,
   "id": "rank02-practice",
   "name": "Rank 02 - Practice",
   "version": "1.0.0",
+  "languages": [
+    "c"
+  ],
+  "content_language": "pt-BR",
+  "topics": [],
   "levels": [
     {
       "id": "level0",

@@ -1,19 +1,24 @@
 {
+  "schema_version": 3,
   "id": "sum_values",
+  "type": "exercise",
   "name": "Sum Values",
   "subject": "subject.md",
+  "topics": [],
   "submission": {
     "filename": "sum_values.c"
   },
-  "execution": {
-    "type": "function_with_main",
-    "fixture": "main.c"
+  "validation": {
+    "strategy": "function_call",
+    "harness": "main.c",
+    "tests": {
+      "generator": "random_int_array",
+      "expectation": "sum_integers"
+    },
+    "limits": {
+      "timeout_seconds": 2
+    }
   },
-  "tests": {
-    "generator": "random_int_array",
-    "expectation": "sum_integers"
-  },
-  "limits": {
-    "timeout_seconds": 2
-  }
+  "programming_language": "c",
+  "content_language": "pt-BR"
 }

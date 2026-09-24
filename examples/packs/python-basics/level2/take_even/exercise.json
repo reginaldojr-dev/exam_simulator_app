@@ -1,0 +1,43 @@
+{
+  "schema_version": 3,
+  "id": "take_even",
+  "type": "exercise",
+  "name": "Take Even",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "submission": {
+    "filename": "take_even.py"
+  },
+  "validation": {
+    "strategy": "function_call",
+    "reference": {
+      "source": "solution/take_even.py"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "[1, 2, 3, 4]"
+          ]
+        },
+        {
+          "args": [
+            "[]"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "take_even",
+    "args_format": "json"
+  }
+}

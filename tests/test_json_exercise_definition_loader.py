@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from pathlib import PurePath, Path
+from pathlib import Path, PurePosixPath
 
 from exam_trainer.adapters.exercise_definition.json_loader import (
     DEFAULT_TIMEOUT_SECONDS,
@@ -42,7 +42,7 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
         self.assertIsInstance(definition, ExerciseDefinition)
         self.assertEqual(definition.id, "echo_args")
         self.assertEqual(definition.name, "Echo Args")
-        self.assertEqual(definition.subject, PurePath("subject.md"))
+        self.assertEqual(definition.subject, PurePosixPath("subject.md"))
         self.assertEqual(definition.submission.filename, "echo_args.c")
         self.assertEqual(definition.execution.type, "program_output")
         self.assertEqual(definition.tests.generator, "random_string")
@@ -161,7 +161,7 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
 
         definition = JsonExerciseDefinitionLoader().load_data(data)
 
-        self.assertEqual(definition.execution.fixture, PurePath("main.c"))
+        self.assertEqual(definition.execution.fixture, PurePosixPath("main.c"))
 
     def test_reference_compare_requires_reference(self) -> None:
         data = valid_definition_data()
@@ -193,13 +193,13 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
         self.assertEqual(definition.execution.type, "function_call")
         self.assertEqual(
             definition.reference,
-            ReferenceDefinition(source=PurePath("fixtures/reference.c"), harness=PurePath("fixtures/main.c")),
+            ReferenceDefinition(source=PurePosixPath("fixtures/reference.c"), harness=PurePosixPath("fixtures/main.c")),
         )
-        self.assertEqual(definition.execution.fixture, PurePath("fixtures/main.c"))
-        self.assertEqual(definition.execution.reference, PurePath("fixtures/reference.c"))
+        self.assertEqual(definition.execution.fixture, PurePosixPath("fixtures/main.c"))
+        self.assertEqual(definition.execution.reference, PurePosixPath("fixtures/reference.c"))
         self.assertEqual(definition.tests.cases[0].args, ("alpha", "beta"))
         self.assertEqual(definition.tests.cases[0].expected, "alpha beta\n")
-        self.assertEqual(definition.support_files, (PurePath("ft_list.h"),))
+        self.assertEqual(definition.support_files, (PurePosixPath("ft_list.h"),))
 
     def test_fixed_cases_require_declared_cases(self) -> None:
         data = valid_definition_data()

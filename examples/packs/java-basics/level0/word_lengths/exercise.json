@@ -1,0 +1,41 @@
+{
+  "schema_version": 3,
+  "id": "word_lengths",
+  "type": "exercise",
+  "name": "Word Lengths",
+  "subject": "subject.md",
+  "programming_language": "java",
+  "content_language": "pt-BR",
+  "topics": [
+    "java",
+    "basics"
+  ],
+  "submission": {
+    "filename": "WordLengths.java"
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/WordLengths.java"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "java",
+            "oop"
+          ]
+        },
+        {
+          "args": []
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "WordLengths"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 3,
+  "id": "line_join",
+  "type": "exercise",
+  "name": "Line Join",
+  "subject": "subject.md",
+  "programming_language": "cpp",
+  "content_language": "pt-BR",
+  "topics": [
+    "cpp",
+    "basics"
+  ],
+  "submission": {
+    "filename": "line_join.cpp"
+  },
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/reference.cpp"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "a",
+            "b",
+            "c"
+          ]
+        },
+        {
+          "args": [
+            "solo"
+          ]
+        },
+        {
+          "args": []
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

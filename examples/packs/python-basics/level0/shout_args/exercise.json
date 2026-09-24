@@ -1,37 +1,42 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "id": "shout_args",
+  "type": "exercise",
   "name": "Shout Args",
   "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
   "topics": [
-    "strings",
-    "argv"
+    "python",
+    "basics"
   ],
   "submission": {
     "filename": "shout_args.py"
   },
-  "execution": {
-    "type": "program_output"
-  },
-  "reference": {
-    "source": "solution/shout_args.py"
-  },
-  "tests": {
-    "generator": "random_arguments",
-    "expectation": "reference_output",
-    "cases": [
-      {
-        "args": []
-      },
-      {
-        "args": [
-          "hello",
-          "World"
-        ]
-      }
-    ]
-  },
-  "limits": {
-    "timeout_seconds": 2
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "solution/shout_args.py"
+    },
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": [
+            "hi",
+            "there"
+          ]
+        },
+        {
+          "args": [
+            "Py"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
   }
 }

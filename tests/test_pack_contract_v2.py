@@ -6,7 +6,7 @@ import json
 import shutil
 import tempfile
 import unittest
-from pathlib import Path, PurePath
+from pathlib import Path, PurePosixPath
 
 from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
 from exam_trainer.adapters.exercise_definition.json_loader import (
@@ -55,6 +55,28 @@ def v2_exercise(**overrides: object) -> dict[str, object]:
     return data
 
 
+def v3_exercise(**overrides: object) -> dict[str, object]:
+    data: dict[str, object] = {
+        "schema_version": 3,
+        "id": "ex",
+        "type": "exercise",
+        "name": "Ex",
+        "subject": "subject.md",
+        "language": "c",
+        "topics": ["strings", "loops"],
+        "submission": {"filename": "ex.c"},
+        "validation": {
+            "strategy": "function_call",
+            "harness": "harness/main.c",
+            "reference": {"source": "solution/ex.c", "harness": "harness/main.c"},
+            "tests": {"generator": "random_arguments", "expectation": "reference_output"},
+            "limits": {"timeout_seconds": 2},
+        },
+    }
+    data.update(overrides)
+    return data
+
+
 class ExerciseContractTest(unittest.TestCase):
     def load(self, data: dict[str, object], language: str = "c"):
         return JsonExerciseDefinitionLoader().load_data(data, language)
@@ -71,7 +93,7 @@ class ExerciseContractTest(unittest.TestCase):
         definition = self.load(v1_exercise(execution={"type": "function_with_main", "fixture": "fixtures/main.c"}))
         self.assertEqual(definition.execution.type, "function_call")
         self.assertEqual(definition.execution.declared_type, "function_with_main")
-        self.assertEqual(definition.execution.harness, PurePath("fixtures/main.c"))
+        self.assertEqual(definition.execution.harness, PurePosixPath("fixtures/main.c"))
 
     def test_v1_reference_compare_without_fixture_is_program_output_with_reference(self) -> None:
         definition = self.load(
@@ -81,8 +103,8 @@ class ExerciseContractTest(unittest.TestCase):
             )
         )
         self.assertEqual(definition.execution.type, "program_output")
-        self.assertEqual(definition.reference, ReferenceDefinition(source=PurePath("fixtures/reference.c")))
-        self.assertEqual(definition.executable_files, (PurePath("fixtures/reference.c"),))
+        self.assertEqual(definition.reference, ReferenceDefinition(source=PurePosixPath("fixtures/reference.c")))
+        self.assertEqual(definition.executable_files, (PurePosixPath("fixtures/reference.c"),))
 
     def test_v1_ignores_unknown_fields_as_before(self) -> None:
         self.load(v1_exercise(author="someone"))
@@ -98,11 +120,21 @@ class ExerciseContractTest(unittest.TestCase):
         self.assertEqual(definition.schema_version, 2)
         self.assertEqual(definition.topics, ("strings", "loops"))
         self.assertEqual(definition.execution.type, "function_call")
-        self.assertEqual(definition.reference.harness, PurePath("harness/main.c"))
+        self.assertEqual(definition.reference.harness, PurePosixPath("harness/main.c"))
         self.assertEqual(
             definition.executable_files,
-            (PurePath("harness/main.c"), PurePath("reference/ex.c")),
+            (PurePosixPath("harness/main.c"), PurePosixPath("reference/ex.c")),
         )
+
+    def test_loads_v3_activity_validation_plan(self) -> None:
+        definition = self.load(v3_exercise())
+
+        self.assertEqual(definition.schema_version, 3)
+        self.assertEqual(definition.activity.identity.type, "exercise")
+        self.assertEqual(definition.activity.language, "c")
+        self.assertEqual(definition.execution.type, "function_call")
+        self.assertEqual(definition.reference.source, PurePosixPath("solution/ex.c"))
+        self.assertEqual(definition.validation_plan.primary.strategy, "function_call")
 
     def test_v2_and_normalized_v1_are_the_same_model(self) -> None:
         v1 = self.load(
@@ -124,7 +156,7 @@ class ExerciseContractTest(unittest.TestCase):
 
     # ------------------------------------------------------------ rejeições
     def test_rejects_invalid_schema_version(self) -> None:
-        for value in (3, 0, "2", True, 2.0):
+        for value in (0, "2", True, 2.0):
             with self.subTest(value=value), self.assertRaisesRegex(ExerciseDefinitionError, "schema_version"):
                 self.load(v2_exercise(schema_version=value))
 
@@ -198,9 +230,9 @@ class PackContractTest(unittest.TestCase):
         pack.update(overrides)
         return pack
 
-    def test_loads_v1_pack_as_c_without_topics(self) -> None:
+    def test_repository_sample_pack_uses_v3_contract(self) -> None:
         pack = JsonPackLoader().load(SAMPLE / "pack.json")
-        self.assertEqual((pack.schema_version, pack.language, pack.topics), (1, "c", ()))
+        self.assertEqual((pack.schema_version, pack.language, pack.topics), (3, "c", ()))
 
     def test_loads_v2_pack(self) -> None:
         root = self.write_pack(self.v2_pack())
@@ -231,11 +263,11 @@ class PackContractTest(unittest.TestCase):
         with self.assertRaisesRegex(PackImportError, "not found"):
             LocalPackImporter(self.root / "managed").inspect_pack(root)
 
-    def test_bundled_v1_packs_still_load_unchanged(self) -> None:
+    def test_bundled_packs_use_v3_contract(self) -> None:
         for pack_root, expected in ((SAMPLE, None), (PRACTICE, 55)):
             with self.subTest(pack=pack_root.name):
                 report = LocalPackImporter(self.root / "managed").inspect_pack(pack_root)
-                self.assertEqual(report.pack.schema_version, 1)
+                self.assertEqual(report.pack.schema_version, 3)
                 if expected is not None:
                     self.assertEqual(report.exercise_count, expected)
 

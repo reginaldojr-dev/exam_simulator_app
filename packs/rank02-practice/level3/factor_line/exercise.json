@@ -1,30 +1,37 @@
 {
+  "schema_version": 3,
   "id": "factor_line",
+  "type": "exercise",
   "name": "Factor Line",
   "subject": "subject.md",
+  "topics": [],
   "submission": {
     "filename": "factor_line.c"
   },
-  "execution": {
-    "type": "reference_compare",
-    "reference": "fixtures/reference.c"
+  "validation": {
+    "strategy": "program_output",
+    "reference": {
+      "source": "fixtures/reference.c"
+    },
+    "tests": {
+      "generator": "random_arguments",
+      "expectation": "reference_output",
+      "cases": [
+        {
+          "args": []
+        },
+        {
+          "args": [
+            "alpha",
+            "beta"
+          ]
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 2
+    }
   },
-  "tests": {
-    "generator": "random_arguments",
-    "expectation": "reference_output",
-    "cases": [
-      {
-        "args": []
-      },
-      {
-        "args": [
-          "alpha",
-          "beta"
-        ]
-      }
-    ]
-  },
-  "limits": {
-    "timeout_seconds": 2
-  }
+  "programming_language": "c",
+  "content_language": "pt-BR"
 }
