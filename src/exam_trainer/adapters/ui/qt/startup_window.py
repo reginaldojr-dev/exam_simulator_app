@@ -15,8 +15,8 @@ from exam_trainer.adapters.ui.qt.theme import ThemeManager
 
 from exam_trainer.application.use_cases.initialize_application import (
     InitializeApplication,
+    WorkspaceError,
 )
-from exam_trainer.domain.workspace import WorkspaceError
 
 
 class StartupWindow(QWidget):

@@ -30,15 +30,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from exam_trainer.adapters.editor.subprocess_editor import resolve_known_editor
 from exam_trainer.adapters.ui.qt.components import widgets as ui
 from exam_trainer.adapters.ui.qt.components.cursor import CursorController
 from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
 from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
 from exam_trainer.resources import PACK_CONTRACT, pack_contract_text, resource_path
-from exam_trainer.application.mvp_models import ActiveExercise, CorrectionOutcome, ExerciseRef
-from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE
+from exam_trainer.application.mvp_models import (
+    DEFAULT_LANGUAGE,
+    ActiveExercise,
+    CorrectionOutcome,
+    ExerciseRef,
+)
 from exam_trainer.application.use_cases.mvp_coordinator import (
     ExamState,
     MVPTrainerCoordinator,
@@ -1379,7 +1382,7 @@ class MainWindow(QMainWindow):
         if label == "Outro...":
             self._browse_editor()
             return
-        resolved = resolve_known_editor(label)
+        resolved = self._coordinator.resolve_known_editor(label)
         if resolved is not None:
             self._settings_editor.setText(resolved)
 
