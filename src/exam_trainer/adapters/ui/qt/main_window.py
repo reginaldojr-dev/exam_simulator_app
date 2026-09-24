@@ -37,7 +37,6 @@ from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
 from exam_trainer.resources import PACK_CONTRACT, pack_contract_text, resource_path
 from exam_trainer.application.mvp_models import (
-    DEFAULT_LANGUAGE,
     ActiveExercise,
     CorrectionOutcome,
     ExerciseRef,
@@ -495,33 +494,23 @@ class MainWindow(QMainWindow):
             )
         )
 
-        # compilador
-        self._settings_compiler = ui.label("", wrap=True)
-        self._settings_compiler.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        sections.addWidget(
-            self._settings_card(
-                "COMPILADOR",
-                [self._settings_compiler],
-                [("[ DETECTAR NOVAMENTE ]", self._refresh_compiler_setting), ("[ SELECIONAR COMPILADOR ]", self._choose_manual_compiler)],
-            )
-        )
-
-        # outras linguagens: um card genérico por runtime registrado (C usa o card COMPILADOR)
+        # runtimes
         self._runtime_labels: dict[str, QLabel] = {}
-        for language in self._coordinator.supported_languages():
-            if language == DEFAULT_LANGUAGE:
-                continue
-            runtime = self._coordinator.runtime(language)
+        self._settings_compiler: QLabel | None = None  # compatibilidade dos testes antigos
+        for status in self._coordinator.runtime_statuses():
+            language = status.language
             label = ui.label("", wrap=True)
             label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             self._runtime_labels[language] = label
+            if self._settings_compiler is None:
+                self._settings_compiler = label
             sections.addWidget(
                 self._settings_card(
-                    runtime.display_name.upper(),
+                    status.display_name.upper(),
                     [label],
                     [
                         ("[ DETECTAR NOVAMENTE ]", lambda lang=language: self._redetect_runtime(lang)),
-                        (f"[ SELECIONAR {runtime.display_name.upper()} ]", lambda lang=language: self._choose_manual_runtime(lang)),
+                        (f"[ SELECIONAR {status.display_name.upper()} ]", lambda lang=language: self._choose_manual_runtime(lang)),
                     ],
                 )
             )
@@ -619,9 +608,11 @@ class MainWindow(QMainWindow):
 
     def _refresh_home_status(self) -> None:
         packs = len(self._coordinator.list_packs())
-        compiler = "● detectado" if self._coordinator.current_compiler() else "○ não verificado"
+        ready = sum(1 for status in self._coordinator.runtime_statuses() if status.tool)
+        total = len(self._coordinator.runtime_statuses())
+        runtimes = f"{ready}/{total} verificados" if total else "0 registrados"
         exam = "   ·   prova em andamento" if self._coordinator.load_active_exam() is not None else ""
-        self._home_status.setText(f"packs: {packs}   ·   compilador: {compiler}{exam}")
+        self._home_status.setText(f"packs: {packs}   ·   runtimes: {runtimes}{exam}")
 
     def _open_training_setup(self) -> None:
         if not self._handle_preflight(self._coordinator.preflight_training(), self._open_training_setup):
@@ -631,9 +622,7 @@ class MainWindow(QMainWindow):
         self._go(self._training_page)
 
     def _open_exam_setup(self) -> None:
-        if not self._runtime_checked(self._exam_language(), self._open_exam_setup):
-            return
-        if not self._handle_preflight(self._coordinator.preflight_exam(self._selected_exam_pack_id()), self._open_exam_setup):
+        if not self._exam_preflight_checked(self._open_exam_setup):
             return
         self._show_resume_if_needed()
         self._go(self._exam_page)
@@ -661,9 +650,6 @@ class MainWindow(QMainWindow):
 
         return self._tasks.start(key, work, done, failed)
 
-    def _exam_language(self) -> str:
-        return self._coordinator.pack_language(self._selected_exam_pack_id())
-
     def _runtime_checked(self, language: str, then: Callable[[], None]) -> bool:
         """True se o runtime da linguagem já foi validado. Senão valida em segundo plano e chama `then`.
 
@@ -678,6 +664,23 @@ class MainWindow(QMainWindow):
         self._run_task(
             "runtime",
             lambda: self._coordinator.preflight_runtime(language),
+            lambda preflight: then() if preflight.ok else self._handle_preflight(preflight, then),
+            "Ambiente de execução",
+            on_finally=self._refresh_home_status,
+        )
+        return False
+
+    def _exam_preflight_checked(self, then: Callable[[], None]) -> bool:
+        pack_id = self._selected_exam_pack_id()
+        if self._coordinator.pack_runtimes_ready(pack_id):
+            preflight = self._coordinator.preflight_exam(pack_id)
+            return self._handle_preflight(preflight, then)
+        if self._tasks.is_busy("runtime"):
+            return False
+        self._home_status.setText("verificando ambientes de execução...")
+        self._run_task(
+            "runtime",
+            lambda: self._coordinator.preflight_exam(pack_id),
             lambda preflight: then() if preflight.ok else self._handle_preflight(preflight, then),
             "Ambiente de execução",
             on_finally=self._refresh_home_status,
@@ -840,7 +843,7 @@ class MainWindow(QMainWindow):
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):
             return
-        if not self._runtime_checked(self._active.ref.pack.language, self._submit_current):
+        if not self._runtime_checked(self._active.ref.definition.language, self._submit_current):
             return
         active = self._active
         if self._mode == "exam":
@@ -943,9 +946,7 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ prova
     def _start_exam(self) -> None:
-        if not self._runtime_checked(self._exam_language(), self._start_exam):
-            return
-        if not self._handle_preflight(self._coordinator.preflight_exam(self._selected_exam_pack_id()), self._start_exam):
+        if not self._exam_preflight_checked(self._start_exam):
             return
         pack_id = self._selected_exam_pack_id()
         if pack_id is None:
@@ -960,9 +961,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Prova", str(error))
 
     def _show_exam_prepare(self) -> None:
-        if not self._runtime_checked(self._exam_language(), self._show_exam_prepare):
-            return
-        if not self._handle_preflight(self._coordinator.preflight_exam(self._selected_exam_pack_id()), self._show_exam_prepare):
+        if not self._exam_preflight_checked(self._show_exam_prepare):
             return
         pack_id = self._selected_exam_pack_id()
         if pack_id is None:
@@ -1235,9 +1234,8 @@ class MainWindow(QMainWindow):
         self._set_title_label(self._settings_title, "CONFIGURAÇÕES" if section is None else f"CONFIGURAÇÕES > {section.upper()}")
         self._settings_workspace.setText(str(self._coordinator.workspace_root))
         self._settings_editor.setText(self._coordinator.editor_command())
-        self._show_compiler_cached()
         for language in self._runtime_labels:
-            self._show_runtime_result(language, self._coordinator.runtime(language).current_tool(), cached=True)
+            self._show_runtime_cached(language)
         self._go(self._settings_page)
 
     def _show_pack_help(self) -> None:
@@ -1312,26 +1310,19 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Editor", str(error))
 
     def _refresh_compiler_setting(self) -> None:
-        self._settings_compiler.setText("● detectando...")
-        ui.set_status(self._settings_compiler, "pending")
-        self._run_task("runtime", self._coordinator.redetect_compiler, self._show_compiler_result, "Compilador")
+        language = self._first_runtime_language()
+        if language is not None:
+            self._redetect_runtime(language)
 
     def _show_compiler_result(self, compiler: object) -> None:
-        if compiler:
-            self._settings_compiler.setText(f"● OK   {compiler}")
-            ui.set_status(self._settings_compiler, "pass")
-        else:
-            self._settings_compiler.setText("● inválido/ausente — selecione um compilador C compatível")
-            ui.set_status(self._settings_compiler, "fail")
+        language = self._first_runtime_language()
+        if language is not None:
+            self._show_runtime_result(language, compiler)
 
     def _show_compiler_cached(self) -> None:
-        compiler = self._coordinator.current_compiler()
-        if compiler:
-            self._settings_compiler.setText(f"● {compiler}")
-            ui.set_status(self._settings_compiler, "pass")
-        else:
-            self._settings_compiler.setText("● não verificado — use [ DETECTAR NOVAMENTE ]")
-            ui.set_status(self._settings_compiler, "pending")
+        language = self._first_runtime_language()
+        if language is not None:
+            self._show_runtime_cached(language)
 
     def _show_runtime_result(self, language: str, tool: object, cached: bool = False) -> None:
         label = self._runtime_labels[language]
@@ -1345,37 +1336,40 @@ class MainWindow(QMainWindow):
             label.setText("● não encontrado — selecione o executável manualmente")
             ui.set_status(label, "fail")
 
+    def _show_runtime_cached(self, language: str) -> None:
+        self._show_runtime_result(language, self._coordinator.runtime_current_tool(language), cached=True)
+
     def _redetect_runtime(self, language: str) -> None:
         label = self._runtime_labels[language]
         label.setText("● detectando...")
         ui.set_status(label, "pending")
         self._run_task(
             "runtime",
-            lambda: self._coordinator.runtime(language).redetect(),
+            lambda: self._coordinator.redetect_runtime(language),
             lambda tool: self._show_runtime_result(language, tool),
-            self._coordinator.runtime(language).display_name,
+            self._coordinator.runtime_display_name(language),
         )
 
     def _choose_manual_runtime(self, language: str) -> None:
-        runtime = self._coordinator.runtime(language)
+        display_name = self._coordinator.runtime_display_name(language)
         filter_text = "Executáveis (*.exe);;Todos os arquivos (*)" if sys.platform == "win32" else "Todos os arquivos (*)"
-        selected, _ = QFileDialog.getOpenFileName(self, f"Selecionar {runtime.display_name}", "", filter_text)
+        selected, _ = QFileDialog.getOpenFileName(self, f"Selecionar {display_name}", "", filter_text)
         if not selected:
             return
         path = Path(selected)
         self._runtime_labels[language].setText("● validando...")
 
         def done(tool: object) -> None:
-            self._show_runtime_result(language, runtime.current_tool())
-            QMessageBox.information(self, runtime.display_name, f"{runtime.display_name} atualizado.")
+            self._show_runtime_result(language, self._coordinator.runtime_current_tool(language))
+            QMessageBox.information(self, display_name, f"{display_name} atualizado.")
             self._resume_pending_if_ready()
 
         self._run_task(
             "runtime",
             lambda: self._coordinator.save_manual_runtime(language, path),
             done,
-            runtime.display_name,
-            on_finally=lambda: self._show_runtime_result(language, runtime.current_tool(), cached=True),
+            display_name,
+            on_finally=lambda: self._show_runtime_cached(language),
         )
 
     def _editor_preset_changed(self, label: str) -> None:
@@ -1393,24 +1387,12 @@ class MainWindow(QMainWindow):
             self._settings_editor.setText(str(Path(selected)))
 
     def _choose_manual_compiler(self) -> None:
-        filter_text = "Compiladores (*.exe);;Todos os arquivos (*)" if sys.platform == "win32" else "Todos os arquivos (*)"
-        selected, _ = QFileDialog.getOpenFileName(self, "Selecionar compilador C", "", filter_text)
-        if not selected:
-            return
-        path = Path(selected)
-        self._settings_compiler.setText("● validando...")
-        ui.set_status(self._settings_compiler, "pending")
+        language = self._first_runtime_language()
+        if language is not None:
+            self._choose_manual_runtime(language)
 
-        def work() -> object:
-            self._coordinator.save_manual_compiler(path)  # roda o probe do compilador
-            return self._coordinator.current_compiler()
-
-        def done(compiler: object) -> None:
-            self._show_compiler_result(compiler)
-            QMessageBox.information(self, "Compilador", "Compilador atualizado.")
-            self._resume_pending_if_ready()
-
-        self._run_task("runtime", work, done, "Compilador", on_finally=self._show_compiler_cached)
+    def _first_runtime_language(self) -> str | None:
+        return next(iter(self._runtime_labels), None)
 
     def closeEvent(self, event) -> None:  # noqa: N802 — API do Qt
         # Deixa uma correção/importação em andamento terminar de gravar antes de fechar.
