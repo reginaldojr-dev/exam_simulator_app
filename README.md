@@ -170,15 +170,16 @@ The importer validates the pack before copying it into the app-managed pack dire
 
 ## Creating Your Own Pack
 
-The full pack contract (v1 and v2, `pack.json`, `exercise.json`, execution types, references, generators, expectations, languages, examples) lives in **one file**: [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md). The same file is shown inside the app (`Configurações > Packs > Como criar um pack`) and ships with the executable. Update the contract there, not here.
+The full pack contract (`schema_version: 3`, `pack.json`, `exercise.json`, activities, validation, references, generators, expectations, runtimes, content language, and examples) lives in **one file**: [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md). The same file is shown inside the app (`Configurações > Packs > Como criar um pack`) and ships with the executable. Update the contract there, not here.
 
 Summary:
 
-- 42 Exam Trainer is not limited to Rank 02; any collection that follows the contract can be a pack.
-- `schema_version` missing = v1 (still supported, normalized on load). New packs should use `"schema_version": 2`, which adds `language`, `topics`, neutral execution types (`program_output`, `function_call`) and a decoupled `reference`.
-- v1 aliases keep working: `function_with_main` → `function_call`; `reference_compare` → neutral type + `reference`.
+- Exam Trainer is not limited to Rank 02; any collection that follows the contract can be a pack.
+- New packs should use `"schema_version": 3`.
+- Activities declare `programming_language` for runtime/toolchain and `content_language` for the human language of subjects and instructions.
+- Current strategies are `program_output` and `function_call`; current runtimes are C, C++, Python, and Java.
 - Levels are used in the order declared in `pack.json`; `exam.duration_minutes` is optional (default 4 hours).
-- Anything the app does not support (schema version, language, execution type, generator, expectation) makes the importer reject the whole pack.
+- Anything the app does not support (schema version, programming language, strategy, generator, expectation, validator/capability) makes the importer reject the whole pack.
 
 **Packs can contain executable code.** Harnesses (`main.c`) and reference solutions are compiled and **executed on your machine during correction**, with your user permissions. There is no sandbox: only import packs from sources you trust. The importer shows the list of executable files and asks for confirmation. It never runs pack content while importing and rejects unsafe ids, paths escaping the pack, symlinks/junctions and unsafe ZIP entries (details in the contract, section 1).
 

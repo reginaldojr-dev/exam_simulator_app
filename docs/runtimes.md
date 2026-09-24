@@ -1,59 +1,105 @@
-# Runtimes por linguagem
+# Runtimes e toolchains
 
-## Camadas
+Este documento descreve o modelo atual de runtimes do Exam Trainer. A fonte
+normativa do contrato de packs e activities fica em
+`src/exam_trainer/resources/pack-contract.md`.
 
-```text
-GenericGrader            casos, expectations, comparação, fail-fast, trace, seeds, política
-  └─ ExecutionStrategy   program_output | function_call: QUAIS arquivos formam o programa
-       └─ RuntimeRegistry   language -> runtime (único lugar que sabe o que o app executa)
-            └─ LanguageRuntime   disponibilidade, preparar (compilar/checar), executar,
-                                 stdout/stderr/exit code, timeout
-```
+## Modelo
 
-- `ports/runtime_port.py`: `LanguageRuntime` (Protocol), `ProgramSpec`, `PreparedProgram`, `ProcessOutcome`.
-- `application/engine/execution.py`: estratégias por tipo neutro. Nenhum `if language == ...`.
-- `application/engine/runtime_registry.py`: `RuntimeRegistry`.
-- `adapters/grader/generic_grader.py`: `GenericGrader`. `GenericCGrader` ficou como wrapper de compatibilidade.
-- `adapters/runtime/c_runtime.py`: `CRuntime` (usa o `SystemCCompiler`; o `CompilerPort` fica interno ao runtime).
-- `adapters/runtime/python_runtime.py`: `PythonRuntime` (Python do sistema, probe real, `py_compile`, `-I -B -X utf8`).
-- `adapters/runtime/python_harness.py`: harness do app para `function_call` em Python (texto gravado na pasta `.build`).
-- `adapters/runtime/process.py`: execução de processo comum (lista de argumentos, sem shell, com timeout).
+Cada exercicio declara sua linguagem de programacao por activity:
 
-A factory (`infrastructure/app_factory.py`) monta o registry e injeta o mesmo registry no grader e no coordinator.
+- `programming_language`: linguagem usada para preparar, compilar e executar a
+  solucao do exercicio;
+- `content_language`: idioma humano do titulo, enunciado, dicas e textos do
+  conteudo.
 
-## Regras de um runtime
+Esses campos sao independentes. Um pack pode conter exercicios de varias
+linguagens de programacao e subjects em `pt-BR`, `en` ou outro locale futuro.
+O idioma do conteudo nao altera compilacao, execucao, validacao ou selecao de
+runtime.
 
-1. `is_ready()` nunca roda processo (é chamado na thread da UI). `check_available()` pode rodar (probe) e é chamado em segundo plano.
-2. Nada de `shell=True`. Argumentos do caso chegam literalmente ao programa.
-3. Timeout sempre aplicado; timeout vira `ProcessOutcome(timed_out=True)`.
-4. Não existe sandbox; não finja que existe. O código do aluno e o código do pack rodam com as permissões do usuário.
-5. Falha de preparação (compilação/sintaxe) vai para `PreparedProgram.build` (aparece no trace).
+## RuntimeRegistry
 
-## Preflight
+`RuntimeRegistry` e a autoridade da application para:
 
-O preflight da prova e da correção usa a linguagem do pack (`pack.language`):
+- listar runtimes registrados;
+- descobrir se uma linguagem e suportada;
+- consultar disponibilidade de toolchain;
+- recuperar descritores de capacidades;
+- entregar o runtime correto para a estrategia de execucao.
 
-- linguagem sem runtime registrado: bloqueia com mensagem ("este app não executa exercícios em X");
-- runtime registrado mas indisponível: leva às Configurações daquela ferramenta.
+A UI e os casos de uso nao devem comparar linguagens concretas como `c`,
+`python`, `cpp` ou `java`. Eles consultam os servicos de application e os dados
+derivados do registry.
 
-## Como adicionar uma linguagem (roteiro, passo 7)
+## RuntimePort
 
-1. Implementar `LanguageRuntime` em `adapters/runtime/<lang>_runtime.py` (detecção, `prepare`, `run`).
-2. Declarar o suporte no contrato: `LanguageSupport` em `application/capabilities.py` (tipos de execução, quem fornece o harness de `function_call`, formatos de argumento).
-3. Registrar o runtime na factory.
-4. Documentar em `src/exam_trainer/resources/pack-contract.md` (seção Linguagens) e criar um pack autoral mínimo com PASS/FAIL/erro/timeout.
-5. Testes: runtime isolado + grader com esse runtime + regressão dos packs C.
+Cada runtime implementa o contrato `LanguageRuntime`:
 
-## Próximas linguagens (passo 7 — só documentado, nada implementado)
+- `language`;
+- `detect()`;
+- `prepare()`;
+- `run()`.
 
-A interface está pronta; nenhuma linguagem além de C e Python é executada hoje. Um pack com
-`language` fora de `c`/`python` é recusado na importação.
+Runtimes concretos tambem podem expor um `RuntimeDescriptor`, com:
 
-| Linguagem | Preparação | `function_call` | Pontos de atenção |
-| --- | --- | --- | --- |
-| C++ | compilar com g++/clang++ (reusar o probe do C) | harness do pack (`main.cpp`) | flags próprias; mesmo formato de saída do C |
-| JavaScript (Node) | `node --check` | harness do app (como Python) | detectar `node` do sistema; `--disallow-code-generation-from-strings` não é sandbox |
-| Java | `javac` para a pasta `.build` | harness do pack (classe `Main`) ou do app | JDK x JRE; tempo de start da JVM pede timeout maior |
-| Shell | `bash -n` | só `program_output` | execução de shell é exatamente o que o app evita: exigir decisão explícita antes |
+- nome exibivel;
+- extensoes de arquivos aceitas;
+- estrategias de execucao suportadas;
+- formatos de argumentos suportados;
+- suporte a harness de funcao;
+- necessidade de classe principal.
 
-Decisões que precisam ser tomadas antes de qualquer uma delas: ver ADR 0005.
+O descriptor permite que loaders, validadores e UI consultem capacidades sem
+espalhar regras especificas de linguagem.
+
+## Disponibilidade
+
+`detect()` retorna um `RuntimeAvailability`:
+
+- `supported`: o app possui runtime para essa linguagem;
+- `available`: a toolchain necessaria foi encontrada e validada;
+- `reason`: mensagem tecnica amigavel quando indisponivel;
+- `details`: informacoes opcionais, como caminho e versao.
+
+Quando uma toolchain esta ausente, treino ainda pode exibir enunciado e
+workspace. A correcao que depende dela e bloqueada com a mensagem retornada
+pelo runtime. Em prova, o preflight consulta as linguagens obrigatorias antes
+do inicio e bloqueia a sessao se algo necessario estiver indisponivel.
+
+## Runtimes atuais
+
+### C
+
+Usa compilador nativo detectado pelo adapter de compiler. O runtime aceita
+programas C e comparacao de saida.
+
+### C++
+
+Usa compilador C++ nativo detectado pelo adapter de compiler. Suporta
+exercicios multi-file via `submission.extra_files` e `reference.extra_files`.
+
+### Python
+
+Usa Python de sistema detectado pelo adapter de runtime. A regra permanece:
+quando o app estiver empacotado, o Python interno do aplicativo nao deve ser
+tratado como Python do usuario.
+
+### Java
+
+Valida `javac` e `java`. O runtime compila fontes para um diretorio de build e
+executa a classe principal declarada no plano de validacao. A UI nao contem
+regras especiais de Java.
+
+## Adicionando um runtime
+
+Para adicionar uma linguagem nova:
+
+1. implementar um adapter que satisfaça `LanguageRuntime`;
+2. declarar um `RuntimeDescriptor` com as capacidades reais;
+3. registrar o runtime no composition root;
+4. adicionar testes de disponibilidade, preparo e execucao;
+5. criar ou migrar packs usando `programming_language` com o novo id.
+
+Nao deve ser necessario alterar a UI nem espalhar condicionais de linguagem
+pela application.
