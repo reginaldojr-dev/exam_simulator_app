@@ -49,3 +49,14 @@ class LocalExerciseWorkspace:
             submission_path=submission_path,
             had_existing_submission=had_existing_submission,
         )
+
+    def move_directory(self, source: Path, target: Path) -> None:
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            source.rename(target)
+        except OSError:
+            pass
+
+    def remove_directory(self, path: Path) -> None:
+        if path.exists():
+            shutil.rmtree(path)
