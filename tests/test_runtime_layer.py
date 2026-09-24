@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path, PurePath
@@ -69,6 +70,20 @@ class ScriptedRuntime:
             return ProcessOutcome(stderr="boom", exit_code=1)
         text = " ".join(args)
         return ProcessOutcome(stdout=(text.upper() if kind == "upper" else text) + "\n", exit_code=0)
+
+
+class UnavailableRuntime(ScriptedRuntime):
+    language = "python"
+    display_name = "Python"
+
+    def is_ready(self) -> bool:
+        return False
+
+    def check_available(self) -> bool:
+        return False
+
+    def current_tool(self) -> str | None:
+        return None
 
 
 def toy_definition(**overrides: object) -> ExerciseDefinition:
@@ -168,6 +183,25 @@ class GenericGraderTest(unittest.TestCase):
         with self.assertRaises(UnsupportedLanguageError):
             RuntimeRegistry().get("cobol")
 
+    def test_registry_reports_supported_unknown_and_unavailable_runtimes(self) -> None:
+        registry = RuntimeRegistry([ScriptedRuntime(), UnavailableRuntime()])
+
+        self.assertEqual(registry.languages(), ("python", "toy"))
+        toy = registry.status("toy", probe=True)
+        self.assertTrue(toy.supported)
+        self.assertTrue(toy.available)
+        self.assertEqual(toy.display_name, "Toy")
+
+        python = registry.status("python", probe=True)
+        self.assertTrue(python.supported)
+        self.assertFalse(python.available)
+        self.assertIn("Python", python.message)
+
+        java = registry.status("java", probe=True)
+        self.assertFalse(java.supported)
+        self.assertFalse(java.available)
+        self.assertIn("java", java.message)
+
     def test_missing_harness_is_reported(self) -> None:
         result = self.grade(
             "upper",
@@ -244,6 +278,80 @@ class PreflightByLanguageTest(unittest.TestCase):
             self.assertFalse(preflight.ok)
             self.assertIn("'c'", preflight.message)
             self.assertTrue(coordinator.preflight_runtime("toy").ok)
+
+    def test_exam_preflight_uses_exercise_languages_in_mixed_pack(self) -> None:
+        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+        from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
+        from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
+        from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+        from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
+        from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+        from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            pack = root / "bundled" / "mixed"
+            self._build_mixed_pack(pack)
+            (root / "workspace").mkdir()
+            coordinator = MVPTrainerCoordinator(
+                pack_catalog=LocalPackCatalog(root / "managed", bundled_packs_dir=root / "bundled"),
+                progress_repository=SQLiteProgressRepository(SQLiteStore(root / "db.sqlite3")),
+                workspace=LocalExerciseWorkspace(),
+                grader=GenericGrader(RuntimeRegistry([UnavailableRuntime()])),
+                editor=SubprocessEditor("definitely-not-used"),
+                pack_importer=LocalPackImporter(root / "managed"),
+                workspace_root=root / "workspace",
+                runtimes=RuntimeRegistry([UnavailableRuntime()]),
+                editor_factory=SubprocessEditorFactory(),
+            )
+
+            self.assertEqual(coordinator.pack_languages("mixed"), ("c", "python"))
+            preflight = coordinator.preflight_exam("mixed")
+            self.assertFalse(preflight.ok)
+            self.assertIn("c", preflight.message)
+
+    @staticmethod
+    def _build_mixed_pack(root: Path) -> None:
+        root.mkdir(parents=True)
+        (root / "pack.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 2,
+                    "id": "mixed",
+                    "name": "Mixed",
+                    "version": "1.0.0",
+                    "language": "c",
+                    "languages": ["c", "python"],
+                    "levels": [{"id": "level0", "path": "level0"}],
+                }
+            ),
+            encoding="utf-8",
+        )
+        for exercise_id, language, filename in (
+            ("c_ex", None, "c_ex.c"),
+            ("py_ex", "python", "py_ex.py"),
+        ):
+            folder = root / "level0" / exercise_id
+            folder.mkdir(parents=True)
+            (folder / "subject.md").write_text(exercise_id, encoding="utf-8")
+            data = {
+                "schema_version": 2,
+                "id": exercise_id,
+                "name": exercise_id,
+                "subject": "subject.md",
+                "topics": ["strings"],
+                "submission": {"filename": filename},
+                "execution": {"type": "program_output"},
+                "tests": {
+                    "generator": "fixed_cases",
+                    "expectation": "literal",
+                    "cases": [{"args": [], "expected": ""}],
+                },
+                "limits": {"timeout_seconds": 1},
+            }
+            if language is not None:
+                data["language"] = language
+            (folder / "exercise.json").write_text(json.dumps(data), encoding="utf-8")
 
 
 if __name__ == "__main__":

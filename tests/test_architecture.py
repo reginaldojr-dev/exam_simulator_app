@@ -30,9 +30,7 @@ from pathlib import Path
 SRC = Path(__file__).resolve().parent.parent / "src" / "exam_trainer"
 
 # teste -> sessão do roadmap que remove a violação
-KNOWN_VIOLATIONS: dict[str, str] = {
-    "test_language_checks_only_in_language_aware_modules": "S2",
-}
+KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
 def expected_until(session: str):
@@ -186,7 +184,6 @@ class DependencyBoundariesTest(unittest.TestCase):
         self.assertNoViolations(violations(grader_files, forbidden))
 
     # --------------------------------------------------------------- language
-    @expected_until(KNOWN_VIOLATIONS["test_language_checks_only_in_language_aware_modules"])
     def test_language_checks_only_in_language_aware_modules(self) -> None:
         """`language == "c"`/`language == DEFAULT_LANGUAGE` só onde a linguagem é o assunto do módulo."""
         allowed_prefixes = (
