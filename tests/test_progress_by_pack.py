@@ -11,14 +11,16 @@ import unittest
 from pathlib import Path
 
 from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor
+from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
 from exam_trainer.adapters.persistence import migrations
 from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
+from exam_trainer.adapters.runtime.c_runtime import CRuntime
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
+from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
 from exam_trainer.domain.attempt_modes import LEGACY_PACK_ID
 
@@ -74,6 +76,7 @@ class ProgressByPackTest(unittest.TestCase):
         self._tmp.cleanup()
 
     def coordinator(self) -> MVPTrainerCoordinator:
+        compiler = SystemCCompiler(candidates=("definitely-not-a-c-compiler",))
         return MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(self.root / "managed", bundled_packs_dir=self.bundled),
             progress_repository=SQLiteProgressRepository(SQLiteStore(self.database)),
@@ -81,8 +84,9 @@ class ProgressByPackTest(unittest.TestCase):
             grader=self.grader,
             editor=SubprocessEditor("definitely-not-used"),
             pack_importer=LocalPackImporter(self.root / "managed"),
-            compiler=SystemCCompiler(candidates=("definitely-not-a-c-compiler",)),
+            runtimes=RuntimeRegistry([CRuntime(compiler, manager=compiler)]),
             workspace_root=self.root / "workspace",
+            editor_factory=SubprocessEditorFactory(),
             workspace_port=LocalWorkspace(),
             clock=FakeClock(),
             rng=random.Random(3),

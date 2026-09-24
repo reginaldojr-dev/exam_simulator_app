@@ -152,7 +152,7 @@ class PythonBasicsPackTest(unittest.TestCase):
         self.assertTrue(self.grade("count_args", code).passed)
 
     def test_coordinator_trains_python_pack_with_language_preflight(self) -> None:
-        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor
+        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
         from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
         from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
         from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
@@ -167,9 +167,9 @@ class PythonBasicsPackTest(unittest.TestCase):
             grader=GenericGrader(registry),
             editor=SubprocessEditor("definitely-not-used"),
             pack_importer=LocalPackImporter(self.root / "managed"),
-            compiler=None,
             workspace_root=self.root / "workspace",
             runtimes=registry,
+            editor_factory=SubprocessEditorFactory(),
         )
         self.assertTrue(coordinator.preflight_exam("python-basics").ok)
         active = coordinator.prepare_exercise(self.refs["shout_args"], overwrite=True)

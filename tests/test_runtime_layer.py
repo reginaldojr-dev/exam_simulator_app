@@ -216,7 +216,7 @@ class CRuntimeTest(unittest.TestCase):
 class PreflightByLanguageTest(unittest.TestCase):
     def test_pack_language_without_runtime_is_blocked(self) -> None:
         from test_exam_rules import build_pack
-        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor
+        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
         from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
         from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
         from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
@@ -235,9 +235,9 @@ class PreflightByLanguageTest(unittest.TestCase):
                 grader=GenericGrader(RuntimeRegistry([ScriptedRuntime()])),
                 editor=SubprocessEditor("definitely-not-used"),
                 pack_importer=LocalPackImporter(root / "managed"),
-                compiler=None,
                 workspace_root=root / "workspace",
                 runtimes=RuntimeRegistry([ScriptedRuntime()]),
+                editor_factory=SubprocessEditorFactory(),
             )
             self.assertEqual(coordinator.pack_language("cpack"), "c")
             preflight = coordinator.preflight_exam("cpack")

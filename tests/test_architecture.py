@@ -31,11 +31,6 @@ SRC = Path(__file__).resolve().parent.parent / "src" / "exam_trainer"
 
 # teste -> sessão do roadmap que remove a violação
 KNOWN_VIOLATIONS: dict[str, str] = {
-    "test_domain_uses_only_pure_paths": "S1",
-    "test_application_does_not_import_adapters_or_infrastructure": "S1",
-    "test_application_does_not_touch_the_filesystem": "S1",
-    "test_ports_depend_only_on_domain": "S1",
-    "test_ui_only_imports_application": "S1",
     "test_language_checks_only_in_language_aware_modules": "S2",
 }
 
@@ -132,7 +127,6 @@ class DependencyBoundariesTest(unittest.TestCase):
         )
         self.assertNoViolations(violations(files_in("domain"), forbidden))
 
-    @expected_until(KNOWN_VIOLATIONS["test_domain_uses_only_pure_paths"])
     def test_domain_uses_only_pure_paths(self) -> None:
         """domain não usa pathlib.Path concreto (que faz I/O); só PurePath/PurePosixPath."""
         found = []
@@ -143,7 +137,6 @@ class DependencyBoundariesTest(unittest.TestCase):
         self.assertNoViolations(found)
 
     # ------------------------------------------------------------- application
-    @expected_until(KNOWN_VIOLATIONS["test_application_does_not_import_adapters_or_infrastructure"])
     def test_application_does_not_import_adapters_or_infrastructure(self) -> None:
         forbidden = (
             *PROCESS_AND_DB,
@@ -153,13 +146,11 @@ class DependencyBoundariesTest(unittest.TestCase):
         )
         self.assertNoViolations(violations(files_in("application"), forbidden))
 
-    @expected_until(KNOWN_VIOLATIONS["test_application_does_not_touch_the_filesystem"])
     def test_application_does_not_touch_the_filesystem(self) -> None:
         """Mover/apagar pastas é trabalho do adapter de workspace, não da application."""
         self.assertNoViolations(violations(files_in("application"), ("shutil", "os")))
 
     # ------------------------------------------------------------------- ports
-    @expected_until(KNOWN_VIOLATIONS["test_ports_depend_only_on_domain"])
     def test_ports_depend_only_on_domain(self) -> None:
         forbidden = (
             *PROCESS_AND_DB,
@@ -171,7 +162,6 @@ class DependencyBoundariesTest(unittest.TestCase):
         self.assertNoViolations(violations(files_in("ports"), forbidden))
 
     # ---------------------------------------------------------------------- UI
-    @expected_until(KNOWN_VIOLATIONS["test_ui_only_imports_application"])
     def test_ui_only_imports_application(self) -> None:
         allowed = ("exam_trainer.application", "exam_trainer.adapters.ui", "exam_trainer.resources")
         found = []

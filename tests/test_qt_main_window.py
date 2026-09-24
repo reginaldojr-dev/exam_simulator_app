@@ -10,14 +10,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor
+from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
 from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
+from exam_trainer.adapters.runtime.c_runtime import CRuntime
 from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
+from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
 from exam_trainer.domain.grading import GradingResult, TraceData
 from exam_trainer.ports.compiler_port import CompilationResult
@@ -151,8 +153,9 @@ class MainWindowTest(unittest.TestCase):
             grader=grader or StaticGrader(passed),
             editor=SubprocessEditor("definitely-not-used"),
             pack_importer=LocalPackImporter(root / "managed"),
-            compiler=compiler,
+            runtimes=RuntimeRegistry([CRuntime(compiler, manager=compiler)]),
             workspace_root=workspace,
+            editor_factory=SubprocessEditorFactory(),
             workspace_port=LocalWorkspace(),
         )
         window = MainWindow(workspace, coordinator)
