@@ -11,7 +11,18 @@ from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
 
 MAX_EXAM_DURATION_MINUTES = 24 * 60
 V2_PACK_KEYS = frozenset(
-    ("schema_version", "id", "name", "version", "language", "topics", "description", "exam", "levels")
+    (
+        "schema_version",
+        "id",
+        "name",
+        "version",
+        "language",
+        "languages",
+        "topics",
+        "description",
+        "exam",
+        "levels",
+    )
 )
 
 

@@ -97,6 +97,8 @@ class PythonRuntime:
         executable = shutil.which(command[0]) or (command[0] if Path(command[0]).is_file() else None)
         if executable is None:
             return None
+        if sys.platform == "win32" and not _looks_like_windows_executable(Path(executable)):
+            return None
         if getattr(sys, "frozen", False) and Path(executable).resolve() == Path(sys.executable).resolve():
             return None  # nunca o próprio exe do app
         try:
@@ -168,3 +170,13 @@ class PythonRuntime:
         timeout_seconds: int,
     ) -> ProcessOutcome:
         return run_process([*program.argv, *args], stdin, timeout_seconds, program.cwd, encoding="utf-8")
+
+
+def _looks_like_windows_executable(path: Path) -> bool:
+    if path.suffix.lower() != ".exe":
+        return True
+    try:
+        with path.open("rb") as handle:
+            return handle.read(2) == b"MZ"
+    except OSError:
+        return False

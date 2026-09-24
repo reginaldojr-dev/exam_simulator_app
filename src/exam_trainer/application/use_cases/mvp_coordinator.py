@@ -16,10 +16,10 @@ from exam_trainer.application.mvp_models import (
 from exam_trainer.domain.attempt_modes import EXAM_MODE, LEGACY_PACK_ID, TRAINING_MODE
 from exam_trainer.domain.grading import GradingPolicy, GradingResult
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
+from exam_trainer.domain.pack_definition import PackDefinition
 from exam_trainer.ports.config_repository import AppSettingsRepository
 from exam_trainer.ports.progress_repository import TrainerProgressRepository
-from exam_trainer.ports.runtime_port import LanguageRuntime
+from exam_trainer.ports.runtime_port import LanguageRuntime, RuntimeStatus
 from exam_trainer.domain.workspace import Workspace
 from exam_trainer.ports.editor_port import EditorFactory, EditorLaunchError, EditorPort
 from exam_trainer.ports.exercise_workspace_port import ExerciseWorkspacePort
@@ -174,13 +174,43 @@ class MVPTrainerCoordinator:
     def supported_languages(self) -> tuple[str, ...]:
         return self._runtimes.languages()
 
+    def runtime_statuses(self, probe: bool = False) -> tuple[RuntimeStatus, ...]:
+        return self._runtimes.statuses(probe=probe)
+
+    def runtime_status(self, language: str, probe: bool = False) -> RuntimeStatus:
+        return self._runtimes.status(language, probe=probe)
+
+    def runtime_display_name(self, language: str) -> str:
+        return self.runtime_status(language).display_name
+
+    def runtime_current_tool(self, language: str) -> str | None:
+        return self.runtime_status(language).tool
+
+    def redetect_runtime(self, language: str) -> str | None:
+        return self.runtime(language).redetect()
+
     def pack_language(self, pack_id: str | None) -> str:
-        if pack_id is None:
-            return DEFAULT_LANGUAGE
+        languages = self.pack_languages(pack_id)
+        if languages:
+            return languages[0]
+        primary = self._runtimes.primary_language()
+        if primary is not None:
+            return primary
         for pack in self.list_packs():
             if pack.id == pack_id:
                 return pack.language
-        return DEFAULT_LANGUAGE
+        return ""
+
+    def pack_languages(self, pack_id: str | None) -> tuple[str, ...]:
+        if pack_id is None:
+            return ()
+        refs = self._pack_catalog.list_exercises(pack_id)
+        if refs:
+            return tuple(sorted({ref.definition.language for ref in refs}))
+        for pack in self.list_packs():
+            if pack.id == pack_id:
+                return (pack.language,)
+        return ()
 
     def runtime_ready(self, language: str) -> bool:
         """Sem processo externo: seguro na thread da UI. False = ainda não verificado."""
@@ -192,13 +222,18 @@ class MVPTrainerCoordinator:
 
     # C: atalhos usados pela tela de Configurações > Compilador
     def current_compiler(self) -> str | None:
-        return self.runtime(DEFAULT_LANGUAGE).current_tool()
+        language = self._runtimes.primary_language()
+        return None if language is None else self.runtime_current_tool(language)
 
     def redetect_compiler(self) -> str | None:
-        return self.runtime(DEFAULT_LANGUAGE).redetect()
+        language = self._runtimes.primary_language()
+        return None if language is None else self.redetect_runtime(language)
 
     def save_manual_compiler(self, compiler_path: Path) -> None:
-        self.save_manual_runtime(DEFAULT_LANGUAGE, compiler_path)
+        language = self._runtimes.primary_language()
+        if language is None:
+            raise ValueError("Nenhum runtime registrado.")
+        self.save_manual_runtime(language, compiler_path)
 
     def save_manual_runtime(self, language: str, path: Path) -> str:
         """Valida (roda o probe) e grava a ferramenta escolhida para a linguagem."""
@@ -267,10 +302,12 @@ class MVPTrainerCoordinator:
         return self._pack_importer.import_pack(source_path)
 
     def compiler_ready(self) -> bool:
-        return self.runtime_ready(DEFAULT_LANGUAGE)
+        language = self._runtimes.primary_language()
+        return False if language is None else self.runtime_ready(language)
 
     def compiler_available(self) -> bool:
-        return self.runtime_available(DEFAULT_LANGUAGE)
+        language = self._runtimes.primary_language()
+        return False if language is None else self.runtime_available(language)
 
     def preflight_training(self) -> PreflightResult:
         if not self._workspace_root.exists():
@@ -283,21 +320,47 @@ class MVPTrainerCoordinator:
         training = self.preflight_training()
         if not training.ok:
             return training
-        return self.preflight_runtime(self.pack_language(pack_id))
+        languages = self.pack_languages(pack_id)
+        if not languages:
+            return PreflightResult.failed("packs", "Pack selecionado sem exercícios disponíveis.")
+        return self._preflight_languages(languages)
 
     def preflight_runtime(self, language: str) -> PreflightResult:
         """O runtime da linguagem do pack está pronto? (pode rodar o probe)."""
-        if not self._runtimes.has(language):
+        return self._preflight_languages((language,))
+
+    def preflight_exercise(self, ref: ExerciseRef) -> PreflightResult:
+        return self.preflight_runtime(ref.definition.language)
+
+    def pack_runtimes_ready(self, pack_id: str | None) -> bool:
+        languages = self.pack_languages(pack_id)
+        return bool(languages) and all(self.runtime_ready(language) for language in languages)
+
+    def _preflight_languages(self, languages: tuple[str, ...]) -> PreflightResult:
+        failures: list[RuntimeStatus] = []
+        for language in languages:
+            status = self._runtimes.status(language, probe=True)
+            if not status.supported or not status.available:
+                failures.append(status)
+        if not failures:
+            return PreflightResult.passed()
+        if len(failures) == 1:
+            failure = failures[0]
+            if not failure.supported:
+                return PreflightResult.failed(
+                    "Runtimes",
+                    f"Este app não executa exercícios em '{failure.language}'. Atualize o app ou use outro pack.",
+                )
             return PreflightResult.failed(
-                "packs", f"Este app não executa exercícios em '{language}'. Atualize o app ou use outro pack."
+                "Runtimes",
+                f"{failure.display_name} não encontrado.\n"
+                "Instale ou configure um runtime compatível para corrigir este exercício.",
             )
-        runtime = self._runtimes.get(language)
-        if not runtime.check_available():
-            return PreflightResult.failed(
-                runtime.display_name.lower(),
-                f"Configure {runtime.display_name} antes de continuar (linguagem do pack: {language}).",
-            )
-        return PreflightResult.passed()
+        missing = ", ".join(f"{failure.display_name} ({failure.language})" for failure in failures)
+        return PreflightResult.failed(
+            "Runtimes",
+            f"Runtimes/toolchains indisponíveis para este pack: {missing}.",
+        )
 
     def preflight_editor(self) -> PreflightResult:
         try:

@@ -39,6 +39,7 @@ V2_EXERCISE_KEYS = frozenset(
         "id",
         "name",
         "subject",
+        "language",
         "topics",
         "submission",
         "execution",
@@ -86,6 +87,8 @@ class JsonExerciseDefinitionLoader:
         """
         data = self._require_object(raw_data, "exercise definition")
         schema_version = read_schema_version(data, ExerciseDefinitionError)
+        if schema_version >= 2 and "language" in data:
+            language = self._require_identifier(data, "language")
         support = self._capabilities.language(language)
         if support is None:
             raise ExerciseDefinitionError(f"Unsupported language: {language}.")

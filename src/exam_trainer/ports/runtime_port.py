@@ -47,7 +47,11 @@ class ProcessOutcome:
 
 @dataclass(frozen=True)
 class RuntimeStatus:
-    ready: bool
+    language: str
+    display_name: str
+    supported: bool
+    available: bool
+    checked: bool = False
     tool: str | None = None  # ex.: caminho do compilador / do interpretador
     message: str = ""
     details: tuple[str, ...] = field(default_factory=tuple)
