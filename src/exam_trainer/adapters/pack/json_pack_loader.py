@@ -18,6 +18,7 @@ V2_PACK_KEYS = frozenset(
         "version",
         "language",
         "languages",
+        "content_language",
         "topics",
         "description",
         "exam",
@@ -48,15 +49,25 @@ class JsonPackLoader:
 
         data = self._require_object(raw_data, "pack definition")
         schema_version = read_schema_version(data, PackDefinitionError)
-        if schema_version >= 2:
+        if schema_version >= 3:
+            unknown = sorted(set(data) - V2_PACK_KEYS)
+            if unknown:
+                raise PackDefinitionError(f"Unknown field(s) in pack.json v3: {', '.join(unknown)}.")
+            language = self._read_optional_pack_language(data)
+            content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
+            topics = read_topics(data.get("topics", []), PackDefinitionError)
+            self._read_languages_metadata(data.get("languages", []))
+        elif schema_version >= 2:
             unknown = sorted(set(data) - V2_PACK_KEYS)
             if unknown:
                 raise PackDefinitionError(f"Unknown field(s) in pack.json v2: {', '.join(unknown)}.")
             language = self._require_identifier(data, "language") if "language" in data else DEFAULT_LANGUAGE
+            content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
             topics = read_topics(data.get("topics", []), PackDefinitionError)
+            self._read_languages_metadata(data.get("languages", []))
         else:
             # v1: sem language/topics. Campos extras continuam ignorados como antes.
-            language, topics = DEFAULT_LANGUAGE, ()
+            language, content_language, topics = DEFAULT_LANGUAGE, "pt-BR", ()
         if language not in self._languages:
             supported = ", ".join(sorted(self._languages))
             raise PackDefinitionError(f"Unsupported language: {language} (supported: {supported}).")
@@ -73,8 +84,52 @@ class JsonPackLoader:
             exam_duration_seconds=exam_duration_seconds,
             schema_version=schema_version,
             language=language,
+            content_language=content_language,
             topics=topics,
         )
+
+    def _read_optional_pack_language(self, data: dict[str, Any]) -> str:
+        if "language" not in data:
+            languages = data.get("languages")
+            if isinstance(languages, list) and languages:
+                first = languages[0]
+                if not isinstance(first, str):
+                    raise PackDefinitionError("languages[0] must be a string.")
+                try:
+                    return validate_identifier(first, "languages[0]")
+                except UnsafeValueError as error:
+                    raise PackDefinitionError(str(error)) from error
+            return DEFAULT_LANGUAGE
+        return self._require_identifier(data, "language")
+
+    def _read_languages_metadata(self, raw: Any) -> tuple[str, ...]:
+        if raw in (None, []):
+            return ()
+        if not isinstance(raw, list):
+            raise PackDefinitionError("languages must be a list.")
+        values: list[str] = []
+        for index, item in enumerate(raw):
+            if not isinstance(item, str):
+                raise PackDefinitionError(f"languages[{index}] must be a string.")
+            try:
+                language = validate_identifier(item, f"languages[{index}]")
+            except UnsafeValueError as error:
+                raise PackDefinitionError(str(error)) from error
+            if language not in self._languages:
+                supported = ", ".join(sorted(self._languages))
+                raise PackDefinitionError(f"Unsupported language: {language} (supported: {supported}).")
+            values.append(language)
+        return tuple(values)
+
+    @staticmethod
+    def _read_locale(value: Any, field_name: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise PackDefinitionError(f"{field_name} must be a non-empty locale string.")
+        locale = value.strip()
+        parts = locale.replace("_", "-").split("-")
+        if not 1 <= len(parts) <= 3 or not all(part.isalnum() and 2 <= len(part) <= 8 for part in parts):
+            raise PackDefinitionError(f"{field_name} must be a locale like pt-BR or en.")
+        return locale
 
     def _read_exam_duration(self, data: dict[str, Any]) -> int | None:
         if "exam" not in data:

@@ -20,8 +20,9 @@ from pathlib import Path
 
 from exam_trainer.adapters.runtime import python_harness
 from exam_trainer.adapters.runtime.process import run_process
+from exam_trainer.domain.exercise_definition import FUNCTION_CALL, PROGRAM_OUTPUT
 from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.runtime_port import PreparedProgram, ProcessOutcome, ProgramSpec
+from exam_trainer.ports.runtime_port import PreparedProgram, ProcessOutcome, ProgramSpec, RuntimeDescriptor
 
 MIN_VERSION = (3, 9)
 PROBE_TIMEOUT_SECONDS = 10
@@ -43,6 +44,14 @@ def default_candidates() -> list[tuple[str, ...]]:
 class PythonRuntime:
     language = "python"
     display_name = "Python"
+    descriptor = RuntimeDescriptor(
+        language=language,
+        display_name=display_name,
+        file_extensions=(".py",),
+        execution_types=(PROGRAM_OUTPUT, FUNCTION_CALL),
+        function_harness="app",
+        args_formats=("json", "str"),
+    )
 
     def __init__(
         self,

@@ -11,6 +11,7 @@ from exam_trainer.application.capabilities import (
     ExerciseCapabilities,
     default_exercise_capabilities,
 )
+from exam_trainer.domain.activity_definition import ValidationPlan, ValidationStep
 from exam_trainer.domain.identifiers import (
     UnsafeValueError,
     parse_relative_path,
@@ -49,6 +50,22 @@ V2_EXERCISE_KEYS = frozenset(
         "support_files",
     )
 )
+V3_EXERCISE_KEYS = frozenset(
+    (
+        "schema_version",
+        "id",
+        "type",
+        "name",
+        "subject",
+        "language",
+        "programming_language",
+        "content_language",
+        "topics",
+        "submission",
+        "validation",
+    )
+)
+V3_VALIDATION_KEYS = frozenset(("strategy", "harness", "entry", "args_format", "reference", "tests", "limits", "support_files"))
 
 
 
@@ -87,12 +104,25 @@ class JsonExerciseDefinitionLoader:
         """
         data = self._require_object(raw_data, "exercise definition")
         schema_version = read_schema_version(data, ExerciseDefinitionError)
-        if schema_version >= 2 and "language" in data:
+        content_language = "pt-BR"
+        if schema_version >= 3:
+            if "programming_language" in data:
+                language = self._require_identifier(data, "programming_language")
+            elif "language" in data:
+                language = self._require_identifier(data, "language")
+            else:
+                raise ExerciseDefinitionError("Missing required field: programming_language.")
+            content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
+        elif schema_version >= 2 and "language" in data:
             language = self._require_identifier(data, "language")
         support = self._capabilities.language(language)
         if support is None:
             raise ExerciseDefinitionError(f"Unsupported language: {language}.")
-        if schema_version >= 2:
+        if schema_version >= 3:
+            unknown = sorted(set(data) - V3_EXERCISE_KEYS)
+            if unknown:
+                raise ExerciseDefinitionError(f"Unknown field(s) in exercise.json v3: {', '.join(unknown)}.")
+        elif schema_version >= 2:
             unknown = sorted(set(data) - V2_EXERCISE_KEYS)
             if unknown:
                 raise ExerciseDefinitionError(f"Unknown field(s) in exercise.json v2: {', '.join(unknown)}.")
@@ -101,21 +131,29 @@ class JsonExerciseDefinitionLoader:
         name = self._require_non_empty_string(data, "name")
         subject = self._require_relative_path(data, "subject")
         submission = self._read_submission(self._require_object_field(data, "submission"))
-        execution, legacy_reference = self._read_execution(
-            self._require_object_field(data, "execution"), language
-        )
-        reference = legacy_reference
-        if "reference" in data:
-            if schema_version < 2:
-                raise ExerciseDefinitionError("Top-level reference requires schema_version 2.")
-            if legacy_reference is not None:
-                raise ExerciseDefinitionError("Declare the reference only once (top-level reference).")
-            reference = self._read_reference(data["reference"])
-        tests = self._read_tests(self._require_object_field(data, "tests"))
+        validation_plan: ValidationPlan | None = None
+        if schema_version >= 3:
+            activity_type = self._require_identifier(data, "type") if "type" in data else "exercise"
+            execution, reference, tests, limits, support_files, validation_plan = self._read_validation(
+                self._require_object_field(data, "validation"), language
+            )
+        else:
+            activity_type = "exercise"
+            execution, legacy_reference = self._read_execution(
+                self._require_object_field(data, "execution"), language
+            )
+            reference = legacy_reference
+            if "reference" in data:
+                if schema_version < 2:
+                    raise ExerciseDefinitionError("Top-level reference requires schema_version 2.")
+                if legacy_reference is not None:
+                    raise ExerciseDefinitionError("Declare the reference only once (top-level reference).")
+                reference = self._read_reference(data["reference"])
+            tests = self._read_tests(self._require_object_field(data, "tests"))
+            limits = self._read_limits(data.get("limits", {}))
+            support_files = self._read_support_files(data.get("support_files", []))
         if tests.expectation == "reference_output" and reference is None and schema_version >= 2:
             raise ExerciseDefinitionError("expectation reference_output requires a reference.")
-        limits = self._read_limits(data.get("limits", {}))
-        support_files = self._read_support_files(data.get("support_files", []))
         topics = read_topics(data.get("topics", []), ExerciseDefinitionError)
         if reference is not None and execution.reference != reference.source:
             execution = replace(execution, reference=reference.source)
@@ -133,12 +171,59 @@ class JsonExerciseDefinitionLoader:
             topics=topics,
             schema_version=schema_version,
             language=language,
+            programming_language=language,
+            content_language=content_language,
+            activity_type=activity_type,
+            validation_plan=validation_plan,
         )
 
     def _read_submission(self, data: dict[str, Any]) -> SubmissionDefinition:
         filename = self._require_non_empty_string(data, "filename")
         self._validate_filename(filename)
-        return SubmissionDefinition(filename=filename)
+        extra_files = data.get("extra_files", data.get("files", []))
+        if extra_files:
+            if not isinstance(extra_files, list):
+                raise ExerciseDefinitionError("submission.extra_files must be a list.")
+            parsed = tuple(
+                self._read_relative_path_value(value, f"submission.extra_files[{index}]")
+                for index, value in enumerate(extra_files)
+            )
+        else:
+            parsed = ()
+        return SubmissionDefinition(filename=filename, extra_files=parsed)
+
+    def _read_validation(
+        self, data: dict[str, Any], language: str
+    ) -> tuple[ExecutionDefinition, ReferenceDefinition | None, TestDefinition, LimitsDefinition, tuple[PurePath, ...], ValidationPlan]:
+        unknown = sorted(set(data) - V3_VALIDATION_KEYS)
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in validation: {', '.join(unknown)}.")
+        strategy = self._require_identifier(data, "strategy")
+        execution_data: dict[str, Any] = {"type": strategy}
+        for key in ("harness", "entry", "args_format"):
+            if key in data:
+                execution_data[key] = data[key]
+        execution, legacy_reference = self._read_execution(execution_data, language)
+        if legacy_reference is not None:
+            raise ExerciseDefinitionError("schema_version 3 uses validation.reference, not legacy execution.reference.")
+        reference = self._read_reference(data["reference"]) if "reference" in data else None
+        tests = self._read_tests(self._require_object_field(data, "tests"))
+        limits = self._read_limits(data.get("limits", {}))
+        support_files = self._read_support_files(data.get("support_files", []))
+        plan = ValidationPlan(
+            steps=(
+                ValidationStep(
+                    id="grade",
+                    validator="program",
+                    strategy=execution.type,
+                    config={
+                        "tests": tests.generator,
+                        "expectation": tests.expectation,
+                    },
+                ),
+            )
+        )
+        return execution, reference, tests, limits, support_files, plan
 
     def _read_execution(
         self, data: dict[str, Any], language: str
@@ -202,6 +287,11 @@ class JsonExerciseDefinitionLoader:
                 args_format = args_format or "json"
                 if args_format not in support.args_formats:
                     raise ExerciseDefinitionError(f"Unsupported execution.args_format: {args_format}.")
+        elif support.main_class_required and kind == PROGRAM_OUTPUT:
+            if entry is None:
+                raise ExerciseDefinitionError(f"execution.entry is required for program_output in {language}.")
+            if args_format is not None:
+                raise ExerciseDefinitionError(f"execution.args_format is not used for {language}.")
         elif entry is not None or args_format is not None:
             raise ExerciseDefinitionError(
                 f"execution.entry/args_format are not used for {language}; declare a harness instead."
@@ -219,14 +309,24 @@ class JsonExerciseDefinitionLoader:
 
     def _read_reference(self, raw: Any) -> ReferenceDefinition:
         data = self._require_object(raw, "reference")
-        unknown = sorted(set(data) - {"source", "harness"})
+        unknown = sorted(set(data) - {"source", "harness", "extra_files", "files"})
         if unknown:
             raise ExerciseDefinitionError(f"Unknown field(s) in reference: {', '.join(unknown)}.")
         source = self._require_relative_path(data, "source")
         harness = None
         if "harness" in data:
             harness = self._read_relative_path_value(data["harness"], "reference.harness")
-        return ReferenceDefinition(source=source, harness=harness)
+        extra_files = data.get("extra_files", data.get("files", []))
+        if extra_files:
+            if not isinstance(extra_files, list):
+                raise ExerciseDefinitionError("reference.extra_files must be a list.")
+            parsed = tuple(
+                self._read_relative_path_value(value, f"reference.extra_files[{index}]")
+                for index, value in enumerate(extra_files)
+            )
+        else:
+            parsed = ()
+        return ReferenceDefinition(source=source, harness=harness, extra_files=parsed)
 
     def _read_tests(self, data: dict[str, Any]) -> TestDefinition:
         generator = self._require_identifier(data, "generator")
@@ -307,6 +407,16 @@ class JsonExerciseDefinitionLoader:
             return validate_identifier(value, field_name)
         except UnsafeValueError as error:
             raise ExerciseDefinitionError(str(error)) from error
+
+    @staticmethod
+    def _read_locale(value: Any, field_name: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ExerciseDefinitionError(f"{field_name} must be a non-empty locale string.")
+        locale = value.strip()
+        parts = locale.replace("_", "-").split("-")
+        if not 1 <= len(parts) <= 3 or not all(part.isalnum() and 2 <= len(part) <= 8 for part in parts):
+            raise ExerciseDefinitionError(f"{field_name} must be a locale like pt-BR or en.")
+        return locale
 
     @staticmethod
     def _require_non_empty_string(data: dict[str, Any], field_name: str) -> str:

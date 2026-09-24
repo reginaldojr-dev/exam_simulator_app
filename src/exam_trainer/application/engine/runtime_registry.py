@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from exam_trainer.ports.runtime_port import LanguageRuntime, RuntimeStatus
+from exam_trainer.ports.runtime_port import LanguageRuntime, RuntimeDescriptor, RuntimeStatus
+from exam_trainer.domain.exercise_definition import PROGRAM_OUTPUT
 
 
 class UnsupportedLanguageError(ValueError):
@@ -31,6 +32,25 @@ class RuntimeRegistry:
 
     def languages(self) -> tuple[str, ...]:
         return tuple(sorted(self._runtimes))
+
+    def descriptors(self) -> tuple[RuntimeDescriptor, ...]:
+        return tuple(self._descriptor_for(self._runtimes[language]) for language in self.languages())
+
+    def descriptor(self, language: str) -> RuntimeDescriptor:
+        return self._descriptor_for(self.get(language))
+
+    @staticmethod
+    def _descriptor_for(runtime: LanguageRuntime) -> RuntimeDescriptor:
+        descriptor = getattr(runtime, "descriptor", None)
+        if isinstance(descriptor, RuntimeDescriptor):
+            return descriptor
+        return RuntimeDescriptor(
+            language=runtime.language,
+            display_name=runtime.display_name,
+            file_extensions=(),
+            execution_types=(PROGRAM_OUTPUT,),
+            function_harness="pack",
+        )
 
     def primary_language(self) -> str | None:
         languages = self.languages()

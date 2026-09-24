@@ -8,11 +8,17 @@ from exam_trainer.adapters.persistence.sqlite_progress_repository import (
 )
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
+from exam_trainer.adapters.compiler.system_cpp_compiler import SystemCppCompiler
 from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditorFactory
 from exam_trainer.adapters.grader.generic_grader import GenericGrader
 from exam_trainer.adapters.runtime.c_runtime import CRuntime
+from exam_trainer.adapters.runtime.cpp_runtime import CppRuntime
+from exam_trainer.adapters.runtime.java_runtime import JavaRuntime
 from exam_trainer.adapters.runtime.python_runtime import PythonRuntime
+from exam_trainer.application.capabilities import capabilities_from_runtime_descriptors
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
+from exam_trainer.adapters.exercise_definition.json_loader import JsonExerciseDefinitionLoader
+from exam_trainer.adapters.pack.json_pack_loader import JsonPackLoader
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
@@ -46,24 +52,36 @@ class AppFactory:
         config = JsonAppConfigRepository(app_config_file_path())
         workspace = LocalWorkspace()
         compiler = SystemCCompiler(manual_compiler=config.load_compiler_path())
+        cpp_compiler = SystemCppCompiler(manual_compiler=config.load_runtime_path("cpp"))
         runtimes = RuntimeRegistry(
             [
                 CRuntime(compiler, manager=compiler),
+                CppRuntime(cpp_compiler, manager=cpp_compiler),
                 PythonRuntime(manual_python=config.load_runtime_path("python")),
+                JavaRuntime(manual_javac=config.load_runtime_path("java")),
             ]
         )
+        capabilities = capabilities_from_runtime_descriptors(runtimes.descriptors())
+        pack_loader = JsonPackLoader(supported_languages=frozenset(capabilities.languages))
+        exercise_loader = JsonExerciseDefinitionLoader(capabilities=capabilities)
         editor_command = config.load_editor_command()
         editor_factory = SubprocessEditorFactory()
         return MVPTrainerCoordinator(
             pack_catalog=LocalPackCatalog(
                 managed_packs_dir(),
                 bundled_packs_dir=bundled_sample_packs_dir(),
+                pack_loader=pack_loader,
+                exercise_loader=exercise_loader,
             ),
             progress_repository=self.create_progress_repository(),
             workspace=LocalExerciseWorkspace(),
             grader=GenericGrader(runtimes),
             editor=editor_factory.create(editor_command),
-            pack_importer=LocalPackImporter(managed_packs_dir()),
+            pack_importer=LocalPackImporter(
+                managed_packs_dir(),
+                pack_loader=pack_loader,
+                exercise_loader=exercise_loader,
+            ),
             config_repository=config,
             workspace_port=workspace,
             workspace_root=workspace_root,

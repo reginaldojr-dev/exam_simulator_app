@@ -9,6 +9,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import PurePath
 
+from exam_trainer.domain.activity_definition import (
+    ActivityDefinition,
+    ActivityIdentity,
+    ValidationPlan,
+    ValidationStep,
+)
+
 # Tipos de execução neutros (o que o runtime precisa fazer com a submissão).
 PROGRAM_OUTPUT = "program_output"
 FUNCTION_CALL = "function_call"
@@ -24,6 +31,7 @@ LEGACY_EXECUTION_ALIASES = {
 @dataclass(frozen=True)
 class SubmissionDefinition:
     filename: str
+    extra_files: tuple[PurePath, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -55,6 +63,7 @@ class ReferenceDefinition:
 
     source: PurePath
     harness: PurePath | None = None
+    extra_files: tuple[PurePath, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -90,6 +99,40 @@ class ExerciseDefinition:
     topics: tuple[str, ...] = ()
     schema_version: int = 1
     language: str = "c"
+    programming_language: str | None = None
+    content_language: str = "pt-BR"
+    activity_type: str = "exercise"
+    validation_plan: ValidationPlan | None = None
+
+    def __post_init__(self) -> None:
+        if self.programming_language is None:
+            object.__setattr__(self, "programming_language", self.language)
+        elif self.language != self.programming_language:
+            object.__setattr__(self, "language", self.programming_language)
+
+    @property
+    def activity(self) -> ActivityDefinition:
+        plan = self.validation_plan or ValidationPlan(
+            steps=(
+                ValidationStep(
+                    id="grade",
+                    validator="program",
+                    strategy=self.execution.type,
+                    config={
+                        "tests": self.tests.generator,
+                        "expectation": self.tests.expectation,
+                    },
+                ),
+            )
+        )
+        return ActivityDefinition(
+            identity=ActivityIdentity(id=self.id, type=self.activity_type),
+            title=self.name,
+            subject=self.subject,
+            language=self.programming_language or self.language,
+            validation=plan,
+            topics=self.topics,
+        )
 
     @property
     def executable_files(self) -> tuple[PurePath, ...]:
@@ -99,6 +142,7 @@ class ExerciseDefinition:
             files.append(self.execution.fixture)
         if self.reference is not None:
             files.append(self.reference.source)
+            files.extend(self.reference.extra_files)
             if self.reference.harness is not None and self.reference.harness not in files:
                 files.append(self.reference.harness)
         return tuple(files)

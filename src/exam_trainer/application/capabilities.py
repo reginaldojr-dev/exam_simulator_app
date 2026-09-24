@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Iterable
 
 from exam_trainer.domain.exercise_definition import FUNCTION_CALL, PROGRAM_OUTPUT
+from exam_trainer.ports.runtime_port import RuntimeDescriptor
 
 
 @dataclass(frozen=True)
@@ -46,6 +47,19 @@ class LanguageSupport:
     executions: frozenset[str]
     function_harness: str = HARNESS_FROM_PACK
     args_formats: frozenset[str] = field(default_factory=frozenset)
+    main_class_required: bool = False
+    file_extensions: tuple[str, ...] = ()
+
+    @classmethod
+    def from_descriptor(cls, descriptor: RuntimeDescriptor) -> "LanguageSupport":
+        return cls(
+            language=descriptor.language,
+            executions=frozenset(descriptor.execution_types),
+            function_harness=descriptor.function_harness,
+            args_formats=frozenset(descriptor.args_formats),
+            main_class_required=descriptor.main_class_required,
+            file_extensions=descriptor.file_extensions,
+        )
 
 
 @dataclass(frozen=True)
@@ -80,6 +94,21 @@ PYTHON_LANGUAGE = LanguageSupport(
     args_formats=frozenset(("json", "str")),
 )
 
+CPP_LANGUAGE = LanguageSupport(
+    language="cpp",
+    executions=frozenset((PROGRAM_OUTPUT, FUNCTION_CALL)),
+    function_harness=HARNESS_FROM_PACK,
+    file_extensions=(".cpp", ".hpp", ".h"),
+)
+
+JAVA_LANGUAGE = LanguageSupport(
+    language="java",
+    executions=frozenset((PROGRAM_OUTPUT,)),
+    function_harness="none",
+    main_class_required=True,
+    file_extensions=(".java",),
+)
+
 # Expectations "embutidas" por exercício. Continuam aceitas, mas packs novos devem
 # preferir `reference_output` (solução de referência) ou `literal` (casos fixos).
 LEGACY_BUILTIN_EXPECTATIONS = frozenset(("echo_arguments", "sum_integers"))
@@ -103,5 +132,18 @@ def default_exercise_capabilities() -> ExerciseCapabilities:
         expectations=ExpectationRegistry.from_values(
             ("literal", "reference_output", "echo_arguments", "sum_integers")
         ),
-        languages={support.language: support for support in (C_LANGUAGE, PYTHON_LANGUAGE)},
+        languages={support.language: support for support in (C_LANGUAGE, CPP_LANGUAGE, PYTHON_LANGUAGE, JAVA_LANGUAGE)},
+    )
+
+
+def capabilities_from_runtime_descriptors(descriptors: Iterable[RuntimeDescriptor]) -> ExerciseCapabilities:
+    base = default_exercise_capabilities()
+    return ExerciseCapabilities(
+        executions=base.executions,
+        generators=base.generators,
+        expectations=base.expectations,
+        languages={
+            descriptor.language: LanguageSupport.from_descriptor(descriptor)
+            for descriptor in descriptors
+        },
     )

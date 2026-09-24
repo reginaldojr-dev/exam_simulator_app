@@ -41,6 +41,8 @@ class ProgramOutputStrategy:
         return ProgramSpec(
             main_source=source,
             harness=None if harness is None else pack_file(exercise_path, harness, "harness"),
+            entry=definition.execution.entry,
+            extra_sources=tuple(source.parent / extra for extra in definition.submission.extra_files),
         )
 
 
@@ -57,6 +59,7 @@ class FunctionCallStrategy:
             harness=None if execution.harness is None else pack_file(exercise_path, execution.harness, "harness"),
             entry=execution.entry,
             args_format=execution.args_format,
+            extra_sources=tuple(source.parent / extra for extra in definition.submission.extra_files),
         )
 
 
@@ -69,6 +72,7 @@ def reference_spec(definition: ExerciseDefinition, exercise_path: Path) -> Progr
         harness=None if reference.harness is None else pack_file(exercise_path, reference.harness, "harness"),
         entry=definition.execution.entry,
         args_format=definition.execution.args_format,
+        extra_sources=tuple(pack_file(exercise_path, extra, "reference extra source") for extra in reference.extra_files),
     )
 
 

@@ -57,6 +57,17 @@ class RuntimeStatus:
     details: tuple[str, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True)
+class RuntimeDescriptor:
+    language: str
+    display_name: str
+    file_extensions: tuple[str, ...]
+    execution_types: tuple[str, ...]
+    function_harness: str
+    args_formats: tuple[str, ...] = ()
+    main_class_required: bool = False
+
+
 @runtime_checkable
 class LanguageRuntime(Protocol):
     language: str

@@ -34,6 +34,12 @@ class LocalExerciseWorkspace:
         if overwrite or not had_existing_submission:
             submission_path.write_text("", encoding="utf-8")
 
+        for extra_file in definition.submission.extra_files:
+            target = exercise_workspace / extra_file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            if overwrite or not target.exists():
+                target.write_text("", encoding="utf-8")
+
         for support_file in definition.support_files:
             source_support_file = exercise_content_path / support_file
             if not source_support_file.is_file():

@@ -1,4 +1,4 @@
-"""Runtime C: compila com o compilador detectado/configurado e executa o binário."""
+"""Runtime C++: compila com C++17 e executa o binário gerado."""
 
 from __future__ import annotations
 
@@ -11,27 +11,21 @@ from exam_trainer.ports.compiler_port import CompilerPort, ConfigurableCompilerP
 from exam_trainer.ports.runtime_port import PreparedProgram, ProcessOutcome, ProgramSpec, RuntimeDescriptor
 
 
-class CRuntime:
-    language = "c"
-    display_name = "Compilador C"
+class CppRuntime:
+    language = "cpp"
+    display_name = "Compilador C++"
     descriptor = RuntimeDescriptor(
         language=language,
         display_name=display_name,
-        file_extensions=(".c", ".h"),
+        file_extensions=(".cpp", ".hpp", ".h"),
         execution_types=(PROGRAM_OUTPUT, FUNCTION_CALL),
         function_harness="pack",
     )
 
     def __init__(self, compiler: CompilerPort, manager: ConfigurableCompilerPort | None = None) -> None:
-        """`compiler` compila; `manager` (opcional) é o mesmo compilador com detecção/seleção.
-
-        Sem `manager` (ex.: grader isolado em testes) as funções de configuração ficam
-        indisponíveis, mas preparar/executar funciona.
-        """
         self._compiler = compiler
         self._manager = manager
 
-    # --------------------------------------------------------- disponibilidade
     def is_ready(self) -> bool:
         if self._manager is None:
             return self._compiler.is_available()
@@ -52,11 +46,10 @@ class CRuntime:
         if self._manager is None:
             raise ValueError("Este compilador não aceita seleção manual.")
         if not self._manager.validate_compiler(path):
-            raise ValueError("Nenhum compilador C compatível com os exercícios foi encontrado nesse caminho.")
+            raise ValueError("Nenhum compilador C++ compatível foi encontrado nesse caminho.")
         self._manager.set_manual_compiler(str(path))
         return str(path)
 
-    # ------------------------------------------------------------- execução
     def prepare(self, spec: ProgramSpec, build_dir: Path, name: str) -> PreparedProgram:
         sources = [*([spec.harness] if spec.harness is not None else []), spec.main_source, *spec.extra_sources]
         build_dir.mkdir(parents=True, exist_ok=True)
