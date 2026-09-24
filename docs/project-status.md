@@ -74,7 +74,7 @@ src/exam_trainer/
 | application não mexe em arquivos | `mvp_coordinator.py` usava `shutil.rmtree` (fim da prova) e `Path.rename`/`mkdir` (migração da workspace de treino) | S1 | ✅ resolvida na S1 |
 | ports só dependem de domain | `ports/progress_repository.py` importava `application.mvp_models.ProgressEntry` | S1 | ✅ resolvida na S1 |
 | UI só importa application | `main_window.py` importava `adapters.editor` e `domain.pack_definition`; `startup_window.py` importava `domain.workspace` | S1 | ✅ resolvida na S1 |
-| sem `language ==` fora dos módulos de linguagem | `main_window.py` (card de Configurações compara com `DEFAULT_LANGUAGE`) | S2 | pendente |
+| sem `language ==` fora dos módulos de linguagem | `main_window.py` (card de Configurações comparava com `DEFAULT_LANGUAGE`) | S2 | ✅ resolvida na S2 |
 
 **Já respeitadas** (testes verdes desde a S0):
 
@@ -129,3 +129,23 @@ src/exam_trainer/
 - **Suíte completa no computador do usuário (Windows, `.venv` do projeto, com os packs privados):** ainda precisa ser rodada localmente ao aplicar os patches — o `apply-v1-close-S1.ps1` desta entrega faz isso e grava o resultado em `Claude outputs/v1-close/S1/result.json`, seguindo o mesmo protocolo da S0.
 - **ADR criado:** 0007 (`docs/decisions/0007-s1-application-service-boundaries.md`).
 - **Pendências desta sessão:** a extração dos services/view models completos (Obj. 9/10) e a migração do `GenericGrader` para `application/grading/` ficam para a sessão seguinte que assumir essas fases do protocolo (D.2, fases 2 em diante) — não estavam cobertas pelo board de violações verificado nesta rodada e não foram tocadas para não expandir o escopo sem um teste que as trave.
+
+
+### S2 — Runtimes, linguagens e preflight
+
+- **Objetivo:** remover hardcode de linguagem da UI/application, tornar `RuntimeRegistry` a autoridade de linguagens registradas e preparar o app para packs com exercícios de linguagens diferentes.
+- **Mudanças:**
+  1. `RuntimeStatus` passa a representar `language`, nome exibido, suporte, disponibilidade, ferramenta detectada e mensagem.
+  2. `RuntimeRegistry` expõe `status(...)`, `statuses(...)`, `primary_language()` e mantém lookup/listagem centralizados.
+  3. `exercise.json` v2 aceita `language` por exercício, herdando `pack.language` quando ausente. `pack.json` passa a aceitar `languages` como metadado/índice opcional, sem virar fonte da verdade.
+  4. `MVPTrainerCoordinator` calcula `pack_languages(pack_id)` a partir dos exercícios carregados, faz preflight de prova sobre todas as linguagens exigidas e expõe status/detecção manual de runtimes sem a UI conhecer linguagem específica.
+  5. A UI de Configurações renderiza um card por runtime registrado. O card especial "COMPILADOR" deixou de decidir que C é diferente das demais linguagens; wrappers antigos ficam só como compatibilidade interna.
+  6. Correção de treino/prova passa a validar o runtime da linguagem efetiva do exercício antes de executar.
+  7. `PythonRuntime.probe` rejeita rapidamente, no Windows, um `.exe` que não tem assinatura PE (`MZ`), evitando travamento ao validar um falso `python.exe`.
+- **Decisão arquitetural:** ADR 0008 (`docs/decisions/0008-runtime-status-and-exercise-language-preflight.md`).
+- **Testes adicionados/ajustados:**
+  - `RuntimeRegistry` reporta runtime suportado, desconhecido e conhecido porém indisponível;
+  - preflight de prova usa linguagens efetivas dos exercícios em pack multilíngua;
+  - `tests/test_architecture.py` remove o último `expectedFailure`.
+- **Resultados locais principais:** `tests/test_architecture.py`: 12 passed; `tests/test_runtime_layer.py`: 12 passed, 2 skipped; `tests/test_python_runtime.py`: 16 passed, 4 subtests passed; `tests/test_qt_main_window.py`: 20 passed.
+- **Pendências da sessão:** nenhuma específica da S2. Falhas remanescentes classificadas fora da S2: comparações de `PurePosixPath`/`PureWindowsPath` em testes de contrato no Windows e o pack privado local `rank02-original` gerado anteriormente com JSON BOM/estrutura inválida.
