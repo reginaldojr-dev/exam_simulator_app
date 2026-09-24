@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from exam_trainer.application.mvp_models import ProgressEntry
 from exam_trainer.domain.entities import Attempt
 from exam_trainer.domain.grading import GradingResult
+from exam_trainer.domain.progress import ProgressEntry
 
 
 class ProgressRepository(Protocol):

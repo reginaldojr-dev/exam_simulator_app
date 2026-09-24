@@ -5,7 +5,16 @@ from pathlib import Path
 
 from exam_trainer.domain.exercise_definition import ExerciseDefinition
 from exam_trainer.domain.grading import GradingResult
-from exam_trainer.domain.pack_definition import PackDefinition
+from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
+from exam_trainer.domain.progress import ProgressEntry
+
+__all__ = [
+    "DEFAULT_LANGUAGE",
+    "ExerciseRef",
+    "ProgressEntry",
+    "ActiveExercise",
+    "CorrectionOutcome",
+]
 
 
 @dataclass(frozen=True)
@@ -16,16 +25,8 @@ class ExerciseRef:
     content_path: Path
 
 
-@dataclass(frozen=True)
-class ProgressEntry:
-    exercise_id: str
-    status: str
-    attempts_count: int
-    last_attempt_at: str | None
-    best_passed: bool
-    best_score: float | None
-    last_mode: str | None
-    pack_id: str = ""
+# `ProgressEntry` é uma regra pura (domain/progress.py); reexportada aqui para não
+# quebrar quem já importa de `application.mvp_models` (ADR 0007).
 
 
 @dataclass(frozen=True)
