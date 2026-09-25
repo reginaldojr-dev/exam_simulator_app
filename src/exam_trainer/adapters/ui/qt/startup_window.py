@@ -73,4 +73,5 @@ class StartupWindow(QWidget):
             return
 
         self.workspace_configured.emit(workspace.path)
+        self.close()
 
