@@ -188,3 +188,17 @@ src/exam_trainer/
 - **Decisão arquitetural:** ADR 0010.
 - **Estado dos packs públicos autorais:** `c-basics` 5 exercícios, `cpp-basics` 4, `python-basics` 9, `java-basics` 4.
 - **Pendências:** restrições de funções/imports/estilo ainda são declarativas nesta V1; enforcement automático deve ser implementado por validators específicos quando necessário.
+
+
+### S4 — Sessões, progresso, persistência e histórico neutro
+
+- **Objetivo:** preparar Training/Exam como policies de sessão, neutralizar identidade de activity em progresso/histórico/workspace e manter compatibilidade local.
+- **Mudanças principais:**
+  1. `ActivityIdentity(pack_id, activity_id, activity_kind)` entra no domain; `exercise_id` continua como compatibilidade.
+  2. `SessionPolicyRegistry` registra `TrainingPolicy` e `ExamPolicy`; o coordinator expõe ponto de extensão para policy futura.
+  3. `WorkspaceScope` move a resolução de paths físicos para o adapter; novas provas usam `workspace/exams/<session_id>/<activity_id>`.
+  4. Migration SQLite v3 adiciona `activity_id`, `activity_kind` e `policy` a attempts/progress e metadados equivalentes a exam tables, preservando colunas/dados legados.
+  5. `HistoryService` passa a projetar histórico por filtros de pack, activity, session, policy e status; a UI atual continua consumindo rows via coordinator.
+  6. Cleanup de prova reconhece `exams/` novo e `exam/` legado.
+- **Investigação DB readonly:** bancos reais em `%APPDATA%\42-exam-trainer` e `%APPDATA%\exam-trainer` estão em schema v2, sem atributo readonly. ACL concede `FullControl` ao usuário `Junior\junio`, mas apenas `ReadAndExecute` a `Junior\CodexSandboxUsers`; o erro observado é compatível com execução sob sandbox/ACL, não com corrupção de schema.
+- **Decisão arquitetural:** ADR 0011.
