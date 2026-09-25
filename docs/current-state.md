@@ -3,33 +3,30 @@
 ## Git
 
 - Branch base: `main`.
-- Branch de trabalho atual: `v1/s5`.
-- HEAD base confirmado para iniciar S5: `1278b5620d6bfac100fe362a9515c305b0c48550`.
-- Última etapa concluída: S5.
+- Branch de trabalho atual: `v1/s6`.
+- HEAD base confirmado para iniciar S6: `9ffb62c710caccb8e5788dd69f56e71607591cc5`.
+- Última etapa concluída: S6 / V1 fechada tecnicamente.
 - Working tree esperado após conclusão/commit: limpo.
 - Roadmap oficial mais recente encontrado: `_local/agents_outputs/roadmap-fechamento-v1-final-v8.md`.
 
 ## Tests
 
-- Suíte completa validada após S5: `234 passed, 5 skipped, 7 warnings, 40 subtests passed`.
-- Focados S5: `125 passed, 4 skipped, 2 warnings, 40 subtests passed`.
-- Smoke S5: Home/StudyIntent/prompt/copy, History views, Settings > Packs, Training subject/workspace, Exam preflight/start e tamanhos 760x520, 1024x720, 1440x900 cobertos por smoke Qt/offscreen.
+- Suíte completa validada após S6: `234 passed, 5 skipped, 40 subtests passed`.
+- Focados S6: `137 passed, 4 skipped, 40 subtests passed`.
+- Build real: `python build.py --force` OK.
+- Build cache/run: `python build.py --run` pulou rebuild e abriu o executável.
+- Smoke do executável: `_local/dist/Exam Trainer.exe` abriu com `%APPDATA%` isolado e foi encerrado após 6s.
 - Skips conhecidos: compilador C/C++ ausente em testes dependentes de toolchain; symlink no Windows exige privilégio.
-- Warnings conhecidos: `PytestCollectionWarning` para classes do app/domínio iniciadas com `Test*` e construtor próprio.
-- Testes focados recentes:
-  - `tests/test_architecture.py`: `12 passed`.
-  - `tests/test_runtime_layer.py`: `12 passed, 2 skipped`.
-  - `tests/test_python_runtime.py`: `16 passed`.
-  - Qt main window + StudyIntent: `26 passed`.
+- Warnings pytest conhecidos: nenhum na suíte final da S6.
 
 ## Architecture
 
 - Domain: modelos puros para activity/exercise, validation, progress, grading, identifiers e workspace; sem Qt/SQLite/filesystem concreto.
-- Application: `MVPTrainerCoordinator` ainda centraliza fluxos, mas delega projeções de histórico para `HistoryService` e resolve behavior/scope por `SessionPolicyRegistry`.
+- Application: `MVPTrainerCoordinator` ainda centraliza fluxos, mas delega projeções de histórico para `HistoryService`, resolve behavior/scope por `SessionPolicyRegistry` e expõe capabilities para UI.
 - Ports: contratos para compiler, editor, grader, pack, progress, runtime e workspace.
 - Adapters: Qt UI, SQLite, filesystem/workspace, pack loading/import, runtimes/toolchains, editor e graders concretos.
-- UI: PySide6; recebe dados da application; subjects renderizados como Markdown por widget Qt centralizado; Home gera prompts por `StudyIntent`/`PackPromptBuilder`; Histórico consome projeções da application.
-- Persistence: SQLite local via adapters; progresso separado por pack; schema v3 guarda identidade neutra (`activity_id`, `activity_kind`) e `policy` mantendo colunas legadas.
+- UI: PySide6; consome application/services; subjects Markdown centralizados em `SubjectMarkdownView`; Home usa `StudyIntent`/`PackPromptBuilder`; Histórico consome projeções da application.
+- Persistence: SQLite local via adapters; schema v3 guarda identidade neutra (`activity_id`, `activity_kind`) e `policy` mantendo colunas legadas.
 
 ## Core Contracts
 
@@ -50,42 +47,54 @@
 - `usage`: restrições estruturadas declarativas/pedagógicas (`allowed`, `forbidden`, `constraints`, `style`, `behavior`, `notes`).
 - `reference`/`solution`: opcionais; exigidas apenas quando expectation/validator declara necessidade, como `reference_output`.
 - Runtimes suportados no contrato/app: C, C++, Python e Java.
-- Packs públicos autorais: `c-basics` 5, `cpp-basics` 4, `python-basics` 9, `java-basics` 4.
+- Packs públicos versionados: `c-basics`, `cpp-basics`, `python-basics`, `java-basics`, `sample_rank`.
+- Packs locais privados/estudo em `_local/packs/` continuam ignorados, incluindo `rank02-practice` e `rank02-original` a `rank06-original`.
 
 ## Persistence
 
 - SQLite é a autoridade local da V1.
-- Schema atual após S4: v3.
+- Schema atual: v3.
 - Migration v3 adiciona identidade neutra e policy preservando colunas/dados antigos.
-- Paths relevantes: configuração/dados locais via infrastructure paths; packs públicos em `examples/packs`; packs locais privados em `_local/packs`.
-- DB readonly investigado: bancos reais não têm atributo readonly e abrem em modo read-only; ACL dá `FullControl` ao usuário e só `ReadAndExecute` a `CodexSandboxUsers`, compatível com erro ao rodar sob sandbox.
+- Path principal no Windows: `%APPDATA%\exam-trainer\`.
+- Packs públicos em `examples/packs`; packs locais privados em `_local/packs`.
+- DB readonly investigado na S4: causa provável é ACL/sandbox, não schema corrompido.
 
 ## Workspace
 
-- Layout atual de treino usa `training/<pack_id>/<activity_id>`.
-- Novas provas usam `exams/<session_id>/<activity_id>`.
+- Layout atual de treino: `training/<pack_id>/<activity_id>`.
+- Layout atual de provas: `exams/<session_id>/<activity_id>`.
 - Existe migração defensiva de workspace legado de treino quando seguro.
 - Nenhum workspace antigo deve ser apagado silenciosamente.
 - `projects/<pack>/<project>` é reservado no adapter como scope futuro, sem feature funcional.
 
 ## UI
 
+- Produto público: `Exam Trainer`.
 - Home inclui `QUERO ESTUDAR ALGO NOVO`, geração/cópia de prompt e importação de pack.
 - Training, Exam, Histórico, Configurações e ajuda de pack existem em Qt.
-- Histórico oferece visões: visão geral, por pack, activities, sessões e linha do tempo, com filtros simples por pack/session.
+- Histórico oferece visão geral, por pack, activities, sessões e linha do tempo, com filtros simples por pack/session.
 - Configurações > Packs mostra resumo de contrato/capabilities e abre a documentação completa de packs.
-- Subjects `subject.md` continuam Markdown e são renderizados na UI com `SubjectMarkdownView` usando suporte nativo do Qt.
-- Janela inicial de workspace fecha corretamente após seleção.
+- Subjects `subject.md` continuam Markdown e são renderizados com suporte nativo do Qt.
 - UI não deve acessar SQL nem decidir regras de session/policy.
-- Redesign visual amplo continua fora do escopo; S5 reorganizou fluxos principais sem trocar identidade visual.
+
+## Build
+
+- Versão V1: `1.0.0`.
+- Build helper: `build.py`.
+- Spec: `Exam Trainer.spec`.
+- Executável Windows: `_local/dist/Exam Trainer.exe`.
+- Checksum: `_local/dist/Exam Trainer.exe.sha256`.
+- SHA-256 validado na S6: `fc4f5a9509be544db639d5e370b8242e7cb128ff9baa00f1679220be00e8a739`.
+- Build usa staging em `_local/build/_staging`, substitui o exe só após sucesso e mantém o exe anterior em falha.
+- Signing/trusted certificate é pendência externa; nenhum certificado fica no repo.
 
 ## Known Issues
 
 - `MVPTrainerCoordinator` ainda é grande e concentra fluxos de treino/prova.
 - Colunas legadas `exercise_id`/`mode` permanecem por compatibilidade.
 - Restrições de `usage` ainda não são verificadas automaticamente.
-- C/C++ podem ficar indisponíveis no ambiente se compiler/toolchain não estiver no PATH.
-- Banco antigo readonly em `%APPDATA%` real foi investigado na S4; causa provável é ACL/sandbox, não schema corrompido.
+- C/C++/Python/Java dependem de toolchains externos instalados/configurados.
+- Release público Windows ainda precisa assinatura confiável para reduzir bloqueios de App Control.
 
 ## Important Invariants
 
@@ -104,3 +113,4 @@
 - Domain não depende de Qt/SQLite/filesystem concreto.
 - Application não deve importar adapter concreto.
 - UI não deve conter regra de negócio nem SQL.
+- Material privado/original não deve ser versionado nem empacotado no release público.

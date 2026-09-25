@@ -200,7 +200,7 @@ src/exam_trainer/
   4. Migration SQLite v3 adiciona `activity_id`, `activity_kind` e `policy` a attempts/progress e metadados equivalentes a exam tables, preservando colunas/dados legados.
   5. `HistoryService` passa a projetar histórico por filtros de pack, activity, session, policy e status; a UI atual continua consumindo rows via coordinator.
   6. Cleanup de prova reconhece `exams/` novo e `exam/` legado.
-- **Investigação DB readonly:** bancos reais em `%APPDATA%\42-exam-trainer` e `%APPDATA%\exam-trainer` estão em schema v2, sem atributo readonly. ACL concede `FullControl` ao usuário `Junior\junio`, mas apenas `ReadAndExecute` a `Junior\CodexSandboxUsers`; o erro observado é compatível com execução sob sandbox/ACL, não com corrupção de schema.
+- **Investigação DB readonly:** bancos reais em um diretório legado do app e em `%APPDATA%\exam-trainer` estão em schema v2, sem atributo readonly. ACL concede `FullControl` ao usuário `Junior\junio`, mas apenas `ReadAndExecute` a `Junior\CodexSandboxUsers`; o erro observado é compatível com execução sob sandbox/ACL, não com corrupção de schema.
 - **Decisão arquitetural:** ADR 0011.
 
 
@@ -216,3 +216,23 @@ src/exam_trainer/
 - **Testes adicionados/ajustados:** `tests/test_study_intent.py`; testes Qt para prompt/copy, capabilities em Configurações, novas visões do Histórico e responsividade.
 - **Resultados locais:** suíte completa `234 passed, 5 skipped, 7 warnings, 40 subtests passed`; focados S5/arquitetura/runtime/packs `125 passed, 4 skipped, 2 warnings, 40 subtests passed`.
 - **Pendências:** não foi implementada IA embutida nem `PackGenerationPort` funcional; isso fica preparado apenas por fronteira de UI/application. Redesign visual profundo e detalhes avançados do Histórico ficam para etapas futuras.
+
+
+### S6 — Fechamento V1, build e release readiness
+
+- **Objetivo:** fechar a V1 como produto coerente: identidade pública `Exam Trainer`, build/distribuição, licença, checksum, README curto, documentação operacional e validação final.
+- **Mudanças principais:**
+  1. Produto e build finalizados como `Exam Trainer`; o executável Windows é `_local/dist/Exam Trainer.exe`.
+  2. `pyproject.toml` define a versão `1.0.0`.
+  3. `LICENSE` MIT e `CHANGELOG.md` foram adicionados.
+  4. `README.md` foi consolidado para V1, com links para contrato de packs, decisões e snapshot operacional.
+  5. `build.py` gera `_local/dist/Exam Trainer.exe.sha256` após build bem-sucedido e inclui README, LICENSE, CHANGELOG, spec, pyproject, `src/` e `examples/` no hash relevante.
+  6. `Exam Trainer.spec` empacota README, LICENSE, CHANGELOG, contrato de pack e packs públicos de exemplo; `_local/` permanece fora do executável.
+  7. Restos públicos do nome antigo foram removidos das superfícies versionadas revisadas.
+  8. Warnings de coleta do pytest foram eliminados configurando classes de teste como `*Test`.
+- **Build e checksum:** `python build.py --force` OK; checksum SHA-256 `fc4f5a9509be544db639d5e370b8242e7cb128ff9baa00f1679220be00e8a739`.
+- **Smoke do executável:** `_local/dist/Exam Trainer.exe` abriu com `%APPDATA%` isolado; `python build.py --run` pulou rebuild e abriu o executável.
+- **Resultados locais:** focados S6 `137 passed, 4 skipped, 40 subtests passed`; suíte completa `234 passed, 5 skipped, 40 subtests passed`.
+- **Estado:** V1 fechada tecnicamente. Não foi feito push, merge em `main` nem release remoto.
+- **Pendências externas reais:** trusted code signing para release Windows; toolchains C/C++/Python/Java dependem da máquina do usuário; publicação de release remoto fica manual.
+- **Próximos passos pós-V1 não implementados:** Project/Milestone, Quiz, validação local API/socket, LearningPath, `PackGenerationPort` funcional, histórico avançado, sync/cloud futuro.
