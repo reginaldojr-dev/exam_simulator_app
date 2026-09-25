@@ -6,12 +6,13 @@ conhecem este modelo. Ver `resources/pack-contract.md`.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import PurePath
 
 from exam_trainer.domain.activity_definition import (
     ActivityDefinition,
     ActivityIdentity,
+    UsageConstraints,
     ValidationPlan,
     ValidationStep,
 )
@@ -103,6 +104,7 @@ class ExerciseDefinition:
     content_language: str = "pt-BR"
     activity_type: str = "exercise"
     validation_plan: ValidationPlan | None = None
+    usage: UsageConstraints = field(default_factory=UsageConstraints)
 
     def __post_init__(self) -> None:
         if self.programming_language is None:
@@ -132,6 +134,7 @@ class ExerciseDefinition:
             language=self.programming_language or self.language,
             validation=plan,
             topics=self.topics,
+            usage=self.usage,
         )
 
     @property

@@ -11,7 +11,12 @@ from exam_trainer.application.capabilities import (
     ExerciseCapabilities,
     default_exercise_capabilities,
 )
-from exam_trainer.domain.activity_definition import ValidationPlan, ValidationStep
+from exam_trainer.domain.activity_definition import (
+    UsageCategory,
+    UsageConstraints,
+    ValidationPlan,
+    ValidationStep,
+)
 from exam_trainer.domain.identifiers import (
     UnsafeValueError,
     parse_relative_path,
@@ -62,6 +67,7 @@ V3_EXERCISE_KEYS = frozenset(
         "content_language",
         "topics",
         "submission",
+        "usage",
         "validation",
     )
 )
@@ -131,6 +137,7 @@ class JsonExerciseDefinitionLoader:
         name = self._require_non_empty_string(data, "name")
         subject = self._require_relative_path(data, "subject")
         submission = self._read_submission(self._require_object_field(data, "submission"))
+        usage = self._read_usage(data.get("usage", {})) if schema_version >= 3 else UsageConstraints()
         validation_plan: ValidationPlan | None = None
         if schema_version >= 3:
             activity_type = self._require_identifier(data, "type") if "type" in data else "exercise"
@@ -152,7 +159,7 @@ class JsonExerciseDefinitionLoader:
             tests = self._read_tests(self._require_object_field(data, "tests"))
             limits = self._read_limits(data.get("limits", {}))
             support_files = self._read_support_files(data.get("support_files", []))
-        if tests.expectation == "reference_output" and reference is None and schema_version >= 2:
+        if self._capabilities.expectations.requires_reference(tests.expectation) and reference is None and schema_version >= 2:
             raise ExerciseDefinitionError("expectation reference_output requires a reference.")
         topics = read_topics(data.get("topics", []), ExerciseDefinitionError)
         if reference is not None and execution.reference != reference.source:
@@ -175,6 +182,7 @@ class JsonExerciseDefinitionLoader:
             content_language=content_language,
             activity_type=activity_type,
             validation_plan=validation_plan,
+            usage=usage,
         )
 
     def _read_submission(self, data: dict[str, Any]) -> SubmissionDefinition:
@@ -327,6 +335,40 @@ class JsonExerciseDefinitionLoader:
         else:
             parsed = ()
         return ReferenceDefinition(source=source, harness=harness, extra_files=parsed)
+
+    def _read_usage(self, raw: Any) -> UsageConstraints:
+        data = self._require_object(raw, "usage")
+        unknown = sorted(set(data) - {"allowed", "forbidden", "constraints", "style", "behavior", "notes"})
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in usage: {', '.join(unknown)}.")
+        return UsageConstraints(
+            allowed=self._read_usage_category(data.get("allowed", {}), "usage.allowed"),
+            forbidden=self._read_usage_category(data.get("forbidden", {}), "usage.forbidden"),
+            constraints=self._read_string_list(data.get("constraints", []), "usage.constraints"),
+            style=self._read_string_list(data.get("style", []), "usage.style"),
+            behavior=self._read_string_list(data.get("behavior", []), "usage.behavior"),
+            notes=self._read_string_list(data.get("notes", []), "usage.notes"),
+        )
+
+    def _read_usage_category(self, raw: Any, field_name: str) -> UsageCategory:
+        data = self._require_object(raw, field_name)
+        unknown = sorted(set(data) - {"functions", "libraries", "imports", "headers", "apis", "flags"})
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in {field_name}: {', '.join(unknown)}.")
+        return UsageCategory(
+            functions=self._read_string_list(data.get("functions", []), f"{field_name}.functions"),
+            libraries=self._read_string_list(data.get("libraries", []), f"{field_name}.libraries"),
+            imports=self._read_string_list(data.get("imports", []), f"{field_name}.imports"),
+            headers=self._read_string_list(data.get("headers", []), f"{field_name}.headers"),
+            apis=self._read_string_list(data.get("apis", []), f"{field_name}.apis"),
+            flags=self._read_string_list(data.get("flags", []), f"{field_name}.flags"),
+        )
+
+    @staticmethod
+    def _read_string_list(raw: Any, field_name: str) -> tuple[str, ...]:
+        if not isinstance(raw, list) or not all(isinstance(item, str) and item.strip() for item in raw):
+            raise ExerciseDefinitionError(f"{field_name} must be a list of non-empty strings.")
+        return tuple(item.strip() for item in raw)
 
     def _read_tests(self, data: dict[str, Any]) -> TestDefinition:
         generator = self._require_identifier(data, "generator")

@@ -32,8 +32,26 @@ class GeneratorRegistry(CapabilityRegistry):
     pass
 
 
+@dataclass(frozen=True)
 class ExpectationRegistry(CapabilityRegistry):
-    pass
+    reference_required: frozenset[str] = field(default_factory=frozenset)
+
+    @classmethod
+    def from_values(
+        cls,
+        values: Iterable[str],
+        *,
+        reference_required: Iterable[str] = (),
+    ) -> "ExpectationRegistry":
+        supported = frozenset(values)
+        required = frozenset(reference_required)
+        unknown = required - supported
+        if unknown:
+            raise ValueError(f"reference_required contains unsupported expectation(s): {', '.join(sorted(unknown))}")
+        return cls(supported=supported, reference_required=required)
+
+    def requires_reference(self, identifier: str) -> bool:
+        return identifier in self.reference_required
 
 
 # Quem fornece o harness de `function_call`:
@@ -130,7 +148,8 @@ def default_exercise_capabilities() -> ExerciseCapabilities:
             )
         ),
         expectations=ExpectationRegistry.from_values(
-            ("literal", "reference_output", "echo_arguments", "sum_integers")
+            ("literal", "reference_output", "echo_arguments", "sum_integers"),
+            reference_required=("reference_output",),
         ),
         languages={support.language: support for support in (C_LANGUAGE, CPP_LANGUAGE, PYTHON_LANGUAGE, JAVA_LANGUAGE)},
     )

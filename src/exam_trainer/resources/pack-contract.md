@@ -34,7 +34,7 @@ my-pack/
     └── activity_id/
         ├── exercise.json
         ├── subject.md
-        └── solution/
+        └── solution/              # opcional: apenas quando a validação exigir referência
             └── reference.ext
 ```
 
@@ -73,14 +73,21 @@ Sem `exam.duration_minutes`, a prova usa 4 horas.
   "content_language": "pt-BR",
   "topics": ["c", "basics"],
   "submission": { "filename": "argc_counter.c" },
+  "usage": {
+    "allowed": { "functions": ["write"] },
+    "forbidden": { "functions": ["printf", "puts"] },
+    "constraints": [
+      "Não escreva mensagens extras.",
+      "A saída deve terminar com newline."
+    ]
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": { "source": "solution/reference.c" },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
-        { "args": ["a", "b"], "stdin": "" }
+        { "args": ["a", "b"], "stdin": "", "expected_stdout": "2\n" }
       ]
     },
     "limits": { "timeout_seconds": 3 }
@@ -102,7 +109,7 @@ Campos comuns:
 - `harness`: harness fornecido pelo pack quando a linguagem/strategy exige;
 - `entry`: função/classe principal quando a linguagem/strategy exige;
 - `args_format`: formato dos argumentos para function_call com harness do app;
-- `reference`: solução de referência;
+- `reference`: solução de referência, somente quando a expectation/validator exigir;
 - `tests`: casos e expectation;
 - `limits.timeout_seconds`: timeout por caso;
 - `support_files`: arquivos copiados para a workspace.
@@ -115,6 +122,42 @@ Estratégias atuais:
 O app pode evoluir para novas strategies/validators via registries. Packs devem usar
 somente capabilities suportadas pela versão instalada.
 
+### usage
+
+`usage` descreve restrições de estudo e implementação de forma estruturada, sem criar
+uma DSL de validação. O subject pode renderizar essas informações e ferramentas futuras
+como o PackPromptBuilder podem consultá-las diretamente.
+
+```json
+{
+  "allowed": {
+    "functions": ["write"],
+    "libraries": [],
+    "imports": [],
+    "headers": ["unistd.h"],
+    "apis": [],
+    "flags": []
+  },
+  "forbidden": {
+    "functions": ["printf"],
+    "libraries": [],
+    "imports": [],
+    "headers": [],
+    "apis": [],
+    "flags": []
+  },
+  "constraints": ["Não use conversões prontas."],
+  "style": ["Prefira funções pequenas."],
+  "behavior": ["Não escreva mensagens extras."],
+  "notes": ["Essas restrições são pedagógicas nesta versão."]
+}
+```
+
+Todos os campos são opcionais. Nesta V1, o loader valida o formato e o importer
+continua validando arquivos declarados e capabilities. Restrições como funções,
+imports, headers, estilo e comportamento são declarativas/pedagógicas, a menos que
+um validator futuro declare suporte explícito para verificá-las.
+
 ### reference
 
 ```json
@@ -124,6 +167,10 @@ somente capabilities suportadas pela versão instalada.
   "extra_files": ["solution/helper.cpp"]
 }
 ```
+
+`reference` não é obrigatória no nível genérico da activity. Ela deve existir apenas
+quando algum passo de validação precisar executar ou comparar contra uma referência.
+Na versão atual, `reference_output` exige `reference`; `literal` não exige.
 
 `extra_files` permite referências multi-file em C++, Java e linguagens futuras.
 
@@ -144,8 +191,9 @@ Expectations atuais:
 - `echo_arguments`;
 - `sum_integers`.
 
-Para packs novos, prefira `reference_output` ou `literal`. Expectations embutidas são
-mantidas para regressão e exemplos simples.
+Para packs novos, prefira `literal` quando bons casos determinísticos forem suficientes.
+Use `reference_output` somente quando a saída esperada depender de uma referência real.
+Expectations embutidas são mantidas para regressão e exemplos simples.
 
 ## Linguagens
 
@@ -171,7 +219,9 @@ Expected files   : argc_counter.c
 Escreva um programa em C que imprime a quantidade de argumentos recebidos.
 ```
 
-O app não infere runtime a partir do idioma humano do subject.
+O app não infere runtime a partir do idioma humano do subject. O subject deve explicar
+objetivo, arquivos esperados, entrada/saída, regras, restrições permitidas/proibidas
+e exemplos quando isso ajudar o estudo.
 
 ## Importação
 

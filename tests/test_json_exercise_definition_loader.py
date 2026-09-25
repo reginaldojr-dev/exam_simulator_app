@@ -9,6 +9,13 @@ from exam_trainer.adapters.exercise_definition.json_loader import (
     ExerciseDefinitionError,
     JsonExerciseDefinitionLoader,
 )
+from exam_trainer.application.capabilities import (
+    ExerciseCapabilities,
+    ExecutionRegistry,
+    ExpectationRegistry,
+    GeneratorRegistry,
+    C_LANGUAGE,
+)
 from exam_trainer.domain.exercise_definition import ExerciseDefinition, ReferenceDefinition
 
 
@@ -29,6 +36,32 @@ def valid_definition_data() -> dict[str, object]:
         },
         "limits": {
             "timeout_seconds": 2,
+        },
+    }
+
+
+def v3_literal_data() -> dict[str, object]:
+    return {
+        "schema_version": 3,
+        "id": "literal_ex",
+        "type": "exercise",
+        "name": "Literal Ex",
+        "subject": "subject.md",
+        "programming_language": "c",
+        "content_language": "pt-BR",
+        "submission": {"filename": "literal_ex.c"},
+        "usage": {
+            "allowed": {"functions": ["write"]},
+            "forbidden": {"functions": ["printf"]},
+            "constraints": ["Não escreva mensagens extras."],
+        },
+        "validation": {
+            "strategy": "program_output",
+            "tests": {
+                "generator": "fixed_cases",
+                "expectation": "literal",
+                "cases": [{"args": [], "expected": "ok\n"}],
+            },
         },
     }
 
@@ -210,3 +243,43 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
 
         with self.assertRaisesRegex(ExerciseDefinitionError, "tests.cases is required"):
             JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_v3_activity_without_solution_is_valid_when_expectation_does_not_need_reference(self) -> None:
+        definition = JsonExerciseDefinitionLoader().load_data(v3_literal_data())
+
+        self.assertIsNone(definition.reference)
+        self.assertEqual(definition.tests.expectation, "literal")
+        self.assertEqual(definition.content_language, "pt-BR")
+        self.assertEqual(definition.programming_language, "c")
+        self.assertIn("write", definition.activity.usage.allowed.functions)
+        self.assertIn("printf", definition.activity.usage.forbidden.functions)
+
+    def test_v3_activity_requires_reference_only_when_expectation_declares_it(self) -> None:
+        data = v3_literal_data()
+        data["validation"]["tests"]["expectation"] = "reference_output"
+
+        with self.assertRaisesRegex(ExerciseDefinitionError, "requires a reference"):
+            JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_v3_activity_with_required_reference_is_valid_when_reference_is_present(self) -> None:
+        data = v3_literal_data()
+        data["validation"]["tests"]["expectation"] = "reference_output"
+        data["validation"]["reference"] = {"source": "solution/reference.c"}
+
+        definition = JsonExerciseDefinitionLoader().load_data(data)
+
+        self.assertEqual(definition.reference.source, PurePosixPath("solution/reference.c"))
+
+    def test_reference_requirement_comes_from_expectation_capabilities(self) -> None:
+        capabilities = ExerciseCapabilities(
+            executions=ExecutionRegistry.from_values(("program_output",)),
+            generators=GeneratorRegistry.from_values(("fixed_cases",)),
+            expectations=ExpectationRegistry.from_values(("literal", "reference_output")),
+            languages={"c": C_LANGUAGE},
+        )
+        data = v3_literal_data()
+        data["validation"]["tests"]["expectation"] = "reference_output"
+
+        definition = JsonExerciseDefinitionLoader(capabilities).load_data(data)
+
+        self.assertIsNone(definition.reference)
