@@ -5,10 +5,11 @@ import threading
 import unittest
 import os
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
@@ -305,6 +306,64 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("Validators/expectations:", summary)
             window._show_pack_help()
             self.assertIs(window._stack.currentWidget(), window._pack_help_page)
+
+    def test_import_pack_cancel_zip_dialog_does_not_open_folder_dialog_or_import(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
+                 mock.patch.object(QFileDialog, "getOpenFileName", return_value=("", "")) as open_file, \
+                 mock.patch.object(QFileDialog, "getExistingDirectory") as open_dir, \
+                 mock.patch.object(window._coordinator, "inspect_pack") as inspect_pack:
+                window._import_pack()
+
+            open_file.assert_called_once()
+            open_dir.assert_not_called()
+            inspect_pack.assert_not_called()
+
+    def test_import_pack_cancel_format_choice_opens_no_explorer_and_imports_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Cancel), \
+                 mock.patch.object(QFileDialog, "getOpenFileName") as open_file, \
+                 mock.patch.object(QFileDialog, "getExistingDirectory") as open_dir, \
+                 mock.patch.object(window._coordinator, "inspect_pack") as inspect_pack:
+                window._import_pack()
+
+            open_file.assert_not_called()
+            open_dir.assert_not_called()
+            inspect_pack.assert_not_called()
+
+    def test_import_pack_folder_selection_starts_single_import_task(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            source = Path(temp_dir) / "pack-folder"
+            source.mkdir()
+            tasks: list[tuple[str, str]] = []
+            window._run_task = lambda key, work, on_done, title, on_finally=None: tasks.append((key, title)) or True
+            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No), \
+                 mock.patch.object(QFileDialog, "getOpenFileName") as open_file, \
+                 mock.patch.object(QFileDialog, "getExistingDirectory", return_value=str(source)) as open_dir:
+                window._import_pack()
+
+            open_file.assert_not_called()
+            open_dir.assert_called_once()
+            self.assertEqual(tasks, [("import", "Importar Pack")])
+            self.assertEqual(window._packs_summary.text(), "validando pack...")
+
+    def test_import_pack_errors_are_still_reported_by_task_runner(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            source = Path(temp_dir) / "bad.zip"
+            source.write_text("not a zip", encoding="utf-8")
+            shown: list[str] = []
+            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
+                 mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(source), "Pack ZIP (*.zip)")), \
+                 mock.patch.object(window._coordinator, "inspect_pack", side_effect=ValueError("pack inválido")), \
+                 mock.patch.object(QMessageBox, "warning", side_effect=lambda parent, title, text, *a, **k: shown.append(text)):
+                window._import_pack()
+                self.assertTrue(window._tasks.wait())
+
+            self.assertEqual(shown, ["pack inválido"])
 
     def test_global_style_does_not_use_neon_green_as_solid_button_background(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
