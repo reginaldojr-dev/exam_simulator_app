@@ -1502,12 +1502,9 @@ class MainWindow(QMainWindow):
     def _import_pack(self) -> None:
         if self._tasks.is_busy("import"):
             return
-        source, _ = QFileDialog.getOpenFileName(self, "Selecionar pack ZIP", "", "Pack ZIP (*.zip);;Todos os arquivos (*)")
-        if not source:
-            source = QFileDialog.getExistingDirectory(self, "Selecionar pasta do pack")
-        if not source:
+        path = self._choose_pack_source()
+        if path is None:
             return
-        path = Path(source)
         self._packs_summary.setText("validando pack...")
         self._run_task(
             "import",
@@ -1516,6 +1513,29 @@ class MainWindow(QMainWindow):
             "Importar Pack",
             on_finally=self._refresh_packs,
         )
+
+    def _choose_pack_source(self) -> Path | None:
+        choice = QMessageBox.question(
+            self,
+            "Importar Pack",
+            "O pack está em um arquivo ZIP?\n\n"
+            "Escolha Sim para selecionar um ZIP.\n"
+            "Escolha Não para selecionar uma pasta.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes,
+        )
+        if choice == QMessageBox.StandardButton.Cancel:
+            return None
+        if choice == QMessageBox.StandardButton.Yes:
+            selected, _ = QFileDialog.getOpenFileName(
+                self,
+                "Selecionar pack ZIP",
+                "",
+                "Pack ZIP (*.zip);;Todos os arquivos (*)",
+            )
+        else:
+            selected = QFileDialog.getExistingDirectory(self, "Selecionar pasta do pack")
+        return Path(selected) if selected else None
 
     def _confirm_pack_import(self, path: Path, report) -> None:
         if report.has_executable_code:
