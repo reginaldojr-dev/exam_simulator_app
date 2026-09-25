@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from exam_trainer.domain.activity_identity import DEFAULT_ACTIVITY_KIND
 from exam_trainer.domain.attempt_modes import EXAM_MODE, LEGACY_PACK_ID, TRAINING_MODE
 
 Migration = Callable[[sqlite3.Connection], None]
@@ -71,21 +72,39 @@ def rebuild_progress(
         params = (pack_id, exercise_id)
     else:
         connection.execute("DELETE FROM progress")
-    connection.execute(
-        f"""
-        INSERT INTO progress (
-            pack_id, exercise_id, status, attempts_count, last_attempt_at,
-            best_passed, best_score, last_mode
+    progress_columns = _columns(connection, "progress")
+    if {"activity_id", "activity_kind", "policy"}.issubset(progress_columns):
+        connection.execute(
+            f"""
+            INSERT INTO progress (
+                pack_id, exercise_id, activity_id, activity_kind, policy,
+                status, attempts_count, last_attempt_at, best_passed, best_score, last_mode
+            )
+            SELECT pack_id, exercise_id, exercise_id, '{DEFAULT_ACTIVITY_KIND}', '{TRAINING_MODE}',
+                   CASE WHEN MAX(COALESCE(passed, 0)) = 1 THEN 'completed' ELSE 'attempted' END,
+                   COUNT(*), MAX(submitted_at), MAX(COALESCE(passed, 0)), MAX(score), '{TRAINING_MODE}'
+            FROM attempts
+            WHERE mode = '{TRAINING_MODE}' AND pack_id IS NOT NULL {where}
+            GROUP BY pack_id, exercise_id
+            """,
+            params,
         )
-        SELECT pack_id, exercise_id,
-               CASE WHEN MAX(COALESCE(passed, 0)) = 1 THEN 'completed' ELSE 'attempted' END,
-               COUNT(*), MAX(submitted_at), MAX(COALESCE(passed, 0)), MAX(score), '{TRAINING_MODE}'
-        FROM attempts
-        WHERE mode = '{TRAINING_MODE}' AND pack_id IS NOT NULL {where}
-        GROUP BY pack_id, exercise_id
-        """,
-        params,
-    )
+    else:
+        connection.execute(
+            f"""
+            INSERT INTO progress (
+                pack_id, exercise_id, status, attempts_count, last_attempt_at,
+                best_passed, best_score, last_mode
+            )
+            SELECT pack_id, exercise_id,
+                   CASE WHEN MAX(COALESCE(passed, 0)) = 1 THEN 'completed' ELSE 'attempted' END,
+                   COUNT(*), MAX(submitted_at), MAX(COALESCE(passed, 0)), MAX(score), '{TRAINING_MODE}'
+            FROM attempts
+            WHERE mode = '{TRAINING_MODE}' AND pack_id IS NOT NULL {where}
+            GROUP BY pack_id, exercise_id
+            """,
+            params,
+        )
 
 
 def _migration_2_pack_scoped_progress(connection: sqlite3.Connection) -> None:
@@ -136,9 +155,50 @@ def _migration_2_pack_scoped_progress(connection: sqlite3.Connection) -> None:
     rebuild_progress(connection)
 
 
+def _migration_3_activity_identity_and_policy(connection: sqlite3.Connection) -> None:
+    """Adiciona identidade neutra de activity e policy sem remover colunas legadas."""
+    _add_column(connection, "attempts", "activity_id", "TEXT")
+    _add_column(connection, "attempts", "activity_kind", "TEXT")
+    _add_column(connection, "attempts", "policy", "TEXT")
+    connection.execute("UPDATE attempts SET activity_id = exercise_id WHERE activity_id IS NULL")
+    connection.execute(
+        "UPDATE attempts SET activity_kind = ? WHERE activity_kind IS NULL",
+        (DEFAULT_ACTIVITY_KIND,),
+    )
+    connection.execute("UPDATE attempts SET policy = mode WHERE policy IS NULL")
+
+    _add_column(connection, "progress", "activity_id", "TEXT")
+    _add_column(connection, "progress", "activity_kind", "TEXT")
+    _add_column(connection, "progress", "policy", "TEXT")
+    connection.execute("UPDATE progress SET activity_id = exercise_id WHERE activity_id IS NULL")
+    connection.execute(
+        "UPDATE progress SET activity_kind = ? WHERE activity_kind IS NULL",
+        (DEFAULT_ACTIVITY_KIND,),
+    )
+    connection.execute("UPDATE progress SET policy = ? WHERE policy IS NULL", (TRAINING_MODE,))
+
+    _add_column(connection, "exam_sessions", "policy", "TEXT")
+    connection.execute("UPDATE exam_sessions SET policy = ? WHERE policy IS NULL", (EXAM_MODE,))
+
+    _add_column(connection, "exam_history", "policy", "TEXT")
+    connection.execute("UPDATE exam_history SET policy = ? WHERE policy IS NULL", (EXAM_MODE,))
+
+    _add_column(connection, "exam_level_results", "activity_id", "TEXT")
+    _add_column(connection, "exam_level_results", "activity_kind", "TEXT")
+    connection.execute("UPDATE exam_level_results SET activity_id = exercise_id WHERE activity_id IS NULL")
+    connection.execute(
+        "UPDATE exam_level_results SET activity_kind = ? WHERE activity_kind IS NULL",
+        (DEFAULT_ACTIVITY_KIND,),
+    )
+    connection.execute(
+        "CREATE INDEX IF NOT EXISTS idx_attempts_activity_policy ON attempts (pack_id, activity_kind, activity_id, policy)"
+    )
+
+
 MIGRATIONS: list[tuple[int, Migration]] = [
     (1, _migration_1_exam_deadline),
     (2, _migration_2_pack_scoped_progress),
+    (3, _migration_3_activity_identity_and_policy),
 ]
 
 LATEST_VERSION = MIGRATIONS[-1][0]

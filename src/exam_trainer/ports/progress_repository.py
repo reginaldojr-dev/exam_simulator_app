@@ -50,6 +50,16 @@ class TrainerProgressRepository(ProgressRepository, Protocol):
     def latest_attempts(self) -> dict[tuple[str, str], dict[str, object]]:
         raise NotImplementedError
 
+    def list_activity_attempts(
+        self,
+        pack_id: str | None = None,
+        activity_id: str | None = None,
+        session_id: str | None = None,
+        policy: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, object]]:
+        raise NotImplementedError
+
     def modes_by_key(self) -> dict[tuple[str, str], set[str]]:
         raise NotImplementedError
 
