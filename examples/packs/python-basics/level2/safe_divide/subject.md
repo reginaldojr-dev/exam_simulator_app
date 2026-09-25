@@ -1,5 +1,3 @@
-# safe_divide
-
 Implemente `safe_divide(a, b)` retornando `None` quando houver divisão por zero.
 
 ## Arquivo esperado

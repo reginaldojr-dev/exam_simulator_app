@@ -1,5 +1,3 @@
-# array_peak
-
 Receba inteiros pelos argumentos e imprima o maior valor encontrado.
 
 ## Arquivo esperado

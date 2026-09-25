@@ -1,5 +1,3 @@
-# count_args
-
 Conte argumentos de linha de comando em um script Python.
 
 ## Arquivo esperado

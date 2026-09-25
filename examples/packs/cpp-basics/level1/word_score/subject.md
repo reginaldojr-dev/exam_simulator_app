@@ -1,5 +1,3 @@
-# word_score
-
 Calcule a soma dos códigos ASCII dos caracteres de uma string.
 
 ## Arquivo esperado

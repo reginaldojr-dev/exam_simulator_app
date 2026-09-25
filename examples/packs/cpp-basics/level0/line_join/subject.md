@@ -1,5 +1,3 @@
-# line_join
-
 Junte os argumentos em uma única linha usando hífen como separador.
 
 ## Arquivo esperado

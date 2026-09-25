@@ -1,5 +1,3 @@
-# parse_sum
-
 Some todos os argumentos que representam inteiros decimais simples.
 
 ## Arquivo esperado

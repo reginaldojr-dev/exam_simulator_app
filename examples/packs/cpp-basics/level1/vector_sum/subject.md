@@ -1,5 +1,3 @@
-# vector_sum
-
 Implemente uma função que soma valores armazenados em `std::vector<int>`.
 
 ## Arquivo esperado

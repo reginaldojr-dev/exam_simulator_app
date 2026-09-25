@@ -1,5 +1,3 @@
-# box_counter
-
 Implemente uma classe simples que acumula valores inteiros.
 
 ## Arquivo esperado
