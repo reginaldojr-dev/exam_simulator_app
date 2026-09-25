@@ -7,8 +7,10 @@ A aparência vem do QSS do tema ativo.
 from __future__ import annotations
 
 from collections.abc import Callable
+from html import escape
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
+from PySide6.QtGui import QTextCursor, QTextOption
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
@@ -16,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QStackedWidget,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -188,6 +191,71 @@ class FeedbackBanner(QFrame):
         animation.finished.connect(lambda: self.setGraphicsEffect(None))
         self._animation = animation
         animation.start()
+
+
+class SubjectMarkdownView(QTextEdit):
+    """Read-only subject viewer that renders pack Markdown safely enough for UI use."""
+
+    EMPTY_MESSAGE = "_Subject vazio._"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setReadOnly(True)
+        self.setProperty("role", "subject")
+        self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        self.document().setDocumentMargin(12)
+        self.document().setDefaultStyleSheet(self._document_stylesheet())
+
+    def set_subject_markdown(self, markdown: str) -> None:
+        content = markdown if markdown.strip() else self.EMPTY_MESSAGE
+        self.setMarkdown(self._escape_html(content))
+        self.moveCursor(QTextCursor.MoveOperation.Start)
+
+    @staticmethod
+    def _escape_html(markdown: str) -> str:
+        # Pack subjects are Markdown, not trusted HTML. QTextDocument does not run
+        # JavaScript, but escaping keeps raw HTML from becoming active rich text.
+        return escape(markdown, quote=False)
+
+    @staticmethod
+    def _document_stylesheet() -> str:
+        return """
+body {
+  margin: 0;
+  line-height: 1.34;
+}
+h1 {
+  margin: 0 0 10px 0;
+  font-size: 1.28em;
+  font-weight: 800;
+}
+h2 {
+  margin: 14px 0 6px 0;
+  font-size: 1.08em;
+  font-weight: 800;
+}
+p {
+  margin: 6px 0;
+}
+ul, ol {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+li {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+code {
+  font-family: Consolas, "Cascadia Mono", "JetBrains Mono", monospace;
+  white-space: pre-wrap;
+}
+pre {
+  margin: 6px 0 10px 0;
+  padding: 8px;
+  white-space: pre-wrap;
+}
+"""
 
 
 def fade_to(stack: QStackedWidget, page: QWidget, animate: bool = True) -> None:

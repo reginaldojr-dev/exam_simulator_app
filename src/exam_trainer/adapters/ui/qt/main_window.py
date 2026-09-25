@@ -370,7 +370,7 @@ class MainWindow(QMainWindow):
 
         layout.addSpacing(4)
         layout.addWidget(ui.label("subject.md — less", role="panel-caption"))
-        self._subject = self._terminal_text()
+        self._subject = ui.SubjectMarkdownView()
         self._subject.setMinimumHeight(240)
         layout.addWidget(self._subject, 1)
 
@@ -822,7 +822,7 @@ class MainWindow(QMainWindow):
         self._exam_timer_label.setVisible(mode == "exam")
         if mode == "exam" and self._exam_state is not None:
             self._render_exam_timer(self._exam_state)
-        self._subject.setPlainText(active.subject_text)
+        self._subject.set_subject_markdown(active.subject_text)
         self._feedback.clear()
         self._open_editor_button.setToolTip(f"Abrir a pasta do exercício no {self._coordinator.editor_display_name()}")
         self._trace_button.setEnabled(False)

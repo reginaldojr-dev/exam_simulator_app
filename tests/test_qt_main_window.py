@@ -194,20 +194,25 @@ class MainWindowTest(unittest.TestCase):
             self.assertFalse(window._end_exam_button.isHidden())
             window._coordinator.finish_exam(state, "abandoned", 0)
 
-    def test_subject_is_rendered_as_plain_text_preserving_whitespace(self) -> None:
+    def test_subject_markdown_is_rendered_in_exercise_view(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
             ref = next(
                 ref
-                for ref in window._coordinator._pack_catalog.list_exercises("sample_rank")
-                if ref.definition.id == "steady_echo"
+                for ref in window._coordinator._pack_catalog.list_exercises("c-basics")
+                if ref.definition.id == "argc_counter"
             )
 
             window._load_exercise(ref, mode="training", overwrite=True)
 
             rendered = window._subject.toPlainText()
-            self.assertIn("Assignment name  : steady_echo", rendered)
-            self.assertIn("$> ./steady_echo hello world | cat -e\nhello world$", rendered)
+            self.assertIn("argc_counter", rendered)
+            self.assertIn("Arquivo esperado", rendered)
+            self.assertIn("argc_counter.c", rendered)
+            self.assertIn("\\n", rendered)
+            self.assertNotIn("# argc_counter", rendered)
+            self.assertNotIn("## Arquivo esperado", rendered)
+            self.assertNotIn("`argc_counter.c`", rendered)
 
     def test_settings_open_does_not_run_compiler_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
