@@ -177,7 +177,7 @@ class ExamRulesTest(unittest.TestCase):
         coordinator = self.coordinator()
         state = coordinator.start_exam("wide")
         coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state, overwrite=True)
-        session_dir = self.root / "workspace" / "exam" / state.id
+        session_dir = self.root / "workspace" / "exams" / state.id
         self.grader.passed = False
         active = coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state)
         coordinator.submit_exam(state, active)

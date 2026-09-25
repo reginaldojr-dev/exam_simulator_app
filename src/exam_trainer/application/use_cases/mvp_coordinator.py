@@ -7,22 +7,24 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from exam_trainer.application.history_service import HistoryQuery, HistoryService
 from exam_trainer.application.mvp_models import (
     ActiveExercise,
     CorrectionOutcome,
     ExerciseRef,
     ProgressEntry,
 )
-from exam_trainer.domain.attempt_modes import EXAM_MODE, LEGACY_PACK_ID, TRAINING_MODE
+from exam_trainer.domain.attempt_modes import EXAM_MODE, TRAINING_MODE
 from exam_trainer.domain.grading import GradingPolicy, GradingResult
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.domain.pack_definition import PackDefinition
+from exam_trainer.domain.session_policy import EXAM_POLICY_ID, TRAINING_POLICY_ID, SessionPolicy, SessionPolicyRegistry
 from exam_trainer.ports.config_repository import AppSettingsRepository
 from exam_trainer.ports.progress_repository import TrainerProgressRepository
 from exam_trainer.ports.runtime_port import LanguageRuntime, RuntimeStatus
 from exam_trainer.domain.workspace import Workspace
 from exam_trainer.ports.editor_port import EditorFactory, EditorLaunchError, EditorPort
-from exam_trainer.ports.exercise_workspace_port import ExerciseWorkspacePort
+from exam_trainer.ports.exercise_workspace_port import ExerciseWorkspacePort, WorkspaceScope
 from exam_trainer.ports.grader_port import GraderPort, GradingRequest
 
 
@@ -79,6 +81,7 @@ class MVPTrainerCoordinator:
         workspace_port=None,
         clock: Callable[[], datetime] | None = None,
         rng: random.Random | None = None,
+        session_policies: SessionPolicyRegistry | None = None,
     ) -> None:
         """`runtimes`: um runtime por linguagem, montado por quem compõe o app
         (composition root ou o próprio teste) — a application nunca instancia um adapter
@@ -98,6 +101,8 @@ class MVPTrainerCoordinator:
         self._seen_training_exercises: set[tuple[str, str]] = set()
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._random = rng or random.Random()
+        self._session_policies = session_policies or SessionPolicyRegistry()
+        self._history = HistoryService(progress_repository)
         self._expired_exam: ExamState | None = None
         self.adopt_legacy_progress()
 
@@ -243,56 +248,14 @@ class MVPTrainerCoordinator:
         return configured
 
     def exercise_history_rows(self) -> list[dict[str, object]]:
-        """Uma linha por exercício de cada pack instalado + tentativas de packs ausentes/legados.
-
-        Status/tentativas refletem só o TREINO (ADR 0003); `modes` mostra se já foi feito em prova.
-        """
-        progress = self._progress_repository.progress_by_key()
-        latest = self._progress_repository.latest_attempts()
-        modes = self._progress_repository.modes_by_key()
-        rows: list[dict[str, object]] = []
-        shown: set[tuple[str, str]] = set()
-
-        def row(pack_name: str, level: str, name: str, key: tuple[str, str]) -> dict[str, object]:
-            entry = progress.get(key)
-            status = "não feito"
-            if entry is not None:
-                status = "concluído" if entry.best_passed else "tentado"
-            return {
-                "pack": pack_name,
-                "pack_id": key[0],
-                "level": level,
-                "name": name,
-                "exercise_id": key[1],
-                "status": status,
-                "attempts": 0 if entry is None else entry.attempts_count,
-                "latest_result": self._format_latest_result(latest.get(key, {})),
-                "last_attempt_at": None if entry is None else entry.last_attempt_at,
-                "modes": ", ".join(sorted(modes.get(key, set()))),
-            }
-
-        for pack in self.list_packs():
-            for ref in self._pack_catalog.list_exercises(pack.id):
-                key = (pack.id, ref.definition.id)
-                shown.add(key)
-                rows.append(row(pack.name, ref.level_id, ref.definition.name, key))
-        for key in sorted(self._progress_repository.attempt_keys() - shown):
-            label = "(legado)" if key[0] == LEGACY_PACK_ID else f"{key[0]} (não instalado)"
-            rows.append(row(label, "-", key[1], key))
-        return rows
+        """Uma linha por activity instalada + tentativas de packs ausentes/legados."""
+        return self._history.exercise_rows(self.list_packs(), self._pack_catalog.list_exercises)
 
     def exam_history_rows(self) -> list[dict[str, object]]:
-        rows: list[dict[str, object]] = []
-        for history in self._progress_repository.list_exam_history():
-            levels = self._progress_repository.list_exam_level_results(str(history["id"]))
-            rows.append(
-                {
-                    **history,
-                    "levels": levels,
-                    "exercises": ", ".join(str(level["exercise_id"]) for level in levels),
-                }
-            )
-        return rows
+        return self._history.exam_rows()
+
+    def history_timeline(self, query: HistoryQuery = HistoryQuery()):
+        return self._history.timeline(query)
 
     def inspect_pack(self, source_path: Path):
         """Valida um pack sem copiá-lo; informa se ele traz código executável."""
@@ -415,15 +378,17 @@ class MVPTrainerCoordinator:
         return selected
 
     def training_workspace_root(self, pack_id: str) -> Path:
-        return self._workspace_root / "training" / pack_id
+        return self._workspace.root_for(self._workspace_root, self._training_scope(pack_id))
 
     def prepare_exercise(self, ref: ExerciseRef, overwrite: bool = False) -> ActiveExercise:
+        policy = self._policy(TRAINING_POLICY_ID)
         training_root = self.training_workspace_root(ref.pack.id)
         self._migrate_legacy_training_workspace(training_root, ref.definition.id)
-        prepared = self._workspace.prepare(
+        prepared = self._workspace.prepare_scoped(
             definition=ref.definition,
             exercise_content_path=ref.content_path,
-            workspace_root=training_root,
+            workspace_root=self._workspace_root,
+            scope=self._training_scope(ref.pack.id, policy),
             overwrite=overwrite,
         )
         return ActiveExercise(
@@ -453,7 +418,9 @@ class MVPTrainerCoordinator:
         overwrite: bool = False,
     ) -> ActiveExercise:
         workspace_root = (
-            state.workspace_path.parent if state is not None else self._workspace_root / "exam"
+            state.workspace_path.parent if state is not None else self._workspace.root_for(
+                self._workspace_root, self._exam_scope(None)
+            )
         )
         prepared = self._workspace.prepare(
             definition=ref.definition,
@@ -476,7 +443,8 @@ class MVPTrainerCoordinator:
             raise
 
     def submit_training(self, active: ActiveExercise) -> CorrectionOutcome:
-        result = self._grade(active, GradingPolicy.training())
+        policy = self._policy(TRAINING_POLICY_ID)
+        result = self._grade(active, policy.grading_policy())
         return self._persist_outcome(active, result, TRAINING_MODE)
 
     def start_exam(self, pack_id: str, duration_seconds: int | None = None) -> ExamState:
@@ -496,7 +464,7 @@ class MVPTrainerCoordinator:
             score=0,
             remaining_seconds=duration,
             seed=random.SystemRandom().randint(1, 2**31),
-            workspace_path=self._workspace_root / "exam" / session_id / first.definition.id,
+            workspace_path=self._workspace.root_for(self._workspace_root, self._exam_scope(session_id)) / first.definition.id,
             deadline_at=now + timedelta(seconds=duration),
             duration_seconds=duration,
         )
@@ -546,7 +514,8 @@ class MVPTrainerCoordinator:
         return self._pack(pack_id).exam_duration_seconds_or_default
 
     def submit_exam(self, state: ExamState, active: ActiveExercise) -> tuple[CorrectionOutcome, ExamState | None]:
-        result = self._grade(active, GradingPolicy.exam(), seed=state.seed)
+        policy = self._policy(EXAM_POLICY_ID)
+        result = self._grade(active, policy.grading_policy(), seed=state.seed)
         outcome = self._persist_outcome(active, result, EXAM_MODE, session_id=state.id)
         self._progress_repository.record_exam_level_result(
             state.id,
@@ -555,7 +524,7 @@ class MVPTrainerCoordinator:
             result.passed,
             outcome.attempts_count,
         )
-        if not result.passed:
+        if policy.stays_on_fail and not result.passed:
             self._save_exam_state(state, "active")
             return outcome, state
 
@@ -574,7 +543,7 @@ class MVPTrainerCoordinator:
             score=score,
             remaining_seconds=self._remaining(state),
             seed=random.SystemRandom().randint(1, 2**31),
-            workspace_path=self._workspace_root / "exam" / state.id / next_ref.definition.id,
+            workspace_path=self._workspace.root_for(self._workspace_root, self._exam_scope(state.id)) / next_ref.definition.id,
         )
         self._save_exam_state(next_state, "active")
         return outcome, next_state
@@ -618,7 +587,7 @@ class MVPTrainerCoordinator:
     def finish_exam(self, state: ExamState, status: str, final_score: float | None = None) -> None:
         self._progress_repository.finish_exam(state.id, status, state.score if final_score is None else final_score)
         session_root = state.workspace_path.parent
-        if session_root.parent == self._workspace_root / "exam":
+        if session_root.parent in (self._workspace_root / "exam", self._workspace_root / "exams"):
             self._workspace.remove_directory(session_root)
 
     def _grade(
@@ -676,6 +645,7 @@ class MVPTrainerCoordinator:
                 "remaining_seconds": state.remaining_seconds,
                 "seed": state.seed,
                 "status": status,
+                "policy": EXAM_POLICY_ID,
                 "workspace_path": str(state.workspace_path),
                 "started_at": datetime.now().isoformat(),
                 "finished_at": None,
@@ -684,11 +654,22 @@ class MVPTrainerCoordinator:
             }
         )
 
-    @staticmethod
-    def _format_latest_result(latest_attempt: dict[str, object]) -> str:
-        if not latest_attempt:
-            return "-"
-        return "PASS" if bool(latest_attempt.get("passed")) else "FAIL"
+    def _policy(self, policy_id: str) -> SessionPolicy:
+        return self._session_policies.get(policy_id)
+
+    def register_session_policy(self, policy: SessionPolicy) -> None:
+        self._session_policies.register(policy)
+
+    def session_policy_ids(self) -> tuple[str, ...]:
+        return self._session_policies.ids()
+
+    def _training_scope(self, pack_id: str, policy: SessionPolicy | None = None) -> WorkspaceScope:
+        policy = policy or self._policy(TRAINING_POLICY_ID)
+        return WorkspaceScope(kind=policy.workspace_scope_kind, pack_id=pack_id)
+
+    def _exam_scope(self, session_id: str | None) -> WorkspaceScope:
+        policy = self._policy(EXAM_POLICY_ID)
+        return WorkspaceScope(kind=policy.workspace_scope_kind, session_id=session_id or "_draft")
 
 
 def _parse_datetime(value: object) -> datetime | None:

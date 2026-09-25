@@ -6,6 +6,7 @@ from uuid import UUID
 from exam_trainer.adapters.persistence.migrations import rebuild_progress
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.application.mvp_models import ProgressEntry
+from exam_trainer.domain.activity_identity import DEFAULT_ACTIVITY_KIND
 from exam_trainer.domain.attempt_modes import ATTEMPT_MODES, LEGACY_PACK_ID, TRAINING_MODE
 from exam_trainer.domain.entities import Attempt
 from exam_trainer.domain.grading import GradingResult
@@ -70,15 +71,15 @@ class SQLiteProgressRepository:
             connection.execute(
                 """
                 INSERT OR REPLACE INTO attempts (
-                    id, pack_id, exercise_id, status, passed, score, message,
-                    submitted_at, mode, session_id
+                    id, pack_id, exercise_id, activity_id, activity_kind, policy,
+                    status, passed, score, message, submitted_at, mode, session_id
                 )
                 VALUES (
-                    :attempt_id, :pack_id, :exercise_id, :status, :passed, :score, :message,
-                    :submitted_at, :mode, :session_id
+                    :attempt_id, :pack_id, :exercise_id, :exercise_id, :activity_kind, :mode,
+                    :status, :passed, :score, :message, :submitted_at, :mode, :session_id
                 )
                 """,
-                row,
+                {**row, "activity_kind": DEFAULT_ACTIVITY_KIND},
             )
             if row["mode"] == TRAINING_MODE:
                 # Só treino mexe no progresso pedagógico (ADR 0003).
@@ -147,8 +148,8 @@ class SQLiteProgressRepository:
     def list_progress(self, pack_id: str | None = None) -> list[ProgressEntry]:
         """Progresso pedagógico (só treino), opcionalmente de um pack."""
         query = """
-            SELECT pack_id, exercise_id, status, attempts_count, last_attempt_at,
-                   best_passed, best_score, last_mode
+            SELECT pack_id, exercise_id, activity_kind, status, attempts_count,
+                   last_attempt_at, best_passed, best_score, last_mode
             FROM progress
         """
         params: tuple[str, ...] = ()
@@ -167,6 +168,7 @@ class SQLiteProgressRepository:
                 best_score=row["best_score"],
                 last_mode=row["last_mode"],
                 pack_id=row["pack_id"],
+                activity_kind=row["activity_kind"] or DEFAULT_ACTIVITY_KIND,
             )
             for row in rows
         ]
@@ -207,10 +209,10 @@ class SQLiteProgressRepository:
                 """
                 INSERT OR REPLACE INTO exam_sessions (
                     id, rank, current_level, current_exercise_id, score,
-                    remaining_seconds, seed, status, workspace_path,
+                    remaining_seconds, seed, status, policy, workspace_path,
                     started_at, finished_at, deadline_at, duration_seconds
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     state["id"],
@@ -221,6 +223,7 @@ class SQLiteProgressRepository:
                     state["remaining_seconds"],
                     state["seed"],
                     state["status"],
+                    state.get("policy", "exam"),
                     state["workspace_path"],
                     started_at,
                     state.get("finished_at"),
@@ -234,7 +237,7 @@ class SQLiteProgressRepository:
             row = connection.execute(
                 """
                 SELECT id, rank, current_level, current_exercise_id, score,
-                       remaining_seconds, seed, status, workspace_path,
+                       remaining_seconds, seed, status, policy, workspace_path,
                        started_at, finished_at, deadline_at, duration_seconds
                 FROM exam_sessions
                 WHERE status = 'active'
@@ -271,18 +274,18 @@ class SQLiteProgressRepository:
                 connection.execute(
                     """
                     INSERT OR REPLACE INTO exam_history (
-                        id, rank, final_score, status, used_seconds, finished_at
+                        id, rank, final_score, status, policy, used_seconds, finished_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (session_id, row["rank"], final_score, status, used_seconds, finished_at),
+                    (session_id, row["rank"], final_score, status, "exam", used_seconds, finished_at),
                 )
 
     def list_exam_history(self) -> list[dict[str, object]]:
         with self._store.session() as connection:
             rows = connection.execute(
                 """
-                SELECT id, rank, final_score, status, used_seconds, finished_at
+                SELECT id, rank, final_score, status, policy, used_seconds, finished_at
                 FROM exam_history
                 ORDER BY finished_at DESC
                 """
@@ -301,15 +304,17 @@ class SQLiteProgressRepository:
             connection.execute(
                 """
                 INSERT OR REPLACE INTO exam_level_results (
-                    session_id, level_index, exercise_id, passed,
+                    session_id, level_index, exercise_id, activity_id, activity_kind, passed,
                     attempts_count, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
                     level_index,
                     exercise_id,
+                    exercise_id,
+                    DEFAULT_ACTIVITY_KIND,
                     int(passed),
                     attempts_count,
                     datetime.now().isoformat(),
@@ -320,7 +325,7 @@ class SQLiteProgressRepository:
         with self._store.session() as connection:
             rows = connection.execute(
                 """
-                SELECT session_id, level_index, exercise_id, passed,
+                SELECT session_id, level_index, exercise_id, activity_id, activity_kind, passed,
                        attempts_count, updated_at
                 FROM exam_level_results
                 WHERE session_id = ?
@@ -348,6 +353,41 @@ class SQLiteProgressRepository:
                 """
             ).fetchall()
         return {(row["pack_id"], row["exercise_id"]): dict(row) for row in rows}
+
+    def list_activity_attempts(
+        self,
+        pack_id: str | None = None,
+        activity_id: str | None = None,
+        session_id: str | None = None,
+        policy: str | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, object]]:
+        query = """
+            SELECT id, pack_id, activity_id, activity_kind, exercise_id,
+                   policy, mode, session_id, status, passed, score, submitted_at
+            FROM attempts
+            WHERE 1 = 1
+        """
+        params: list[object] = []
+        if pack_id is not None:
+            query += " AND pack_id = ?"
+            params.append(pack_id)
+        if activity_id is not None:
+            query += " AND activity_id = ?"
+            params.append(activity_id)
+        if session_id is not None:
+            query += " AND session_id = ?"
+            params.append(session_id)
+        if policy is not None:
+            query += " AND policy = ?"
+            params.append(policy)
+        if status is not None:
+            query += " AND status = ?"
+            params.append(status)
+        query += " ORDER BY submitted_at DESC, id DESC"
+        with self._store.session() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+        return [dict(row) for row in rows]
 
     def modes_by_key(self) -> dict[tuple[str, str], set[str]]:
         with self._store.session() as connection:

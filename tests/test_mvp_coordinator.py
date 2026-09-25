@@ -177,13 +177,13 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
             state = coordinator.start_exam("sample_rank", duration_seconds=60)
             exam = coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state)
 
-            self.assertIn("exam", exam.exercise_workspace_path.parts)
+            self.assertIn("exams", exam.exercise_workspace_path.parts)
             self.assertIn(state.id, exam.exercise_workspace_path.parts)
 
             coordinator.finish_exam(state, "abandoned", state.score)
 
             self.assertTrue(training.exercise_workspace_path.exists())
-            self.assertFalse((coordinator.workspace_root / "exam" / state.id).exists())
+            self.assertFalse((coordinator.workspace_root / "exams" / state.id).exists())
 
     def test_import_pack_through_application_layer(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

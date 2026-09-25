@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from exam_trainer.domain.exercise_definition import ExerciseDefinition
-from exam_trainer.ports.exercise_workspace_port import PreparedExerciseWorkspace
+from exam_trainer.ports.exercise_workspace_port import PreparedExerciseWorkspace, WorkspaceScope
 
 
 class ExerciseWorkspaceError(RuntimeError):
@@ -12,6 +12,21 @@ class ExerciseWorkspaceError(RuntimeError):
 
 
 class LocalExerciseWorkspace:
+    def root_for(self, workspace_root: Path, scope: WorkspaceScope) -> Path:
+        if scope.kind == "training":
+            if not scope.pack_id:
+                raise ExerciseWorkspaceError("Training workspace scope requires pack_id.")
+            return workspace_root / "training" / scope.pack_id
+        if scope.kind == "exams":
+            if not scope.session_id:
+                raise ExerciseWorkspaceError("Exam workspace scope requires session_id.")
+            return workspace_root / "exams" / scope.session_id
+        if scope.kind == "projects":
+            if not scope.pack_id or not scope.owner_id:
+                raise ExerciseWorkspaceError("Project workspace scope requires pack_id and owner_id.")
+            return workspace_root / "projects" / scope.pack_id / scope.owner_id
+        raise ExerciseWorkspaceError(f"Unknown workspace scope: {scope.kind!r}")
+
     def prepare(
         self,
         definition: ExerciseDefinition,
@@ -54,6 +69,21 @@ class LocalExerciseWorkspace:
             subject_path=subject_path,
             submission_path=submission_path,
             had_existing_submission=had_existing_submission,
+        )
+
+    def prepare_scoped(
+        self,
+        definition: ExerciseDefinition,
+        exercise_content_path: Path,
+        workspace_root: Path,
+        scope: WorkspaceScope,
+        overwrite: bool = False,
+    ) -> PreparedExerciseWorkspace:
+        return self.prepare(
+            definition=definition,
+            exercise_content_path=exercise_content_path,
+            workspace_root=self.root_for(workspace_root, scope),
+            overwrite=overwrite,
         )
 
     def move_directory(self, source: Path, target: Path) -> None:
