@@ -1,5 +1,3 @@
-# argc_counter
-
 Crie um programa que conte quantos argumentos foram passados pela linha de comando, desconsiderando o nome do executável.
 
 ## Arquivo esperado

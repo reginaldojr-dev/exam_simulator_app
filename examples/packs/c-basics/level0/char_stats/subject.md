@@ -1,5 +1,3 @@
-# char_stats
-
 Percorra o primeiro argumento e conte letras minúsculas, letras maiúsculas, dígitos e outros caracteres.
 
 ## Arquivo esperado

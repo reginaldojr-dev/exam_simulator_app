@@ -1,5 +1,3 @@
-# ft_strlen_lite
-
 Implemente uma função que retorna o tamanho de uma string C terminada por `\0`.
 
 ## Arquivo esperado

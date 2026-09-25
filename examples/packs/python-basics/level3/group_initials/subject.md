@@ -1,5 +1,3 @@
-# group_initials
-
 Implemente `group_initials(names)` agrupando nomes pela inicial minúscula.
 
 ## Arquivo esperado

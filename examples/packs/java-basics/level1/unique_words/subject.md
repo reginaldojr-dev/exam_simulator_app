@@ -1,5 +1,3 @@
-# unique_words
-
 Remova palavras repetidas preservando a primeira ocorrência.
 
 ## Arquivo esperado

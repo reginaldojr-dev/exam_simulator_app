@@ -1,5 +1,3 @@
-# sum_args
-
 Some os argumentos inteiros recebidos em `main`.
 
 ## Arquivo esperado

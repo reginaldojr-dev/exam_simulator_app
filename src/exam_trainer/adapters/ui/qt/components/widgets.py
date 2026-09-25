@@ -204,7 +204,7 @@ class SubjectMarkdownView(QTextEdit):
         self.setProperty("role", "subject")
         self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
         self.setWordWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
-        self.document().setDocumentMargin(12)
+        self.document().setDocumentMargin(16)
         self.document().setDefaultStyleSheet(self._document_stylesheet())
 
     def set_subject_markdown(self, markdown: str) -> None:
@@ -223,36 +223,48 @@ class SubjectMarkdownView(QTextEdit):
         return """
 body {
   margin: 0;
-  line-height: 1.34;
+  font-size: 1em;
+  line-height: 1.42;
 }
 h1 {
-  margin: 0 0 10px 0;
-  font-size: 1.28em;
+  margin: 0 0 8px 0;
+  font-size: 1.12em;
   font-weight: 800;
 }
 h2 {
-  margin: 14px 0 6px 0;
-  font-size: 1.08em;
+  margin: 16px 0 6px 0;
+  padding-top: 10px;
+  border-top: 1px solid #2f5f3b;
+  font-size: 1.02em;
   font-weight: 800;
+  letter-spacing: 0.04em;
+}
+h3 {
+  margin: 12px 0 5px 0;
+  padding-top: 8px;
+  border-top: 1px solid #24472d;
+  font-size: 0.98em;
+  font-weight: 750;
 }
 p {
-  margin: 6px 0;
+  margin: 7px 0;
 }
 ul, ol {
-  margin-top: 4px;
-  margin-bottom: 8px;
+  margin-top: 5px;
+  margin-bottom: 9px;
 }
 li {
-  margin-top: 2px;
-  margin-bottom: 2px;
+  margin-top: 3px;
+  margin-bottom: 3px;
 }
 code {
   font-family: Consolas, "Cascadia Mono", "JetBrains Mono", monospace;
   white-space: pre-wrap;
 }
 pre {
-  margin: 6px 0 10px 0;
-  padding: 8px;
+  margin: 8px 0 12px 0;
+  padding: 9px 10px;
+  border: 1px solid #24472d;
   white-space: pre-wrap;
 }
 """

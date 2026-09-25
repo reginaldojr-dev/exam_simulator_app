@@ -1,5 +1,3 @@
-# take_even
-
 Implemente `take_even(values)` retornando apenas os pares.
 
 ## Arquivo esperado

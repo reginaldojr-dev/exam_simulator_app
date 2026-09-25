@@ -1,5 +1,3 @@
-# add_numbers
-
 Implemente `add(a, b)` retornando a soma.
 
 ## Arquivo esperado

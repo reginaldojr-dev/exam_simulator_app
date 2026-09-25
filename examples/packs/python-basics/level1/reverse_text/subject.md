@@ -1,5 +1,3 @@
-# reverse_text
-
 Implemente `reverse_text(text)` retornando a string invertida.
 
 ## Arquivo esperado

@@ -1,5 +1,3 @@
-# inventory
-
 Crie uma pequena classe de domínio para acumular quantidades.
 
 ## Arquivo esperado

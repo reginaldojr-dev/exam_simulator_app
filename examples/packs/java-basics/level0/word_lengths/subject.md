@@ -1,5 +1,3 @@
-# word_lengths
-
 Imprima cada argumento seguido do seu tamanho.
 
 ## Arquivo esperado

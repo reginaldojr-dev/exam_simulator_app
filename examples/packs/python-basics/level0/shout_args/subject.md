@@ -1,5 +1,3 @@
-# shout_args
-
 Transforme todos os argumentos em maiúsculas e una com espaço.
 
 ## Arquivo esperado

@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
 
         self._stack = QStackedWidget()
         self._home_page = self._build_home_page()
+        self._study_page = self._build_study_page()
         self._training_page = self._build_training_page()
         self._exam_page = self._build_exam_page()
         self._exam_prepare_page = self._build_exam_prepare_page()
@@ -100,6 +101,7 @@ class MainWindow(QMainWindow):
         self._pack_help_page = self._build_pack_help_page()
         for page in (
             self._home_page,
+            self._study_page,
             self._training_page,
             self._exam_page,
             self._exam_prepare_page,
@@ -208,6 +210,46 @@ class MainWindow(QMainWindow):
         self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
         layout.addWidget(self._title_home)
         layout.addWidget(self._workspace_label)
+        layout.addStretch(1)
+
+        menu = QWidget()
+        menu.setMaximumWidth(MENU_WIDTH)
+        menu_layout = QVBoxLayout(menu)
+        menu_layout.setContentsMargins(0, 0, 0, 0)
+        menu_layout.setSpacing(10)
+        self._menu_buttons: list[QPushButton] = []
+        for index, (text, handler) in enumerate(
+            (
+                ("QUERO ESTUDAR ALGO NOVO", self._open_study_flow),
+                ("TREINAR", self._open_training_setup),
+                ("MODO PROVA", self._open_exam_setup),
+                ("HISTÓRICO", self._show_history),
+                ("CONFIGURAÇÕES", lambda: self._show_settings()),
+            ),
+            start=1,
+        ):
+            button = self._button(f"> [{index}] {text}", handler, "menu")
+            self._menu_buttons.append(button)
+            menu_layout.addWidget(button)
+        self._home_status = ui.label("", role="muted", wrap=True)
+        self._home_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        menu_layout.addSpacing(10)
+        menu_layout.addWidget(self._home_status)
+        layout.addLayout(self._centered(menu))
+        layout.addStretch(2)
+        layout.addLayout(self._footer(None, [("1-5", "navegar"), ("Tab", "foco"), ("Enter", "abrir")]))
+        return page
+
+    def _build_study_page(self) -> QWidget:
+        page, layout = self._page(margins=28)
+        layout.addWidget(self._title("QUERO ESTUDAR ALGO NOVO"))
+        layout.addWidget(
+            ui.label(
+                "Descreva o que quer estudar, gere um prompt compatível e importe o pack resultante.",
+                role="muted",
+                wrap=True,
+            )
+        )
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -219,14 +261,6 @@ class MainWindow(QMainWindow):
         study_layout = QVBoxLayout(study)
         study_layout.setContentsMargins(16, 12, 16, 14)
         study_layout.setSpacing(10)
-        study_layout.addWidget(ui.section_label("QUERO ESTUDAR ALGO NOVO"))
-        study_layout.addWidget(
-            ui.label(
-                "Gere um prompt neutro para criar um pack compatível e depois importe o resultado.",
-                role="muted",
-                wrap=True,
-            )
-        )
         self._study_topic = QTextEdit()
         self._study_topic.setPlaceholderText("Ex.: ponteiros e strings, OOP em Python, arrays em Java...")
         self._study_topic.setFixedHeight(72)
@@ -263,10 +297,10 @@ class MainWindow(QMainWindow):
         study_actions = QHBoxLayout()
         self._generate_prompt_button = self._button("> GERAR PROMPT", self._generate_study_prompt, "primary")
         self._copy_prompt_button = self._button("[ COPIAR PROMPT ]", self._copy_study_prompt)
-        self._home_import_button = self._button("[ IMPORTAR PACK ]", self._import_pack)
+        self._study_import_button = self._button("[ IMPORTAR PACK ]", self._import_pack)
         study_actions.addWidget(self._generate_prompt_button)
         study_actions.addWidget(self._copy_prompt_button)
-        study_actions.addWidget(self._home_import_button)
+        study_actions.addWidget(self._study_import_button)
         study_actions.addStretch(1)
         study_layout.addLayout(study_actions)
         self._study_prompt_output = QTextEdit()
@@ -278,37 +312,13 @@ class MainWindow(QMainWindow):
         self._study_status = ui.label("1. gere o prompt · 2. copie · 3. cole na IA que preferir · 4. importe o pack", role="muted", wrap=True)
         study_layout.addWidget(self._study_status)
         content_layout.addLayout(self._centered(study))
-
-        menu = QWidget()
-        menu.setMaximumWidth(MENU_WIDTH)
-        menu_layout = QVBoxLayout(menu)
-        menu_layout.setContentsMargins(0, 0, 0, 0)
-        menu_layout.setSpacing(10)
-        self._menu_buttons: list[QPushButton] = []
-        for index, (text, handler) in enumerate(
-            (
-                ("TREINAR", self._open_training_setup),
-                ("MODO PROVA", self._open_exam_setup),
-                ("HISTÓRICO", self._show_history),
-                ("CONFIGURAÇÕES", lambda: self._show_settings()),
-            ),
-            start=1,
-        ):
-            button = self._button(f"> [{index}] {text}", handler, "menu")
-            self._menu_buttons.append(button)
-            menu_layout.addWidget(button)
-        self._home_status = ui.label("", role="muted", wrap=True)
-        self._home_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        menu_layout.addSpacing(10)
-        menu_layout.addWidget(self._home_status)
-        content_layout.addLayout(self._centered(menu))
         content_layout.addStretch(1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         scroll.setWidget(content)
         layout.addWidget(scroll, 1)
-        layout.addLayout(self._footer(None, [("1-4", "navegar"), ("Tab", "foco"), ("Enter", "abrir")]))
+        layout.addLayout(self._footer(self._show_home, [("Esc", "voltar"), ("Ctrl+C", "copiar prompt")]))
         return page
 
     @staticmethod
@@ -691,6 +701,7 @@ class MainWindow(QMainWindow):
         QShortcut(QKeySequence("1"), self._training_page).activated.connect(self._choose_level_training)
         QShortcut(QKeySequence("2"), self._training_page).activated.connect(self._choose_random_training)
         back_targets: dict[QWidget, Callable[[], None]] = {
+            self._study_page: self._show_home,
             self._training_page: self._show_home,
             self._exam_page: self._show_home,
             self._history_page: self._show_home,
@@ -719,6 +730,10 @@ class MainWindow(QMainWindow):
         self._refresh_home_status()
         self._refresh_study_languages()
         self._go(self._home_page)
+
+    def _open_study_flow(self) -> None:
+        self._refresh_study_languages()
+        self._go(self._study_page)
 
     def _refresh_home_status(self) -> None:
         packs = len(self._coordinator.list_packs())

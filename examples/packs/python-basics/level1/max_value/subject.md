@@ -1,5 +1,3 @@
-# max_value
-
 Implemente `max_value(values)` sem usar `max`.
 
 ## Arquivo esperado
