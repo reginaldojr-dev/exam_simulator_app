@@ -202,3 +202,17 @@ src/exam_trainer/
   6. Cleanup de prova reconhece `exams/` novo e `exam/` legado.
 - **Investigação DB readonly:** bancos reais em `%APPDATA%\42-exam-trainer` e `%APPDATA%\exam-trainer` estão em schema v2, sem atributo readonly. ACL concede `FullControl` ao usuário `Junior\junio`, mas apenas `ReadAndExecute` a `Junior\CodexSandboxUsers`; o erro observado é compatível com execução sob sandbox/ACL, não com corrupção de schema.
 - **Decisão arquitetural:** ADR 0011.
+
+
+### S5 — Home, StudyIntent, Histórico e Configurações
+
+- **Objetivo:** melhorar os fluxos principais de UI sem reabrir core: Home clara, geração de prompt para packs, Histórico usando o serviço da S4 e Configurações > Packs como ponto de documentação técnica.
+- **Mudanças principais:**
+  1. `StudyIntent` e `PackPromptBuilder` entram na camada de application para gerar prompt vendor-neutral a partir de tópico, nível, objetivo, formato, linguagem de programação, idioma do conteúdo e tamanho.
+  2. Home passa a exibir `QUERO ESTUDAR ALGO NOVO`, com geração/cópia de prompt, linguagens vindas dos runtimes registrados e ação direta de importar pack.
+  3. Histórico deixa de ser apenas duas tabelas fixas e passa a oferecer visão geral, por pack, activities, sessões e linha do tempo, consumindo queries/projeções expostas pelo coordinator/`HistoryService`.
+  4. Configurações > Packs mostra resumo curto de contrato v3, runtimes, strategies, generators e validators/expectations, com botão para abrir a documentação completa.
+  5. Responsividade da Home foi coberta nos tamanhos 760x520, 1024x720 e 1440x900 por smoke Qt/offscreen.
+- **Testes adicionados/ajustados:** `tests/test_study_intent.py`; testes Qt para prompt/copy, capabilities em Configurações, novas visões do Histórico e responsividade.
+- **Resultados locais:** suíte completa `234 passed, 5 skipped, 7 warnings, 40 subtests passed`; focados S5/arquitetura/runtime/packs `125 passed, 4 skipped, 2 warnings, 40 subtests passed`.
+- **Pendências:** não foi implementada IA embutida nem `PackGenerationPort` funcional; isso fica preparado apenas por fronteira de UI/application. Redesign visual profundo e detalhes avançados do Histórico ficam para etapas futuras.
