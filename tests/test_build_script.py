@@ -63,6 +63,8 @@ class BuildScriptInputsTest(unittest.TestCase):
             "src/exam_trainer/adapters/workspace/local.py",
             "examples/packs/demo/pack.json",
             "README.md",
+            "LICENSE",
+            "CHANGELOG.md",
             "pyproject.toml",
             "Exam Trainer.spec",
         ):
@@ -80,7 +82,14 @@ class BuildScriptInputsTest(unittest.TestCase):
             "EXE_PATH": dist / build.EXE_NAME,
             "STATE_FILE": dist / ".build_state.json",
             "SOURCE_DIRS": (self.root / "src", self.root / "examples"),
-            "SOURCE_FILES": (self.root / "Exam Trainer.spec", self.root / "pyproject.toml", self.root / "README.md"),
+            "CHECKSUM_PATH": dist / f"{build.EXE_NAME}.sha256",
+            "SOURCE_FILES": (
+                self.root / "Exam Trainer.spec",
+                self.root / "pyproject.toml",
+                self.root / "README.md",
+                self.root / "LICENSE",
+                self.root / "CHANGELOG.md",
+            ),
         }
         for name, value in patches.items():
             patcher = mock.patch.object(build, name, value)
@@ -142,6 +151,7 @@ class BuildScriptInputsTest(unittest.TestCase):
         with self._fake_pyinstaller(returncode=0) as run, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(self.build.main([]), 0)
             self.assertEqual(self.build.EXE_PATH.read_text(encoding="utf-8"), "new exe")
+            self.assertIn(self.build.EXE_NAME, self.build.CHECKSUM_PATH.read_text(encoding="utf-8"))
             self.assertEqual(run.call_count, 1)
             self.assertEqual(self.build.main([]), 0)  # nada mudou: não chama PyInstaller
             self.assertEqual(run.call_count, 1)
@@ -171,6 +181,8 @@ class BuildScriptInputsTest(unittest.TestCase):
     def test_spec_bundles_docs_and_never_the_local_folder(self) -> None:
         spec = (ROOT / "Exam Trainer.spec").read_text(encoding="utf-8")
         self.assertIn("('README.md', '.')", spec)
+        self.assertIn("('LICENSE', '.')", spec)
+        self.assertIn("('CHANGELOG.md', '.')", spec)
         self.assertIn("exam_trainer/resources", spec)
         self.assertNotIn("('_local'", spec)
 

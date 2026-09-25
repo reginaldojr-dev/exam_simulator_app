@@ -41,6 +41,8 @@ desktop.ini
 
 # Local project artifacts (agent outputs, private packs, scratch workspaces)
 _local/
+build/
+dist/
 
 # Python packaging
 *.egg-info/
