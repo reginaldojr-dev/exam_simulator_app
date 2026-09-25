@@ -10,10 +10,12 @@ from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QButtonGroup,
     QComboBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -35,6 +37,8 @@ from exam_trainer.adapters.ui.qt.components.cursor import CursorController
 from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
 from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
+from exam_trainer.application.history_service import HistoryQuery
+from exam_trainer.application.study_intent import StudyIntent
 from exam_trainer.resources import PACK_CONTRACT, pack_contract_text, resource_path
 from exam_trainer.application.mvp_models import (
     ActiveExercise,
@@ -118,6 +122,7 @@ class MainWindow(QMainWindow):
         self._refresh_packs()
         self._show_resume_if_needed()
         self._refresh_home_status()
+        self._refresh_study_languages()
         self._cursor.enter_page(self._home_page)
 
     # ------------------------------------------------------------------ tema
@@ -198,15 +203,84 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ home
     def _build_home_page(self) -> QWidget:
-        page, layout = self._page(margins=34)
+        page, layout = self._page(margins=28)
         self._title_home = self._title("EXAM TRAINER")
         self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
         layout.addWidget(self._title_home)
         layout.addWidget(self._workspace_label)
-        layout.addStretch(2)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 10, 0, 10)
+        content_layout.setSpacing(14)
+
+        study = ui.card()
+        study.setMaximumWidth(900)
+        study_layout = QVBoxLayout(study)
+        study_layout.setContentsMargins(16, 12, 16, 14)
+        study_layout.setSpacing(10)
+        study_layout.addWidget(ui.section_label("QUERO ESTUDAR ALGO NOVO"))
+        study_layout.addWidget(
+            ui.label(
+                "Gere um prompt neutro para criar um pack compatível e depois importe o resultado.",
+                role="muted",
+                wrap=True,
+            )
+        )
+        self._study_topic = QTextEdit()
+        self._study_topic.setPlaceholderText("Ex.: ponteiros e strings, OOP em Python, arrays em Java...")
+        self._study_topic.setFixedHeight(72)
+        self._study_topic.setAcceptRichText(False)
+        study_layout.addWidget(ui.section_label("> O QUE VOCÊ QUER ESTUDAR?"))
+        study_layout.addWidget(self._study_topic)
+
+        fields = QGridLayout()
+        fields.setHorizontalSpacing(10)
+        fields.setVerticalSpacing(8)
+        self._study_level_combo = self._combo(("Básico", "Intermediário", "Avançado"))
+        self._study_goal_combo = self._combo(("Aprender", "Praticar", "Revisar", "Validar conhecimento"))
+        self._study_format_combo = self._combo(("Exercícios", "Projeto", "Misto", "Revisão", "Simulado"))
+        self._study_language_combo = QComboBox()
+        self._study_content_language_combo = self._combo(("Português (pt-BR)", "Inglês (en)"))
+        self._study_content_language_combo.setItemData(0, "pt-BR")
+        self._study_content_language_combo.setItemData(1, "en")
+        self._study_size_combo = self._combo(("Curto", "Médio", "Completo"))
+        for index, (caption, widget) in enumerate(
+            (
+                ("Nível", self._study_level_combo),
+                ("Objetivo", self._study_goal_combo),
+                ("Formato", self._study_format_combo),
+                ("Linguagem", self._study_language_combo),
+                ("Idioma", self._study_content_language_combo),
+                ("Tamanho", self._study_size_combo),
+            )
+        ):
+            row, column = divmod(index, 2)
+            fields.addWidget(ui.label(caption, role="muted"), row * 2, column)
+            fields.addWidget(widget, row * 2 + 1, column)
+        study_layout.addLayout(fields)
+
+        study_actions = QHBoxLayout()
+        self._generate_prompt_button = self._button("> GERAR PROMPT", self._generate_study_prompt, "primary")
+        self._copy_prompt_button = self._button("[ COPIAR PROMPT ]", self._copy_study_prompt)
+        self._home_import_button = self._button("[ IMPORTAR PACK ]", self._import_pack)
+        study_actions.addWidget(self._generate_prompt_button)
+        study_actions.addWidget(self._copy_prompt_button)
+        study_actions.addWidget(self._home_import_button)
+        study_actions.addStretch(1)
+        study_layout.addLayout(study_actions)
+        self._study_prompt_output = QTextEdit()
+        self._study_prompt_output.setReadOnly(True)
+        self._study_prompt_output.setAcceptRichText(False)
+        self._study_prompt_output.setPlaceholderText("O prompt gerado aparecerá aqui.")
+        self._study_prompt_output.setMinimumHeight(128)
+        study_layout.addWidget(self._study_prompt_output)
+        self._study_status = ui.label("1. gere o prompt · 2. copie · 3. cole na IA que preferir · 4. importe o pack", role="muted", wrap=True)
+        study_layout.addWidget(self._study_status)
+        content_layout.addLayout(self._centered(study))
 
         menu = QWidget()
-        menu.setFixedWidth(MENU_WIDTH)
+        menu.setMaximumWidth(MENU_WIDTH)
         menu_layout = QVBoxLayout(menu)
         menu_layout.setContentsMargins(0, 0, 0, 0)
         menu_layout.setSpacing(10)
@@ -227,10 +301,22 @@ class MainWindow(QMainWindow):
         self._home_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         menu_layout.addSpacing(10)
         menu_layout.addWidget(self._home_status)
-        layout.addLayout(self._centered(menu))
-        layout.addStretch(3)
+        content_layout.addLayout(self._centered(menu))
+        content_layout.addStretch(1)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setWidget(content)
+        layout.addWidget(scroll, 1)
         layout.addLayout(self._footer(None, [("1-4", "navegar"), ("Tab", "foco"), ("Enter", "abrir")]))
         return page
+
+    @staticmethod
+    def _combo(items: tuple[str, ...]) -> QComboBox:
+        combo = QComboBox()
+        for item in items:
+            combo.addItem(item, item)
+        return combo
 
     # ---------------------------------------------------------------- treino
     def _build_training_page(self) -> QWidget:
@@ -412,7 +498,40 @@ class MainWindow(QMainWindow):
         page, layout = self._page(spacing=8)
         layout.addWidget(self._title("HISTÓRICO"))
         layout.addSpacing(4)
-        layout.addWidget(ui.section_label("═══ PROGRESSO POR EXERCÍCIO ═══"))
+        self._history_view = "overview"
+        view_row = QHBoxLayout()
+        view_row.setSpacing(0)
+        self._history_view_buttons: dict[str, QPushButton] = {}
+        for key, text in (
+            ("overview", "[ VISÃO GERAL ]"),
+            ("packs", "[ POR PACK ]"),
+            ("activities", "[ ATIVIDADES ]"),
+            ("sessions", "[ SESSÕES ]"),
+            ("timeline", "[ LINHA DO TEMPO ]"),
+        ):
+            button = self._button(text, lambda checked=False, view=key: self._set_history_view(view), "tab")
+            button.setCheckable(True)
+            self._history_view_buttons[key] = button
+            view_row.addWidget(button)
+        view_row.addStretch(1)
+        layout.addLayout(view_row)
+
+        filters = QHBoxLayout()
+        filters.setSpacing(8)
+        self._history_pack_filter = QComboBox()
+        self._history_pack_filter.currentIndexChanged.connect(lambda _index=0: self._show_history(refresh_filters=False))
+        self._history_policy_filter = QComboBox()
+        self._history_policy_filter.addItem("Todas as sessões", "")
+        self._history_policy_filter.addItem("Training", "training")
+        self._history_policy_filter.addItem("Exam", "exam")
+        self._history_policy_filter.currentIndexChanged.connect(lambda _index=0: self._show_history(refresh_filters=False))
+        filters.addWidget(ui.label("Pack", role="muted"))
+        filters.addWidget(self._history_pack_filter, 2)
+        filters.addWidget(ui.label("Sessão", role="muted"))
+        filters.addWidget(self._history_policy_filter, 1)
+        filters.addStretch(1)
+        layout.addLayout(filters)
+
         self._history_summary = ui.label("")
         layout.addWidget(self._history_summary)
         counts = QHBoxLayout()
@@ -425,15 +544,8 @@ class MainWindow(QMainWindow):
         counts.addStretch(1)
         layout.addLayout(counts)
 
-        self._history_table = self._table(("LEVEL", "EXERCÍCIO", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"), stretch=5)
-        layout.addWidget(self._history_table, 3)
-
-        layout.addSpacing(6)
-        layout.addWidget(ui.section_label("═══ HISTÓRICO DE PROVA ═══"))
-        self._exam_history_table = self._table(("DATA", "RANK", "STATUS", "NOTA", "DURAÇÃO", "EXERCÍCIOS"), stretch=5)
-        self._exam_history_empty = ui.label("Nenhuma prova realizada ainda.", role="muted")
-        layout.addWidget(self._exam_history_empty)
-        layout.addWidget(self._exam_history_table, 2)
+        self._history_table = self._table(("ITEM", "VALOR"), stretch=1)
+        layout.addWidget(self._history_table, 1)
         layout.addLayout(self._footer(self._show_home, [("Esc", "voltar")]))
         return page
 
@@ -517,14 +629,15 @@ class MainWindow(QMainWindow):
 
         # packs
         self._packs_summary = ui.label("", wrap=True)
+        self._pack_capabilities_summary = ui.label("", wrap=True)
         sections.addWidget(
             self._settings_card(
                 "PACKS",
-                [self._packs_summary],
+                [self._packs_summary, self._pack_capabilities_summary],
                 [
                     ("[ IMPORTAR PACK ]", self._import_pack),
                     ("[ ATUALIZAR PACKS ]", self._refresh_packs),
-                    ("[ COMO CRIAR UM PACK ]", self._show_pack_help),
+                    ("[ ABRIR DOCUMENTAÇÃO DE PACKS ]", self._show_pack_help),
                 ],
             )
         )
@@ -604,6 +717,7 @@ class MainWindow(QMainWindow):
     def _show_home(self) -> None:
         self._show_resume_if_needed()
         self._refresh_home_status()
+        self._refresh_study_languages()
         self._go(self._home_page)
 
     def _refresh_home_status(self) -> None:
@@ -613,6 +727,50 @@ class MainWindow(QMainWindow):
         runtimes = f"{ready}/{total} verificados" if total else "0 registrados"
         exam = "   ·   prova em andamento" if self._coordinator.load_active_exam() is not None else ""
         self._home_status.setText(f"packs: {packs}   ·   runtimes: {runtimes}{exam}")
+
+    def _refresh_study_languages(self) -> None:
+        current = self._study_language_combo.currentData()
+        self._study_language_combo.blockSignals(True)
+        self._study_language_combo.clear()
+        self._study_language_combo.addItem("Automático", "automatic")
+        for status in self._coordinator.runtime_statuses():
+            label = f"{status.display_name} ({status.language})"
+            if not status.available and not status.tool:
+                label += " · não verificado"
+            self._study_language_combo.addItem(label, status.language)
+        if current is not None:
+            index = self._study_language_combo.findData(current)
+            if index >= 0:
+                self._study_language_combo.setCurrentIndex(index)
+        self._study_language_combo.blockSignals(False)
+
+    def _study_intent(self) -> StudyIntent:
+        return StudyIntent(
+            topic=self._study_topic.toPlainText(),
+            level=str(self._study_level_combo.currentData() or self._study_level_combo.currentText()),
+            goal=str(self._study_goal_combo.currentData() or self._study_goal_combo.currentText()),
+            format=str(self._study_format_combo.currentData() or self._study_format_combo.currentText()),
+            programming_language=str(self._study_language_combo.currentData() or "automatic"),
+            content_language=str(self._study_content_language_combo.currentData() or "pt-BR"),
+            size=str(self._study_size_combo.currentData() or self._study_size_combo.currentText()),
+        )
+
+    def _generate_study_prompt(self) -> None:
+        try:
+            contract = pack_contract_text()
+        except OSError:
+            contract = "Contrato de pack não encontrado nesta instalação."
+        prompt = self._coordinator.build_pack_prompt(self._study_intent(), contract)
+        self._study_prompt_output.setPlainText(prompt)
+        self._study_status.setText("Prompt gerado. Copie, use no gerador/IA que preferir e importe o pack.")
+
+    def _copy_study_prompt(self) -> None:
+        prompt = self._study_prompt_output.toPlainText()
+        if not prompt.strip():
+            self._generate_study_prompt()
+            prompt = self._study_prompt_output.toPlainText()
+        QApplication.clipboard().setText(prompt)
+        self._study_status.setText("Prompt copiado para a área de transferência.")
 
     def _open_training_setup(self) -> None:
         if not self._handle_preflight(self._coordinator.preflight_training(), self._open_training_setup):
@@ -738,7 +896,24 @@ class MainWindow(QMainWindow):
             )
             or "○ nenhum pack instalado"
         )
+        self._pack_capabilities_summary.setText(self._pack_capabilities_text())
         self._refresh_levels()
+        self._refresh_study_languages()
+
+    def _pack_capabilities_text(self) -> str:
+        capabilities = self._coordinator.exercise_capabilities()
+        statuses = self._coordinator.runtime_statuses()
+        runtimes = ", ".join(f"{status.display_name} ({status.language})" for status in statuses) or "nenhum"
+        executions = ", ".join(sorted(capabilities.executions.supported)) or "nenhuma"
+        generators = ", ".join(sorted(capabilities.generators.supported)) or "nenhum"
+        expectations = ", ".join(sorted(capabilities.expectations.supported)) or "nenhuma"
+        return (
+            "Contrato: schema_version 3\n"
+            f"Runtimes: {runtimes}\n"
+            f"Strategies: {executions}\n"
+            f"Generators: {generators}\n"
+            f"Validators/expectations: {expectations}"
+        )
 
     def _refresh_levels(self) -> None:
         while self._level_checks_layout.count():
@@ -1076,8 +1251,39 @@ class MainWindow(QMainWindow):
         )
 
     # -------------------------------------------------------------- histórico
-    def _show_history(self) -> None:
-        rows = self._coordinator.exercise_history_rows()
+    def _show_history(self, refresh_filters: bool = True) -> None:
+        if refresh_filters:
+            self._refresh_history_filters()
+        self._render_history()
+        if self._stack.currentWidget() is not self._history_page:
+            self._go(self._history_page)
+
+    def _set_history_view(self, view: str) -> None:
+        self._history_view = view
+        self._render_history()
+
+    def _refresh_history_filters(self) -> None:
+        current = self._history_pack_filter.currentData()
+        self._history_pack_filter.blockSignals(True)
+        self._history_pack_filter.clear()
+        self._history_pack_filter.addItem("Todos os packs", "")
+        for pack in self._coordinator.list_packs():
+            self._history_pack_filter.addItem(f"{pack.name} ({pack.id})", pack.id)
+        if current is not None:
+            index = self._history_pack_filter.findData(current)
+            if index >= 0:
+                self._history_pack_filter.setCurrentIndex(index)
+        self._history_pack_filter.blockSignals(False)
+
+    def _history_query(self) -> HistoryQuery:
+        pack = str(self._history_pack_filter.currentData() or "") or None
+        policy = str(self._history_policy_filter.currentData() or "") or None
+        return HistoryQuery(pack_id=pack, policy=policy)
+
+    def _render_history(self) -> None:
+        for key, button in self._history_view_buttons.items():
+            button.setChecked(key == self._history_view)
+        rows = self._filtered_exercise_rows()
         completed = sum(1 for row in rows if row["status"] == "concluído")
         attempted = sum(1 for row in rows if row["status"] == "tentado")
         pending = max(0, len(rows) - completed - attempted)
@@ -1088,10 +1294,25 @@ class MainWindow(QMainWindow):
         self._history_pass.setText(f"PASS: {completed}")
         self._history_fail.setText(f"FAIL: {attempted}")
         self._history_pending.setText(f"PENDENTES: {pending}")
-        self._populate_history_table(rows)
-        self._populate_exam_history()
-        if self._stack.currentWidget() is not self._history_page:
-            self._go(self._history_page)
+        if self._history_view == "packs":
+            self._populate_history_by_pack(rows)
+        elif self._history_view == "activities":
+            self._populate_history_table(rows)
+        elif self._history_view == "sessions":
+            self._populate_history_sessions()
+        elif self._history_view == "timeline":
+            self._populate_history_timeline()
+        else:
+            self._populate_history_overview(rows)
+
+    def _filtered_exercise_rows(self) -> list[dict[str, object]]:
+        query = self._history_query()
+        rows = self._coordinator.exercise_history_rows()
+        if query.pack_id is not None:
+            rows = [row for row in rows if str(row.get("pack_id")) == query.pack_id]
+        if query.policy is not None:
+            rows = [row for row in rows if query.policy in str(row.get("modes", ""))]
+        return rows
 
     def _item(self, text: str, color: str | None = None, align_right: bool = False) -> QTableWidgetItem:
         item = QTableWidgetItem(text)
@@ -1101,7 +1322,64 @@ class MainWindow(QMainWindow):
         item.setTextAlignment(alignment)
         return item
 
+    def _set_history_headers(self, headers: tuple[str, ...], stretch: int) -> None:
+        self._history_table.clear()
+        self._history_table.setColumnCount(len(headers))
+        self._history_table.setHorizontalHeaderLabels(headers)
+        header = self._history_table.horizontalHeader()
+        for column in range(len(headers)):
+            mode = QHeaderView.ResizeMode.Stretch if column == stretch else QHeaderView.ResizeMode.ResizeToContents
+            header.setSectionResizeMode(column, mode)
+
+    def _populate_history_overview(self, rows: list[dict[str, object]]) -> None:
+        sessions = self._filtered_exam_rows()
+        timeline = self._coordinator.history_timeline(self._history_query())
+        completed = sum(1 for row in rows if row["status"] == "concluído")
+        attempted = sum(1 for row in rows if row["status"] in {"concluído", "tentado"})
+        packs = len({str(row.get("pack_id")) for row in rows})
+        last = "-" if not timeline else f"{timeline[0].policy} · {timeline[0].identity.activity_id} · {timeline[0].status}"
+        data = (
+            ("Atividades concluídas", str(completed)),
+            ("Atividades tentadas", str(attempted)),
+            ("Packs usados", str(packs)),
+            ("Sessões de prova", str(len(sessions))),
+            ("Última atividade", last),
+        )
+        self._set_history_headers(("ITEM", "VALOR"), 1)
+        self._history_table.setRowCount(len(data))
+        for row_index, (label, value) in enumerate(data):
+            self._history_table.setItem(row_index, 0, self._item(label, "text_secondary"))
+            self._history_table.setItem(row_index, 1, self._item(value))
+
+    def _populate_history_by_pack(self, rows: list[dict[str, object]]) -> None:
+        grouped: dict[str, dict[str, object]] = {}
+        for row in rows:
+            pack_id = str(row.get("pack_id"))
+            group = grouped.setdefault(
+                pack_id,
+                {"pack": row.get("pack"), "activities": 0, "completed": 0, "attempts": 0, "latest": "-"},
+            )
+            group["activities"] = int(group["activities"]) + 1
+            group["completed"] = int(group["completed"]) + (1 if row["status"] == "concluído" else 0)
+            group["attempts"] = int(group["attempts"]) + int(row["attempts"])
+            if row.get("last_attempt_at"):
+                group["latest"] = self._format_date(row["last_attempt_at"])
+        self._set_history_headers(("PACK", "ATIVIDADES", "CONCLUÍDAS", "TENTATIVAS", "ÚLTIMA"), 0)
+        items = sorted(grouped.items())
+        self._history_table.setRowCount(len(items))
+        for row_index, (_pack_id, group) in enumerate(items):
+            cells = (
+                self._item(str(group["pack"])),
+                self._item(str(group["activities"]), align_right=True),
+                self._item(str(group["completed"]), "success", align_right=True),
+                self._item(str(group["attempts"]), align_right=True),
+                self._item(str(group["latest"]), "text_secondary"),
+            )
+            for column, item in enumerate(cells):
+                self._history_table.setItem(row_index, column, item)
+
     def _populate_history_table(self, rows: list[dict[str, object]]) -> None:
+        self._set_history_headers(("PACK/LEVEL", "ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"), 1)
         self._history_table.setRowCount(len(rows))
         # Agrupa por (pack, level): o mesmo id de level/exercício pode existir em packs diferentes.
         multi_pack = len({str(row.get("pack_id", row["pack"])) for row in rows}) > 1
@@ -1144,11 +1422,19 @@ class MainWindow(QMainWindow):
             for column, item in enumerate(cells):
                 self._history_table.setItem(row_index, column, item)
 
-    def _populate_exam_history(self) -> None:
-        exam_rows = self._coordinator.exam_history_rows()
-        self._exam_history_empty.setVisible(not exam_rows)
-        self._exam_history_table.setVisible(bool(exam_rows))
-        self._exam_history_table.setRowCount(len(exam_rows))
+    def _filtered_exam_rows(self) -> list[dict[str, object]]:
+        query = self._history_query()
+        rows = self._coordinator.exam_history_rows()
+        if query.pack_id is not None:
+            rows = [row for row in rows if str(row.get("rank") or row.get("pack_id") or "") == query.pack_id]
+        if query.policy is not None:
+            rows = [row for row in rows if str(row.get("policy") or "") == query.policy]
+        return rows
+
+    def _populate_history_sessions(self) -> None:
+        exam_rows = self._filtered_exam_rows()
+        self._set_history_headers(("DATA", "PACK", "STATUS", "NOTA", "DURAÇÃO", "ATIVIDADES"), 5)
+        self._history_table.setRowCount(len(exam_rows))
         for row_index, row in enumerate(exam_rows):
             raw_status = str(row.get("status") or "-")
             status, status_color = EXAM_STATUS_LABELS.get(raw_status, (raw_status, "text_secondary"))
@@ -1170,7 +1456,23 @@ class MainWindow(QMainWindow):
                 self._item(str(row.get("exercises") or "-"), "text_secondary"),
             )
             for column, item in enumerate(cells):
-                self._exam_history_table.setItem(row_index, column, item)
+                self._history_table.setItem(row_index, column, item)
+
+    def _populate_history_timeline(self) -> None:
+        entries = self._coordinator.history_timeline(self._history_query())
+        self._set_history_headers(("DATA", "SESSÃO", "PACK", "ATIVIDADE", "STATUS"), 3)
+        self._history_table.setRowCount(len(entries))
+        for row_index, entry in enumerate(entries):
+            status_color = "success" if entry.passed else ("fail" if entry.passed is False else "text_secondary")
+            cells = (
+                self._item(self._format_date(entry.submitted_at), "text_secondary"),
+                self._item(entry.policy or "-"),
+                self._item(entry.identity.pack_id),
+                self._item(entry.identity.activity_id),
+                self._item(entry.status, status_color),
+            )
+            for column, item in enumerate(cells):
+                self._history_table.setItem(row_index, column, item)
 
     @staticmethod
     def _format_date(value: object) -> str:

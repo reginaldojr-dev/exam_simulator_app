@@ -8,12 +8,14 @@ from pathlib import Path
 from uuid import uuid4
 
 from exam_trainer.application.history_service import HistoryQuery, HistoryService
+from exam_trainer.application.capabilities import ExerciseCapabilities, capabilities_from_runtime_descriptors
 from exam_trainer.application.mvp_models import (
     ActiveExercise,
     CorrectionOutcome,
     ExerciseRef,
     ProgressEntry,
 )
+from exam_trainer.application.study_intent import PackPromptBuilder, StudyIntent
 from exam_trainer.domain.attempt_modes import EXAM_MODE, TRAINING_MODE
 from exam_trainer.domain.grading import GradingPolicy, GradingResult
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
@@ -181,6 +183,17 @@ class MVPTrainerCoordinator:
 
     def runtime_statuses(self, probe: bool = False) -> tuple[RuntimeStatus, ...]:
         return self._runtimes.statuses(probe=probe)
+
+    def exercise_capabilities(self) -> ExerciseCapabilities:
+        return capabilities_from_runtime_descriptors(self._runtimes.descriptors())
+
+    def build_pack_prompt(self, intent: StudyIntent, pack_contract: str) -> str:
+        builder = PackPromptBuilder(
+            capabilities=self.exercise_capabilities(),
+            runtime_statuses=self.runtime_statuses(probe=False),
+            pack_contract=pack_contract,
+        )
+        return builder.build(intent)
 
     def runtime_status(self, language: str, probe: bool = False) -> RuntimeStatus:
         return self._runtimes.status(language, probe=probe)
