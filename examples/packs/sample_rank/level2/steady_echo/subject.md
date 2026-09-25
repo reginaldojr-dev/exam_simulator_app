@@ -17,8 +17,8 @@ Examples:
 
 $> ./steady_echo hello world | cat -e
 hello world$
-$> ./steady_echo "42 Exam" Trainer | cat -e
-42 Exam Trainer$
+$> ./steady_echo "Exam" Trainer | cat -e
+Exam Trainer$
 $> ./steady_echo | cat -e
 $
 $>
