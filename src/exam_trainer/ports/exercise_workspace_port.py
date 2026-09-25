@@ -15,12 +15,33 @@ class PreparedExerciseWorkspace:
     had_existing_submission: bool
 
 
+@dataclass(frozen=True)
+class WorkspaceScope:
+    kind: str
+    pack_id: str | None = None
+    session_id: str | None = None
+    owner_id: str | None = None
+
+
 class ExerciseWorkspacePort(Protocol):
+    def root_for(self, workspace_root: Path, scope: WorkspaceScope) -> Path:
+        raise NotImplementedError
+
     def prepare(
         self,
         definition: ExerciseDefinition,
         exercise_content_path: Path,
         workspace_root: Path,
+        overwrite: bool = False,
+    ) -> PreparedExerciseWorkspace:
+        raise NotImplementedError
+
+    def prepare_scoped(
+        self,
+        definition: ExerciseDefinition,
+        exercise_content_path: Path,
+        workspace_root: Path,
+        scope: WorkspaceScope,
         overwrite: bool = False,
     ) -> PreparedExerciseWorkspace:
         raise NotImplementedError
