@@ -13,24 +13,36 @@
   "submission": {
     "filename": "reverse_text.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "A função deve retornar string, não imprimir."
+    ]
+  },
   "validation": {
     "strategy": "function_call",
-    "reference": {
-      "source": "solution/reverse_text.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "abc"
-          ]
+          ],
+          "expected": "\"cba\"\n"
         },
         {
           "args": [
             "Python"
-          ]
+          ],
+          "expected": "\"nohtyP\"\n"
         }
       ]
     },

@@ -13,26 +13,38 @@
   "submission": {
     "filename": "safe_divide.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Use tratamento de exceção ou checagem explícita."
+    ]
+  },
   "validation": {
     "strategy": "function_call",
-    "reference": {
-      "source": "solution/safe_divide.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "6",
             "3"
-          ]
+          ],
+          "expected": "2.0\n"
         },
         {
           "args": [
             "1",
             "0"
-          ]
+          ],
+          "expected": "null\n"
         }
       ]
     },

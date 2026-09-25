@@ -1,0 +1,58 @@
+{
+  "schema_version": 3,
+  "id": "inventory",
+  "type": "exercise",
+  "name": "Inventory",
+  "subject": "subject.md",
+  "programming_language": "java",
+  "content_language": "pt-BR",
+  "topics": [
+    "java",
+    "basics"
+  ],
+  "submission": {
+    "filename": "InventoryApp.java",
+    "extra_files": [
+      "Inventory.java"
+    ]
+  },
+  "usage": {
+    "allowed": {
+      "apis": [
+        "classes",
+        "encapsulamento"
+      ]
+    },
+    "constraints": [
+      "Mantenha o total como estado privado de Inventory."
+    ]
+  },
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "2",
+            "5"
+          ],
+          "expected": "7\n"
+        },
+        {
+          "args": [
+            "10",
+            "-3",
+            "1"
+          ],
+          "expected": "8\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "InventoryApp"
+  }
+}

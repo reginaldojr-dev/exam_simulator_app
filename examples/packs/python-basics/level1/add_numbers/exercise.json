@@ -13,26 +13,38 @@
   "submission": {
     "filename": "add_numbers.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Não faça print dentro da função."
+    ]
+  },
   "validation": {
     "strategy": "function_call",
-    "reference": {
-      "source": "solution/add_numbers.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "2",
             "3"
-          ]
+          ],
+          "expected": "5\n"
         },
         {
           "args": [
             "-4",
             "10"
-          ]
+          ],
+          "expected": "6\n"
         }
       ]
     },

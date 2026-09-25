@@ -1,0 +1,54 @@
+{
+  "schema_version": 3,
+  "id": "unique_words",
+  "type": "exercise",
+  "name": "Unique Words",
+  "subject": "subject.md",
+  "programming_language": "java",
+  "content_language": "pt-BR",
+  "topics": [
+    "java",
+    "basics"
+  ],
+  "submission": {
+    "filename": "UniqueWords.java"
+  },
+  "usage": {
+    "allowed": {
+      "libraries": [
+        "java.util.LinkedHashSet"
+      ]
+    },
+    "constraints": [
+      "Preserve a ordem da primeira ocorrência."
+    ]
+  },
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "a",
+            "b",
+            "a"
+          ],
+          "expected": "a b\n"
+        },
+        {
+          "args": [
+            "z",
+            "z"
+          ],
+          "expected": "z\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "UniqueWords"
+  }
+}

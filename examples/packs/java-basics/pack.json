@@ -2,16 +2,17 @@
   "schema_version": 3,
   "id": "java-basics",
   "name": "Java Basics",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "languages": [
     "java"
   ],
   "content_language": "pt-BR",
   "topics": [
     "java",
-    "basics"
+    "basics",
+    "practice"
   ],
-  "description": "Authorial Java Basics pack for Exam Trainer runtime validation.",
+  "description": "Pack autoral de estudo Java Basics para o Exam Trainer.",
   "exam": {
     "duration_minutes": 60
   },
@@ -23,6 +24,10 @@
     {
       "id": "level1",
       "path": "level1"
+    },
+    {
+      "id": "level2",
+      "path": "level2"
     }
   ]
 }

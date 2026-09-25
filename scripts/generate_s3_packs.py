@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path.cwd()
 EXAMPLES = ROOT / "examples" / "packs"
 PACKS = ROOT / "_local" / "packs"
 
@@ -26,68 +26,82 @@ def reset_dir(path: Path) -> None:
     path.mkdir(parents=True)
 
 
-def pack(root: Path, pack_id: str, name: str, languages: list[str], levels: list[str], content_language: str = "pt-BR") -> None:
-    write_json(
-        root / "pack.json",
-        {
-            "schema_version": 3,
-            "id": pack_id,
-            "name": name,
-            "version": "1.0.0",
-            "languages": languages,
-            "content_language": content_language,
-            "topics": languages + ["basics"],
-            "description": f"Authorial {name} pack for Exam Trainer runtime validation.",
-            "exam": {"duration_minutes": 60},
-            "levels": [{"id": level, "path": level} for level in levels],
-        },
-    )
+def pack(root: Path, pack_id: str, name: str, languages: list[str], levels: list[str]) -> None:
+    write_json(root / "pack.json", {
+        "schema_version": 3,
+        "id": pack_id,
+        "name": name,
+        "version": "1.1.0",
+        "languages": languages,
+        "content_language": "pt-BR",
+        "topics": [*languages, "basics", "practice"],
+        "description": f"Pack autoral de estudo {name} para o Exam Trainer.",
+        "exam": {"duration_minutes": 60},
+        "levels": [{"id": level, "path": level} for level in levels],
+    })
 
 
-def exercise(
-    root: Path,
-    level: str,
-    exercise_id: str,
-    *,
-    language: str,
-    filename: str,
-    subject: str,
-    reference: dict[str, Any],
-    cases: list[dict[str, Any]],
-    strategy: str = "program_output",
-    entry: str | None = None,
-    harness: str | None = None,
-    submission_extra: list[str] | None = None,
-    support_files: list[str] | None = None,
-) -> Path:
+def md(title: str, objetivo: str, arquivo: str, comportamento: list[str], permitido: list[str], proibido: list[str], exemplos: list[tuple[str, str]], extra: list[str] | None = None) -> str:
+    parts = [f"# {title}", "", objetivo, "", "## Arquivo esperado", "", f"`{arquivo}`", "", "## Comportamento esperado"]
+    parts += [f"- {item}" for item in comportamento]
+    if extra:
+        parts += ["", "## Observações", *[f"- {item}" for item in extra]]
+    if permitido:
+        parts += ["", "## Permitido", *[f"- `{item}`" for item in permitido]]
+    if proibido:
+        parts += ["", "## Não permitido", *[f"- `{item}`" for item in proibido]]
+    if exemplos:
+        parts += ["", "## Exemplos"]
+        for entrada, saida in exemplos:
+            parts += ["", f"Entrada/args: `{entrada}`", "", "Saída:", "", "```text", saida, "```"]
+    return "\n".join(parts)
+
+
+def usage(allowed=None, forbidden=None, constraints=None, style=None, behavior=None, notes=None):
+    data: dict[str, Any] = {}
+    if allowed:
+        data["allowed"] = allowed
+    if forbidden:
+        data["forbidden"] = forbidden
+    if constraints:
+        data["constraints"] = constraints
+    if style:
+        data["style"] = style
+    if behavior:
+        data["behavior"] = behavior
+    if notes:
+        data["notes"] = notes
+    return data
+
+
+def exercise(root: Path, level: str, exercise_id: str, *, language: str, filename: str, subject: str, cases: list[dict[str, Any]], usage_data: dict[str, Any], strategy: str = "program_output", entry: str | None = None, args_format: str | None = None, harness: str | None = None, submission_extra: list[str] | None = None, support_files: list[str] | None = None, timeout: int = 3) -> Path:
     folder = root / level / exercise_id
     validation: dict[str, Any] = {
         "strategy": strategy,
-        "reference": reference,
-        "tests": {"generator": "fixed_cases", "expectation": "reference_output", "cases": cases},
-        "limits": {"timeout_seconds": 3},
+        "tests": {"generator": "fixed_cases", "expectation": "literal", "cases": cases},
+        "limits": {"timeout_seconds": timeout},
     }
     if entry:
         validation["entry"] = entry
+    if args_format:
+        validation["args_format"] = args_format
     if harness:
         validation["harness"] = harness
     if support_files:
         validation["support_files"] = support_files
-    write_json(
-        folder / "exercise.json",
-        {
-            "schema_version": 3,
-            "id": exercise_id,
-            "type": "exercise",
-            "name": exercise_id.replace("_", " ").title(),
-            "subject": "subject.md",
-            "programming_language": language,
-            "content_language": "pt-BR",
-            "topics": [language, "basics"],
-            "submission": {"filename": filename, **({"extra_files": submission_extra} if submission_extra else {})},
-            "validation": validation,
-        },
-    )
+    write_json(folder / "exercise.json", {
+        "schema_version": 3,
+        "id": exercise_id,
+        "type": "exercise",
+        "name": exercise_id.replace("_", " ").title(),
+        "subject": "subject.md",
+        "programming_language": language,
+        "content_language": "pt-BR",
+        "topics": [language, "basics"],
+        "submission": {"filename": filename, **({"extra_files": submission_extra} if submission_extra else {})},
+        "usage": usage_data,
+        "validation": validation,
+    })
     write_text(folder / "subject.md", subject)
     return folder
 
@@ -95,294 +109,85 @@ def exercise(
 def generate_c_basics() -> None:
     root = EXAMPLES / "c-basics"
     reset_dir(root)
-    pack(root, "c-basics", "C Basics", ["c"], ["level0", "level1"])
-    items = [
-        (
-            "level0",
-            "argc_counter",
-            "argc_counter.c",
-            "Escreva um programa em C que imprime a quantidade de argumentos da linha de comando seguida de nova linha.",
-            '#include <stdio.h>\nint main(int argc, char **argv){(void)argv; printf("%d\\n", argc - 1); return 0;}\n',
-            [{"args": []}, {"args": ["a", "b"]}, {"args": ["one", "two", "three"]}],
-        ),
-        (
-            "level0",
-            "repeat_word",
-            "repeat_word.c",
-            "Escreva um programa em C que recebe N e PALAVRA, então imprime a palavra N vezes separada por um espaço.",
-            '#include <stdio.h>\n#include <stdlib.h>\nint main(int c,char**v){if(c<3){printf("\\n");return 0;}int n=atoi(v[1]);for(int i=0;i<n;i++){if(i)printf(" ");printf("%s",v[2]);}printf("\\n");return 0;}\n',
-            [{"args": ["3", "ha"]}, {"args": ["1", "x"]}, {"args": ["0", "z"]}],
-        ),
-        (
-            "level1",
-            "char_stats",
-            "char_stats.c",
-            "Escreva um programa em C que imprime letras dígitos outros para o primeiro argumento.",
-            '#include <ctype.h>\n#include <stdio.h>\nint main(int c,char**v){int a=0,d=0,o=0;if(c>1){for(char*p=v[1];*p;p++){if(isalpha((unsigned char)*p))a++;else if(isdigit((unsigned char)*p))d++;else o++;}}printf("%d %d %d\\n",a,d,o);return 0;}\n',
-            [{"args": ["abc123!"]}, {"args": ["42"]}, {"args": ["Hi_there"]}],
-        ),
-        (
-            "level1",
-            "parse_sum",
-            "parse_sum.c",
-            "Escreva um programa em C que interpreta argumentos inteiros e imprime a soma.",
-            '#include <stdio.h>\n#include <stdlib.h>\nint main(int c,char**v){long total=0;for(int i=1;i<c;i++)total+=strtol(v[i],0,10);printf("%ld\\n",total);return 0;}\n',
-            [{"args": ["1", "2", "3"]}, {"args": ["-4", "10"]}, {"args": []}],
-        ),
-    ]
-    for level, exercise_id, filename, subject, code, cases in items:
-        folder = exercise(
-            root,
-            level,
-            exercise_id,
-            language="c",
-            filename=filename,
-            subject=subject,
-            reference={"source": "solution/reference.c"},
-            cases=cases,
-        )
-        write_text(folder / "solution" / "reference.c", code)
+    pack(root, "c-basics", "C Basics", ["c"], ["level0", "level1", "level2"])
+    exercise(root, "level0", "argc_counter", language="c", filename="argc_counter.c", cases=[
+        {"args": [], "expected": "0\n"}, {"args": ["alpha"], "expected": "1\n"}, {"args": ["a", "b", "c"], "expected": "3\n"}], usage_data=usage(allowed={"functions": ["write"], "headers": ["unistd.h"]}, forbidden={"functions": ["printf", "puts"]}, constraints=["Não escreva mensagens extras.", "Sempre finalize a saída com newline."]), subject=md("argc_counter", "Crie um programa que conte quantos argumentos foram passados pela linha de comando, desconsiderando o nome do executável.", "argc_counter.c", ["Imprima apenas um número decimal seguido de `\\n`.", "Sem argumentos adicionais, imprima `0`.", "Não leia da entrada padrão."], ["write"], ["printf", "puts"], [("./argc_counter", "0"), ("./argc_counter a b c", "3")]))
+    exercise(root, "level0", "char_stats", language="c", filename="char_stats.c", cases=[
+        {"args": ["abc123!"], "expected": "3 0 3 1\n"}, {"args": ["Hi_there"], "expected": "6 1 0 1\n"}, {"args": [], "expected": "0 0 0 0\n"}], usage_data=usage(allowed={"functions": ["write"], "headers": ["unistd.h"]}, forbidden={"functions": ["printf", "isalpha", "isdigit"]}, constraints=["Classifique ASCII manualmente."]), subject=md("char_stats", "Percorra o primeiro argumento e conte letras minúsculas, letras maiúsculas, dígitos e outros caracteres.", "char_stats.c", ["Imprima quatro números: `lower upper digit other`.", "Se não houver argumento, todos os contadores devem ser zero.", "Considere apenas ASCII."], ["write"], ["printf", "isalpha", "isdigit"], [("./char_stats abc123!", "3 0 3 1")]))
+    folder = exercise(root, "level1", "ft_strlen_lite", language="c", filename="ft_strlen_lite.c", strategy="function_call", harness="harness/main.c", cases=[
+        {"args": [""], "expected": "0\n"}, {"args": ["abc"], "expected": "3\n"}, {"args": ["ponteiros"], "expected": "9\n"}], usage_data=usage(allowed={"headers": ["stddef.h"]}, forbidden={"functions": ["strlen", "printf"]}, constraints=["Implemente usando aritmética de ponteiro ou indexação simples."]), subject=md("ft_strlen_lite", "Implemente uma função que retorna o tamanho de uma string C terminada por `\\0`.", "ft_strlen_lite.c", ["Assinatura obrigatória: `size_t ft_strlen_lite(const char *s);`", "Não crie `main` no arquivo de submissão.", "O harness do pack chama sua função com diferentes strings."], ["stddef.h"], ["strlen", "printf"], [("ft_strlen_lite(\"abc\")", "3")]))
+    write_text(folder / "harness" / "main.c", "#include <stddef.h>\n#include <stdio.h>\nsize_t ft_strlen_lite(const char *s);\nint main(int argc, char **argv){ const char *s = argc > 1 ? argv[1] : \"\"; printf(\"%zu\\n\", ft_strlen_lite(s)); return 0; }\n")
+    exercise(root, "level1", "array_peak", language="c", filename="array_peak.c", cases=[
+        {"args": ["1", "5", "3"], "expected": "5\n"}, {"args": ["-8", "-2", "-9"], "expected": "-2\n"}, {"args": [], "expected": "0\n"}], usage_data=usage(allowed={"functions": ["write"], "headers": ["unistd.h"]}, forbidden={"functions": ["printf", "qsort"]}, constraints=["Não ordene a lista; percorra os valores uma vez."]), subject=md("array_peak", "Receba inteiros pelos argumentos e imprima o maior valor encontrado.", "array_peak.c", ["Se não houver números, imprima `0`.", "Os argumentos podem ser negativos.", "Assuma entradas numéricas válidas."], ["write"], ["printf", "qsort"], [("./array_peak -8 -2 -9", "-2")]))
+    exercise(root, "level2", "parse_sum", language="c", filename="parse_sum.c", cases=[
+        {"args": ["1", "2", "3"], "expected": "6\n"}, {"args": ["-4", "10", "x"], "expected": "6\n"}, {"args": ["abc"], "expected": "0\n"}], usage_data=usage(allowed={"functions": ["write"], "headers": ["unistd.h"]}, forbidden={"functions": ["atoi", "strtol", "printf"]}, constraints=["Implemente parsing decimal simples.", "Argumentos inválidos contam como zero."]), subject=md("parse_sum", "Some todos os argumentos que representam inteiros decimais simples.", "parse_sum.c", ["Aceite sinal `+` ou `-` no começo.", "Se algum caractere não numérico aparecer, trate aquele argumento como zero.", "Imprima a soma seguida de newline."], ["write"], ["atoi", "strtol", "printf"], [("./parse_sum -4 10 x", "6")]))
 
 
 def generate_cpp_basics() -> None:
     root = EXAMPLES / "cpp-basics"
     reset_dir(root)
-    pack(root, "cpp-basics", "C++ Basics", ["cpp"], ["level0", "level1"])
-    folder = exercise(
-        root,
-        "level0",
-        "line_join",
-        language="cpp",
-        filename="line_join.cpp",
-        subject="Escreva um programa em C++ que junta todos os argumentos com '-' e imprime uma nova linha.",
-        reference={"source": "solution/reference.cpp"},
-        cases=[{"args": ["a", "b", "c"]}, {"args": ["solo"]}, {"args": []}],
-    )
-    write_text(folder / "solution" / "reference.cpp", '#include <iostream>\nint main(int argc,char**argv){for(int i=1;i<argc;i++){if(i>1)std::cout<<"-";std::cout<<argv[i];}std::cout<<"\\n";}\n')
-
-    folder = exercise(
-        root,
-        "level0",
-        "vector_sum",
-        language="cpp",
-        filename="main.cpp",
-        submission_extra=["vector_sum.cpp"],
-        support_files=["include/vector_sum.hpp"],
-        subject="Implemente sum_values em vector_sum.cpp. main.cpp lê inteiros de argv e imprime a soma.",
-        reference={"source": "solution/main.cpp", "extra_files": ["solution/vector_sum.cpp"]},
-        cases=[{"args": ["1", "2", "3"]}, {"args": ["-5", "7"]}],
-    )
+    pack(root, "cpp-basics", "C++ Basics", ["cpp"], ["level0", "level1", "level2"])
+    exercise(root, "level0", "line_join", language="cpp", filename="line_join.cpp", cases=[{"args": ["a", "b", "c"], "expected": "a-b-c\n"}, {"args": ["solo"], "expected": "solo\n"}, {"args": [], "expected": "\n"}], usage_data=usage(allowed={"libraries": ["iostream", "string"]}, forbidden={"functions": ["printf"]}), subject=md("line_join", "Junte os argumentos em uma única linha usando hífen como separador.", "line_join.cpp", ["Use `std::string` ou saída incremental com `std::cout`.", "Sem argumentos, imprima apenas newline.", "Não adicione espaços extras."], ["iostream", "string"], ["printf"], [("./line_join a b c", "a-b-c")]))
+    folder = exercise(root, "level1", "vector_sum", language="cpp", filename="vector_sum.cpp", strategy="function_call", harness="harness/main.cpp", support_files=["include/vector_sum.hpp"], cases=[{"args": ["1", "2", "3"], "expected": "6\n"}, {"args": ["-5", "7"], "expected": "2\n"}], usage_data=usage(allowed={"libraries": ["vector"]}, constraints=["Passe o vetor por referência constante."]), subject=md("vector_sum", "Implemente uma função que soma valores armazenados em `std::vector<int>`.", "vector_sum.cpp", ["Assinatura: `int sum_values(const std::vector<int>& values);`", "Não escreva `main`.", "O harness converte os argumentos para vetor e imprime o retorno."], ["vector"], ["variáveis globais para acumular estado"], [("sum_values({1,2,3})", "6")]))
     write_text(folder / "include" / "vector_sum.hpp", "#pragma once\n#include <vector>\nint sum_values(const std::vector<int>& values);\n")
-    write_text(folder / "solution" / "vector_sum.hpp", "#pragma once\n#include <vector>\nint sum_values(const std::vector<int>& values);\n")
-    write_text(folder / "solution" / "main.cpp", '#include "vector_sum.hpp"\n#include <iostream>\n#include <vector>\nint main(int argc,char**argv){std::vector<int> v; for(int i=1;i<argc;i++) v.push_back(std::stoi(argv[i])); std::cout<<sum_values(v)<<"\\n";}\n')
-    write_text(folder / "solution" / "vector_sum.cpp", '#include "vector_sum.hpp"\nint sum_values(const std::vector<int>& values){int total=0; for(int v:values) total+=v; return total;}\n')
-
-    folder = exercise(
-        root,
-        "level1",
-        "box_counter",
-        language="cpp",
-        filename="main.cpp",
-        submission_extra=["BoxCounter.cpp"],
-        support_files=["include/BoxCounter.hpp"],
-        subject="Implemente uma classe BoxCounter com métodos add(int) e total().",
-        reference={"source": "solution/main.cpp", "extra_files": ["solution/BoxCounter.cpp"]},
-        cases=[{"args": ["2", "3"]}, {"args": ["10", "-4", "1"]}],
-    )
+    write_text(folder / "harness" / "main.cpp", "#include \"../include/vector_sum.hpp\"\n#include <iostream>\n#include <vector>\nint main(int argc,char**argv){ std::vector<int> v; for(int i=1;i<argc;i++) v.push_back(std::stoi(argv[i])); std::cout << sum_values(v) << '\\n'; }\n")
+    folder = exercise(root, "level1", "word_score", language="cpp", filename="word_score.cpp", strategy="function_call", harness="harness/main.cpp", support_files=["include/word_score.hpp"], cases=[{"args": ["abc"], "expected": "294\n"}, {"args": ["Az"], "expected": "187\n"}], usage_data=usage(allowed={"libraries": ["string"]}, forbidden={"libraries": ["numeric"]}, constraints=["Some manualmente os códigos dos caracteres." ]), subject=md("word_score", "Calcule a soma dos códigos ASCII dos caracteres de uma string.", "word_score.cpp", ["Assinatura: `int word_score(const std::string& text);`", "Não escreva `main`.", "A função deve funcionar para string vazia."], ["string"], ["numeric"], [("word_score(\"abc\")", "294")]))
+    write_text(folder / "include" / "word_score.hpp", "#pragma once\n#include <string>\nint word_score(const std::string& text);\n")
+    write_text(folder / "harness" / "main.cpp", "#include \"../include/word_score.hpp\"\n#include <iostream>\nint main(int argc,char**argv){ std::string s = argc > 1 ? argv[1] : \"\"; std::cout << word_score(s) << '\\n'; }\n")
+    folder = exercise(root, "level2", "box_counter", language="cpp", filename="BoxCounter.cpp", strategy="function_call", harness="harness/main.cpp", support_files=["include/BoxCounter.hpp"], cases=[{"args": ["2", "3"], "expected": "5\n"}, {"args": ["10", "-4", "1"], "expected": "7\n"}], usage_data=usage(allowed={"libraries": ["classe própria"]}, constraints=["Mantenha o total encapsulado como detalhe privado." ]), subject=md("box_counter", "Implemente uma classe simples que acumula valores inteiros.", "BoxCounter.cpp", ["Use o header fornecido em `include/BoxCounter.hpp`.", "Implemente `void add(int)` e `int total() const`.", "Não altere a assinatura pública."], ["classes", "encapsulamento"], ["estado global"], [("BoxCounter + 2 + 3", "5")]))
     write_text(folder / "include" / "BoxCounter.hpp", "#pragma once\nclass BoxCounter { int value = 0; public: void add(int n); int total() const; };\n")
-    write_text(folder / "solution" / "BoxCounter.hpp", "#pragma once\nclass BoxCounter { int value = 0; public: void add(int n); int total() const; };\n")
-    write_text(folder / "solution" / "main.cpp", '#include "BoxCounter.hpp"\n#include <iostream>\nint main(int argc,char**argv){BoxCounter c; for(int i=1;i<argc;i++) c.add(std::stoi(argv[i])); std::cout<<c.total()<<"\\n";}\n')
-    write_text(folder / "solution" / "BoxCounter.cpp", '#include "BoxCounter.hpp"\nvoid BoxCounter::add(int n){ value += n; }\nint BoxCounter::total() const { return value; }\n')
-
-
-def generate_java_basics() -> None:
-    root = EXAMPLES / "java-basics"
-    reset_dir(root)
-    pack(root, "java-basics", "Java Basics", ["java"], ["level0", "level1"])
-    java_items = [
-        ("level0", "sum_args", "SumArgs", "Imprima a soma dos argumentos inteiros.", 'public class SumArgs { public static void main(String[] args){ int total=0; for(String a:args) total+=Integer.parseInt(a); System.out.println(total); } }', [{"args": ["1", "2"]}, {"args": ["-3", "8", "1"]}]),
-        ("level0", "word_lengths", "WordLengths", "Imprima cada argumento seguido do seu tamanho.", 'public class WordLengths { public static void main(String[] args){ for(String a:args) System.out.println(a + ":" + a.length()); } }', [{"args": ["java", "oop"]}, {"args": []}]),
-    ]
-    for level, exercise_id, main_class, subject, code, cases in java_items:
-        folder = exercise(root, level, exercise_id, language="java", filename=f"{main_class}.java", subject=subject, reference={"source": f"solution/{main_class}.java"}, cases=cases, entry=main_class)
-        write_text(folder / "solution" / f"{main_class}.java", code)
-    folder = exercise(
-        root,
-        "level1",
-        "inventory",
-        language="java",
-        filename="InventoryApp.java",
-        submission_extra=["Inventory.java"],
-        subject="Implemente Inventory para que InventoryApp possa somar quantidades e imprimir o total.",
-        reference={"source": "solution/InventoryApp.java", "extra_files": ["solution/Inventory.java"]},
-        cases=[{"args": ["2", "5"]}, {"args": ["10", "-3", "1"]}],
-        entry="InventoryApp",
-    )
-    write_text(folder / "solution" / "InventoryApp.java", "public class InventoryApp { public static void main(String[] args){ Inventory inv = new Inventory(); for(String a: args) inv.add(Integer.parseInt(a)); System.out.println(inv.total()); } }\n")
-    write_text(folder / "solution" / "Inventory.java", "public class Inventory { private int total; public void add(int value){ total += value; } public int total(){ return total; } }\n")
+    write_text(folder / "harness" / "main.cpp", "#include \"../include/BoxCounter.hpp\"\n#include <iostream>\nint main(int argc,char**argv){ BoxCounter c; for(int i=1;i<argc;i++) c.add(std::stoi(argv[i])); std::cout << c.total() << '\\n'; }\n")
 
 
 def generate_python_basics() -> None:
     root = EXAMPLES / "python-basics"
     reset_dir(root)
-    pack(root, "python-basics", "Python Basics", ["python"], ["level0", "level1", "level2"])
-    items = [
-        ("level0", "count_args", "count_args.py", "Imprima a quantidade de argumentos da linha de comando.", "program_output", None, 'import sys\nprint(len(sys.argv) - 1)\n', [{"args": []}, {"args": ["a", "b"]}]),
-        ("level0", "shout_args", "shout_args.py", "Imprima todos os argumentos em maiúsculas, separados por um espaço.", "program_output", None, 'import sys\nprint(" ".join(arg.upper() for arg in sys.argv[1:]))\n', [{"args": ["hi", "there"]}, {"args": ["Py"]}]),
-        ("level1", "add_numbers", "add_numbers.py", "Implemente add(a, b).", "function_call", "add", "json", "def add(a, b):\n    return a + b\n", [{"args": ["2", "3"]}, {"args": ["-4", "10"]}]),
-        ("level1", "reverse_text", "reverse_text.py", "Implemente reverse_text(text).", "function_call", "reverse_text", "str", "def reverse_text(text):\n    return text[::-1]\n", [{"args": ["abc"]}, {"args": ["Python"]}]),
-        ("level1", "max_value", "max_value.py", "Implemente max_value(values).", "function_call", "max_value", "json", "def max_value(values):\n    return max(values)\n", [{"args": ["[1, 4, 2]"]}, {"args": ["[-5, -2, -9]"]}]),
-        ("level2", "word_counts", "word_counts.py", "Implemente word_counts(words) retornando um dicionário.", "function_call", "word_counts", "json", "def word_counts(words):\n    return {word: words.count(word) for word in sorted(set(words))}\n", [{"args": ['["a", "b", "a"]']}, {"args": ['["x"]']}]),
-        ("level2", "safe_divide", "safe_divide.py", "Implemente safe_divide(a, b), retornando None para divisão por zero.", "function_call", "safe_divide", "json", "def safe_divide(a, b):\n    try:\n        return a / b\n    except ZeroDivisionError:\n        return None\n", [{"args": ["6", "3"]}, {"args": ["1", "0"]}]),
-        ("level2", "take_even", "take_even.py", "Implemente take_even(values) usando generator ou comprehension.", "function_call", "take_even", "json", "def take_even(values):\n    return [value for value in values if value % 2 == 0]\n", [{"args": ["[1, 2, 3, 4]"]}, {"args": ["[]"]}]),
+    pack(root, "python-basics", "Python Basics", ["python"], ["level0", "level1", "level2", "level3"])
+    exercise(root, "level0", "count_args", language="python", filename="count_args.py", cases=[{"args": [], "expected": "0\n"}, {"args": ["a", "b"], "expected": "2\n"}], usage_data=usage(allowed={"imports": ["sys"]}, forbidden={"functions": ["input"]}), subject=md("count_args", "Conte argumentos de linha de comando em um script Python.", "count_args.py", ["Imprima `len(sys.argv) - 1` seguido de newline.", "Não leia stdin.", "Não escreva texto extra."], ["sys"], ["input"], [("python count_args.py a b", "2")]))
+    exercise(root, "level0", "shout_args", language="python", filename="shout_args.py", cases=[{"args": ["hi", "there"], "expected": "HI THERE\n"}, {"args": [], "expected": "\n"}], usage_data=usage(allowed={"imports": ["sys"], "apis": ["str.upper"]}, forbidden={"functions": ["input"]}), subject=md("shout_args", "Transforme todos os argumentos em maiúsculas e una com espaço.", "shout_args.py", ["Sem argumentos, imprima linha vazia.", "Preserve a ordem dos argumentos.", "Finalize com newline."], ["sys", "str.upper"], ["input"], [("python shout_args.py hi there", "HI THERE")]))
+    py_funcs = [
+        ("level1", "add_numbers", "add_numbers.py", "add", "json", [{"args": ["2", "3"], "expected": "5\n"}, {"args": ["-4", "10"], "expected": "6\n"}], "Implemente `add(a, b)` retornando a soma.", ["Não faça print dentro da função."]),
+        ("level1", "reverse_text", "reverse_text.py", "reverse_text", "str", [{"args": ["abc"], "expected": '"cba"\n'}, {"args": ["Python"], "expected": '"nohtyP"\n'}], "Implemente `reverse_text(text)` retornando a string invertida.", ["A função deve retornar string, não imprimir."]),
+        ("level1", "max_value", "max_value.py", "max_value", "json", [{"args": ["[1, 4, 2]"], "expected": "4\n"}, {"args": ["[-5, -2, -9]"], "expected": "-2\n"}], "Implemente `max_value(values)` sem usar `max`.", ["Percorra a lista manualmente."]),
+        ("level2", "word_counts", "word_counts.py", "word_counts", "json", [{"args": ['["a", "b", "a"]'], "expected": '{"a": 2, "b": 1}\n'}, {"args": ['["x"]'], "expected": '{"x": 1}\n'}], "Implemente `word_counts(words)` retornando um dicionário ordenado por chave.", ["Use dict/comprehension quando fizer sentido."]),
+        ("level2", "safe_divide", "safe_divide.py", "safe_divide", "json", [{"args": ["6", "3"], "expected": "2.0\n"}, {"args": ["1", "0"], "expected": "null\n"}], "Implemente `safe_divide(a, b)` retornando `None` quando houver divisão por zero.", ["Use tratamento de exceção ou checagem explícita."]),
+        ("level2", "take_even", "take_even.py", "take_even", "json", [{"args": ["[1, 2, 3, 4]"], "expected": "[2, 4]\n"}, {"args": ["[]"], "expected": "[]\n"}], "Implemente `take_even(values)` retornando apenas os pares.", ["Prefira comprehension ou generator interno."]),
+        ("level3", "group_initials", "group_initials.py", "group_initials", "json", [{"args": ['["ana", "bia", "alice"]'], "expected": '{"a": ["ana", "alice"], "b": ["bia"]}\n'}], "Implemente `group_initials(names)` agrupando nomes pela inicial minúscula.", ["Preserve a ordem de aparição dentro de cada lista."]),
     ]
-    for item in items:
-        if len(item) == 8:
-            level, exercise_id, filename, subject, strategy, entry, code, cases = item
-            args_format = None
-        else:
-            level, exercise_id, filename, subject, strategy, entry, args_format, code, cases = item
-        ref = {"source": f"solution/{filename}"}
-        folder = exercise(root, level, exercise_id, language="python", filename=filename, subject=subject, reference=ref, cases=cases, strategy=strategy, entry=entry, **({"validation_args": "unused"} if False else {}))
-        if strategy == "function_call" and args_format is not None:
-            data = json.loads((folder / "exercise.json").read_text(encoding="utf-8"))
-            data["validation"]["args_format"] = args_format
-            write_json(folder / "exercise.json", data)
-        write_text(folder / "solution" / filename, code)
+    for level, exercise_id, filename, entry, args_format, cases, objective, extra in py_funcs:
+        exercise(root, level, exercise_id, language="python", filename=filename, strategy="function_call", entry=entry, args_format=args_format, cases=cases, usage_data=usage(allowed={"imports": []}, forbidden={"functions": ["print"]}, constraints=extra), subject=md(exercise_id, objective, filename, [f"Assinatura obrigatória: `{entry}(...)`.", "Retorne o valor; o harness do app serializa em JSON.", "Não escreva código de execução no topo do módulo."], ["funções", "estruturas nativas"], ["print dentro da função"], []))
+
+
+def generate_java_basics() -> None:
+    root = EXAMPLES / "java-basics"
+    reset_dir(root)
+    pack(root, "java-basics", "Java Basics", ["java"], ["level0", "level1", "level2"])
+    exercise(root, "level0", "sum_args", language="java", filename="SumArgs.java", entry="SumArgs", cases=[{"args": ["1", "2"], "expected": "3\n"}, {"args": ["-3", "8", "1"], "expected": "6\n"}], usage_data=usage(allowed={"libraries": ["java.lang"]}, forbidden={"apis": ["Scanner"]}), subject=md("sum_args", "Some os argumentos inteiros recebidos em `main`.", "SumArgs.java", ["Classe pública obrigatória: `SumArgs`.", "Imprima somente a soma seguida de newline.", "Sem argumentos, imprima `0`."], ["Integer.parseInt"], ["Scanner"], [("java SumArgs 1 2", "3")]))
+    exercise(root, "level0", "word_lengths", language="java", filename="WordLengths.java", entry="WordLengths", cases=[{"args": ["java", "oop"], "expected": "java:4\noop:3\n"}, {"args": [], "expected": ""}], usage_data=usage(allowed={"apis": ["String.length"]}, forbidden={"apis": ["Scanner"]}), subject=md("word_lengths", "Imprima cada argumento seguido do seu tamanho.", "WordLengths.java", ["Classe pública obrigatória: `WordLengths`.", "Formato de cada linha: `palavra:tamanho`.", "Sem argumentos, não imprima nada."], ["String.length"], ["Scanner"], [("java WordLengths java oop", "java:4\\noop:3")]))
+    exercise(root, "level1", "unique_words", language="java", filename="UniqueWords.java", entry="UniqueWords", cases=[{"args": ["a", "b", "a"], "expected": "a b\n"}, {"args": ["z", "z"], "expected": "z\n"}], usage_data=usage(allowed={"libraries": ["java.util.LinkedHashSet"]}, constraints=["Preserve a ordem da primeira ocorrência."]), subject=md("unique_words", "Remova palavras repetidas preservando a primeira ocorrência.", "UniqueWords.java", ["Classe pública obrigatória: `UniqueWords`.", "Imprima as palavras únicas separadas por espaço.", "Sem argumentos, imprima linha vazia."], ["LinkedHashSet"], ["ordenar a saída"], [("java UniqueWords a b a", "a b")]))
+    folder = exercise(root, "level2", "inventory", language="java", filename="InventoryApp.java", submission_extra=["Inventory.java"], entry="InventoryApp", cases=[{"args": ["2", "5"], "expected": "7\n"}, {"args": ["10", "-3", "1"], "expected": "8\n"}], usage_data=usage(allowed={"apis": ["classes", "encapsulamento"]}, constraints=["Mantenha o total como estado privado de Inventory."]), subject=md("inventory", "Crie uma pequena classe de domínio para acumular quantidades.", "InventoryApp.java + Inventory.java", ["`InventoryApp` deve conter o `main`.", "`Inventory` deve expor `add(int)` e `total()`.", "Compile e rode com os dois arquivos."], ["classes", "campos privados"], ["estado global"], [("java InventoryApp 2 5", "7")]))
 
 
 def migrate_pack(root: Path, default_language: str = "c") -> None:
     if not (root / "pack.json").is_file():
         return
-    try:
-        pack_data = json.loads((root / "pack.json").read_text(encoding="utf-8-sig"))
-    except json.JSONDecodeError:
+    # Local migration kept intentionally small for private study packs.
+    data = json.loads((root / "pack.json").read_text(encoding="utf-8-sig"))
+    if data.get("schema_version") != 3:
         return
-    language = pack_data.get("language", default_language)
-    content_language = pack_data.get("content_language", "pt-BR")
-    pack_data = {
-        "schema_version": 3,
-        "id": pack_data["id"],
-        "name": pack_data["name"],
-        "version": pack_data.get("version", "1.0.0"),
-        "languages": sorted(set(pack_data.get("languages", [language]))),
-        "content_language": content_language,
-        "topics": pack_data.get("topics", []),
-        **({"exam": pack_data["exam"]} if "exam" in pack_data else {}),
-        "levels": pack_data["levels"],
-    }
-    write_json(root / "pack.json", pack_data)
-    for exercise_json in root.glob("level*/*/exercise.json"):
-        data = json.loads(exercise_json.read_text(encoding="utf-8-sig"))
-        if data.get("schema_version") == 3:
-            if "language" in data and "programming_language" not in data:
-                data["programming_language"] = data.pop("language")
-            data.setdefault("content_language", content_language)
-            _normalize_empty_fixed_cases(data)
-            write_json(exercise_json, data)
-            continue
-        exercise_language = data.get("language", language)
-        execution = data.pop("execution")
-        validation: dict[str, Any] = {"strategy": execution["type"]}
-        if validation["strategy"] == "function_with_main":
-            validation["strategy"] = "function_call"
-        if validation["strategy"] == "reference_compare":
-            validation["strategy"] = "function_call" if execution.get("fixture") else "program_output"
-        if "fixture" in execution:
-            validation["harness"] = execution["fixture"]
-        if "harness" in execution:
-            validation["harness"] = execution["harness"]
-        if "entry" in execution:
-            validation["entry"] = execution["entry"]
-        if "args_format" in execution:
-            validation["args_format"] = execution["args_format"]
-        reference = data.pop("reference", None)
-        if "reference" in execution:
-            reference = {"source": execution["reference"], **({"harness": validation["harness"]} if "harness" in validation else {})}
-        if reference is not None:
-            validation["reference"] = reference
-        validation["tests"] = data.pop("tests")
-        if "limits" in data:
-            validation["limits"] = data.pop("limits")
-        if "support_files" in data:
-            validation["support_files"] = data.pop("support_files")
-        _normalize_empty_fixed_cases({"validation": validation})
-        converted = {
-            "schema_version": 3,
-            "id": data["id"],
-            "type": "exercise",
-            "name": data["name"],
-            "subject": data["subject"],
-            "programming_language": exercise_language,
-            "content_language": data.get("content_language", content_language),
-            "topics": data.get("topics", []),
-            "submission": data["submission"],
-            "validation": validation,
-        }
-        write_json(exercise_json, converted)
-
-
-def _normalize_empty_fixed_cases(data: dict[str, Any]) -> None:
-    tests = data.get("validation", {}).get("tests") if isinstance(data.get("validation"), dict) else None
-    if not isinstance(tests, dict):
-        return
-    if tests.get("generator") == "fixed_cases" and tests.get("cases") == []:
-        tests["generator"] = "random_arguments"
-        tests.pop("cases", None)
-
-
-def _normalize_private_edge_cases(root: Path) -> None:
-    for exercise_json in root.glob("level*/*/exercise.json"):
-        data = json.loads(exercise_json.read_text(encoding="utf-8-sig"))
-        validation = data.get("validation")
-        if not isinstance(validation, dict):
-            continue
-        reference = validation.get("reference")
-        if isinstance(reference, dict) and reference.get("source") is None:
-            validation.pop("reference", None)
-            validation["tests"] = {
-                "generator": "fixed_cases",
-                "expectation": "literal",
-                "cases": [{"args": [], "stdin": "", "expected": ""}],
-            }
-        if validation.get("strategy") == "client_server":
-            validation["strategy"] = "program_output"
-            validation.pop("reference", None)
-            validation["tests"] = {
-                "generator": "fixed_cases",
-                "expectation": "literal",
-                "cases": [{"args": [], "stdin": "", "expected": ""}],
-            }
-        support_files = validation.get("support_files")
-        if isinstance(support_files, list):
-            exercise_root = exercise_json.parent
-            validation["support_files"] = [
-                item
-                for item in support_files
-                if isinstance(item, str) and (exercise_root / item).is_file()
-            ]
-        write_json(exercise_json, data)
+    data.setdefault("content_language", "pt-BR")
+    write_json(root / "pack.json", data)
 
 
 def main() -> None:
     generate_c_basics()
     generate_cpp_basics()
-    generate_java_basics()
     generate_python_basics()
+    generate_java_basics()
     for root in [EXAMPLES / "sample_rank"]:
         migrate_pack(root)
-    for name in (
-        "rank02-practice",
-        "rank02-original",
-        "rank03-original",
-        "rank04-original",
-        "rank05-original",
-        "rank06-original",
-    ):
-        private_root = PACKS / name
-        migrate_pack(private_root)
-        if private_root.exists():
-            _normalize_private_edge_cases(private_root)
+    for name in ("rank02-practice", "rank02-original", "rank03-original", "rank04-original", "rank05-original", "rank06-original"):
+        migrate_pack(PACKS / name)
 
 
 if __name__ == "__main__":

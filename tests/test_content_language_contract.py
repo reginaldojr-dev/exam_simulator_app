@@ -41,9 +41,11 @@ class ContentLanguageContractTest(unittest.TestCase):
         ref = refs["argc_counter"]
         subject = (ref.content_path / ref.definition.subject).read_text(encoding="utf-8")
 
-        self.assertIn("quantidade de argumentos", subject)
-        self.assertIn("programa em C", subject)
+        self.assertIn("quantos argumentos", subject)
+        self.assertIn("## Permitido", subject)
         self.assertEqual(ref.definition.programming_language, "c")
+        self.assertIn("write", ref.definition.usage.allowed.functions)
+        self.assertIn("printf", ref.definition.usage.forbidden.functions)
 
     @unittest.skipUnless(SYSTEM_PYTHON, "no system Python")
     def test_grading_does_not_depend_on_content_language(self) -> None:

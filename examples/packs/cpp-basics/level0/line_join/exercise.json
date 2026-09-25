@@ -13,29 +13,42 @@
   "submission": {
     "filename": "line_join.cpp"
   },
+  "usage": {
+    "allowed": {
+      "libraries": [
+        "iostream",
+        "string"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "printf"
+      ]
+    }
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": {
-      "source": "solution/reference.cpp"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "a",
             "b",
             "c"
-          ]
+          ],
+          "expected": "a-b-c\n"
         },
         {
           "args": [
             "solo"
-          ]
+          ],
+          "expected": "solo\n"
         },
         {
-          "args": []
+          "args": [],
+          "expected": "\n"
         }
       ]
     },

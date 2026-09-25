@@ -13,27 +13,38 @@
   "submission": {
     "filename": "SumArgs.java"
   },
+  "usage": {
+    "allowed": {
+      "libraries": [
+        "java.lang"
+      ]
+    },
+    "forbidden": {
+      "apis": [
+        "Scanner"
+      ]
+    }
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": {
-      "source": "solution/SumArgs.java"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "1",
             "2"
-          ]
+          ],
+          "expected": "3\n"
         },
         {
           "args": [
             "-3",
             "8",
             "1"
-          ]
+          ],
+          "expected": "6\n"
         }
       ]
     },

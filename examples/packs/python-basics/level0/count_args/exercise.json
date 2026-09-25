@@ -13,23 +13,34 @@
   "submission": {
     "filename": "count_args.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": [
+        "sys"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "input"
+      ]
+    }
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": {
-      "source": "solution/count_args.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
-          "args": []
+          "args": [],
+          "expected": "0\n"
         },
         {
           "args": [
             "a",
             "b"
-          ]
+          ],
+          "expected": "2\n"
         }
       ]
     },

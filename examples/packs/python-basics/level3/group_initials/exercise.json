@@ -1,0 +1,49 @@
+{
+  "schema_version": 3,
+  "id": "group_initials",
+  "type": "exercise",
+  "name": "Group Initials",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "submission": {
+    "filename": "group_initials.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Preserve a ordem de aparição dentro de cada lista."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "[\"ana\", \"bia\", \"alice\"]"
+          ],
+          "expected": "{\"a\": [\"ana\", \"alice\"], \"b\": [\"bia\"]}\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "group_initials",
+    "args_format": "json"
+  }
+}

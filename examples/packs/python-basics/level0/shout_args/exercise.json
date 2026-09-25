@@ -13,25 +13,37 @@
   "submission": {
     "filename": "shout_args.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": [
+        "sys"
+      ],
+      "apis": [
+        "str.upper"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "input"
+      ]
+    }
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": {
-      "source": "solution/shout_args.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "hi",
             "there"
-          ]
+          ],
+          "expected": "HI THERE\n"
         },
         {
-          "args": [
-            "Py"
-          ]
+          "args": [],
+          "expected": "\n"
         }
       ]
     },

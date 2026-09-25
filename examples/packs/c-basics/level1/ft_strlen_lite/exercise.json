@@ -1,0 +1,63 @@
+{
+  "schema_version": 3,
+  "id": "ft_strlen_lite",
+  "type": "exercise",
+  "name": "Ft Strlen Lite",
+  "subject": "subject.md",
+  "programming_language": "c",
+  "content_language": "pt-BR",
+  "topics": [
+    "c",
+    "basics"
+  ],
+  "submission": {
+    "filename": "ft_strlen_lite.c"
+  },
+  "usage": {
+    "allowed": {
+      "headers": [
+        "stddef.h"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "strlen",
+        "printf"
+      ]
+    },
+    "constraints": [
+      "Implemente usando aritmética de ponteiro ou indexação simples."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            ""
+          ],
+          "expected": "0\n"
+        },
+        {
+          "args": [
+            "abc"
+          ],
+          "expected": "3\n"
+        },
+        {
+          "args": [
+            "ponteiros"
+          ],
+          "expected": "9\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "harness": "harness/main.c"
+  }
+}

@@ -2,16 +2,17 @@
   "schema_version": 3,
   "id": "python-basics",
   "name": "Python Basics",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "languages": [
     "python"
   ],
   "content_language": "pt-BR",
   "topics": [
     "python",
-    "basics"
+    "basics",
+    "practice"
   ],
-  "description": "Authorial Python Basics pack for Exam Trainer runtime validation.",
+  "description": "Pack autoral de estudo Python Basics para o Exam Trainer.",
   "exam": {
     "duration_minutes": 60
   },
@@ -27,6 +28,10 @@
     {
       "id": "level2",
       "path": "level2"
+    },
+    {
+      "id": "level3",
+      "path": "level3"
     }
   ]
 }

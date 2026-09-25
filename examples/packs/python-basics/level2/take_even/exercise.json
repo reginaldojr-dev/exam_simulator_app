@@ -13,24 +13,36 @@
   "submission": {
     "filename": "take_even.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Prefira comprehension ou generator interno."
+    ]
+  },
   "validation": {
     "strategy": "function_call",
-    "reference": {
-      "source": "solution/take_even.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "[1, 2, 3, 4]"
-          ]
+          ],
+          "expected": "[2, 4]\n"
         },
         {
           "args": [
             "[]"
-          ]
+          ],
+          "expected": "[]\n"
         }
       ]
     },

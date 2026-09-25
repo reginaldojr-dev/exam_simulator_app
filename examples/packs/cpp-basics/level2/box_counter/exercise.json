@@ -1,0 +1,57 @@
+{
+  "schema_version": 3,
+  "id": "box_counter",
+  "type": "exercise",
+  "name": "Box Counter",
+  "subject": "subject.md",
+  "programming_language": "cpp",
+  "content_language": "pt-BR",
+  "topics": [
+    "cpp",
+    "basics"
+  ],
+  "submission": {
+    "filename": "BoxCounter.cpp"
+  },
+  "usage": {
+    "allowed": {
+      "libraries": [
+        "classe própria"
+      ]
+    },
+    "constraints": [
+      "Mantenha o total encapsulado como detalhe privado."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "2",
+            "3"
+          ],
+          "expected": "5\n"
+        },
+        {
+          "args": [
+            "10",
+            "-4",
+            "1"
+          ],
+          "expected": "7\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "harness": "harness/main.cpp",
+    "support_files": [
+      "include/BoxCounter.hpp"
+    ]
+  }
+}

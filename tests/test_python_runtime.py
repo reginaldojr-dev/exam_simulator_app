@@ -96,7 +96,7 @@ class PythonBasicsPackTest(unittest.TestCase):
     def test_pack_is_v3_python_and_imports(self) -> None:
         report = LocalPackImporter(self.root / "managed").inspect_pack(PYTHON_BASICS)
         self.assertEqual((report.pack.schema_version, report.pack.language), (3, "python"))
-        self.assertEqual(report.exercise_count, 8)
+        self.assertEqual(report.exercise_count, 9)
         self.assertTrue(all(name.endswith(".py") for name in report.executable_files))
         kinds = {ref.definition.execution.type for ref in self.refs.values()}
         self.assertEqual(kinds, {"program_output", "function_call"})

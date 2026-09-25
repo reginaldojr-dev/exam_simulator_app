@@ -1,0 +1,59 @@
+{
+  "schema_version": 3,
+  "id": "word_score",
+  "type": "exercise",
+  "name": "Word Score",
+  "subject": "subject.md",
+  "programming_language": "cpp",
+  "content_language": "pt-BR",
+  "topics": [
+    "cpp",
+    "basics"
+  ],
+  "submission": {
+    "filename": "word_score.cpp"
+  },
+  "usage": {
+    "allowed": {
+      "libraries": [
+        "string"
+      ]
+    },
+    "forbidden": {
+      "libraries": [
+        "numeric"
+      ]
+    },
+    "constraints": [
+      "Some manualmente os códigos dos caracteres."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "abc"
+          ],
+          "expected": "294\n"
+        },
+        {
+          "args": [
+            "Az"
+          ],
+          "expected": "187\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "harness": "harness/main.cpp",
+    "support_files": [
+      "include/word_score.hpp"
+    ]
+  }
+}

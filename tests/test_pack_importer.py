@@ -112,7 +112,7 @@ class PackImporterTest(unittest.TestCase):
             self.assertTrue((managed / "c-basics" / "level1").is_dir())
 
     def test_public_c_basics_pack_exercise_ids_are_unique(self) -> None:
-        self._assert_unique_ids(C_BASICS, expected=4)
+        self._assert_unique_ids(C_BASICS, expected=5)
 
     @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
     def test_private_original_pack_is_valid(self) -> None:

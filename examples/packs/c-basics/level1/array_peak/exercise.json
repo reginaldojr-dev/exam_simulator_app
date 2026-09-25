@@ -1,0 +1,67 @@
+{
+  "schema_version": 3,
+  "id": "array_peak",
+  "type": "exercise",
+  "name": "Array Peak",
+  "subject": "subject.md",
+  "programming_language": "c",
+  "content_language": "pt-BR",
+  "topics": [
+    "c",
+    "basics"
+  ],
+  "submission": {
+    "filename": "array_peak.c"
+  },
+  "usage": {
+    "allowed": {
+      "functions": [
+        "write"
+      ],
+      "headers": [
+        "unistd.h"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "printf",
+        "qsort"
+      ]
+    },
+    "constraints": [
+      "Não ordene a lista; percorra os valores uma vez."
+    ]
+  },
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "1",
+            "5",
+            "3"
+          ],
+          "expected": "5\n"
+        },
+        {
+          "args": [
+            "-8",
+            "-2",
+            "-9"
+          ],
+          "expected": "-2\n"
+        },
+        {
+          "args": [],
+          "expected": "0\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

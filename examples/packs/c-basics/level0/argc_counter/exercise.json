@@ -13,30 +13,49 @@
   "submission": {
     "filename": "argc_counter.c"
   },
+  "usage": {
+    "allowed": {
+      "functions": [
+        "write"
+      ],
+      "headers": [
+        "unistd.h"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "printf",
+        "puts"
+      ]
+    },
+    "constraints": [
+      "Não escreva mensagens extras.",
+      "Sempre finalize a saída com newline."
+    ]
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": {
-      "source": "solution/reference.c"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
-          "args": []
+          "args": [],
+          "expected": "0\n"
+        },
+        {
+          "args": [
+            "alpha"
+          ],
+          "expected": "1\n"
         },
         {
           "args": [
             "a",
-            "b"
-          ]
-        },
-        {
-          "args": [
-            "one",
-            "two",
-            "three"
-          ]
+            "b",
+            "c"
+          ],
+          "expected": "3\n"
         }
       ]
     },

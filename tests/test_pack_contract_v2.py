@@ -264,7 +264,7 @@ class PackContractTest(unittest.TestCase):
             LocalPackImporter(self.root / "managed").inspect_pack(root)
 
     def test_bundled_packs_use_v3_contract(self) -> None:
-        for pack_root, expected in ((SAMPLE, None), (C_BASICS, 4)):
+        for pack_root, expected in ((SAMPLE, None), (C_BASICS, 5)):
             with self.subTest(pack=pack_root.name):
                 report = LocalPackImporter(self.root / "managed").inspect_pack(pack_root)
                 self.assertEqual(report.pack.schema_version, 3)
@@ -274,24 +274,29 @@ class PackContractTest(unittest.TestCase):
 
 @unittest.skipUnless(SystemCCompiler().is_available(), "no compatible C compiler")
 class CBasicsPackGradingRegressionTest(unittest.TestCase):
-    """Não-regressão do caminho C: cada referência do c-basics passa como submissão."""
+    """Não-regressão do caminho C: submissões válidas passam sem depender de solution."""
 
-    def test_every_reference_passes_and_empty_submission_fails(self) -> None:
+    def test_valid_submissions_pass_and_empty_submission_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             shutil.copytree(C_BASICS, root / "bundled" / C_BASICS.name)
             catalog = LocalPackCatalog(root / "managed", bundled_packs_dir=root / "bundled")
             grader = GenericCGrader(SystemCCompiler())
             refs = catalog.list_exercises("c-basics")
-            self.assertEqual(len(refs), 4)
+            self.assertEqual(len(refs), 5)
+            submissions = {
+                "argc_counter": "#include <stdio.h>\nint main(int argc,char**argv){(void)argv; printf(\"%d\\n\", argc - 1); return 0;}\n",
+                "char_stats": "#include <stdio.h>\nint main(int argc,char**argv){int lo=0,up=0,d=0,o=0; if(argc>1){for(char*p=argv[1];*p;p++){if(*p>='a'&&*p<='z')lo++;else if(*p>='A'&&*p<='Z')up++;else if(*p>='0'&&*p<='9')d++;else o++;}} printf(\"%d %d %d %d\\n\",lo,up,d,o); return 0;}\n",
+                "ft_strlen_lite": "#include <stddef.h>\nsize_t ft_strlen_lite(const char *s){size_t n=0; while(s[n]) n++; return n;}\n",
+                "array_peak": "#include <stdio.h>\n#include <stdlib.h>\nint main(int argc,char**argv){if(argc<2){printf(\"0\\n\"); return 0;} int best=atoi(argv[1]); for(int i=2;i<argc;i++){int v=atoi(argv[i]); if(v>best) best=v;} printf(\"%d\\n\", best); return 0;}\n",
+                "parse_sum": "#include <stdio.h>\nint parse(char*s,int*ok){int sign=1,i=0,n=0;*ok=0;if(s[0]=='-'){sign=-1;i++;}else if(s[0]=='+')i++; if(!s[i])return 0; for(;s[i];i++){if(s[i]<'0'||s[i]>'9')return 0; n=n*10+s[i]-'0';}*ok=1;return sign*n;} int main(int argc,char**argv){int total=0,ok; for(int i=1;i<argc;i++){int v=parse(argv[i],&ok); if(ok) total+=v;} printf(\"%d\\n\", total); return 0;}\n",
+            }
             failures = []
             for index, ref in enumerate(refs):
                 definition = ref.definition
                 workspace = root / "ws" / definition.id
                 workspace.mkdir(parents=True)
-                shutil.copy(ref.content_path / definition.reference.source, workspace / definition.submission.filename)
-                for support in definition.support_files:
-                    shutil.copy(ref.content_path / support, workspace / support.name)
+                (workspace / definition.submission.filename).write_text(submissions[definition.id], encoding="utf-8")
                 result = grader.grade(
                     GradingRequest(
                         definition=definition,

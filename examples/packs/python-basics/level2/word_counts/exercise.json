@@ -13,24 +13,36 @@
   "submission": {
     "filename": "word_counts.py"
   },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Use dict/comprehension quando fizer sentido."
+    ]
+  },
   "validation": {
     "strategy": "function_call",
-    "reference": {
-      "source": "solution/word_counts.py"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "[\"a\", \"b\", \"a\"]"
-          ]
+          ],
+          "expected": "{\"a\": 2, \"b\": 1}\n"
         },
         {
           "args": [
             "[\"x\"]"
-          ]
+          ],
+          "expected": "{\"x\": 1}\n"
         }
       ]
     },

@@ -13,23 +13,34 @@
   "submission": {
     "filename": "WordLengths.java"
   },
+  "usage": {
+    "allowed": {
+      "apis": [
+        "String.length"
+      ]
+    },
+    "forbidden": {
+      "apis": [
+        "Scanner"
+      ]
+    }
+  },
   "validation": {
     "strategy": "program_output",
-    "reference": {
-      "source": "solution/WordLengths.java"
-    },
     "tests": {
       "generator": "fixed_cases",
-      "expectation": "reference_output",
+      "expectation": "literal",
       "cases": [
         {
           "args": [
             "java",
             "oop"
-          ]
+          ],
+          "expected": "java:4\noop:3\n"
         },
         {
-          "args": []
+          "args": [],
+          "expected": ""
         }
       ]
     },
