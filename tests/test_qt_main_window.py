@@ -168,6 +168,11 @@ class MainWindowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
 
+            window._open_study_flow()
+            self.assertIs(window._stack.currentWidget(), window._study_page)
+            window._show_home()
+            self.assertIs(window._stack.currentWidget(), window._home_page)
+
             window._open_training_setup()
             self.assertIs(window._stack.currentWidget(), window._training_page)
 
@@ -180,9 +185,22 @@ class MainWindowTest(unittest.TestCase):
             window._show_settings()
             self.assertIs(window._stack.currentWidget(), window._settings_page)
 
+    def test_home_keeps_study_intent_form_on_dedicated_page(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            self.assertIs(window._stack.currentWidget(), window._home_page)
+            self.assertFalse(window._home_page.isAncestorOf(window._study_topic))
+            self.assertTrue(any("QUERO ESTUDAR ALGO NOVO" in button.text() for button in window._menu_buttons))
+
+            window._menu_buttons[0].click()
+            self.assertIs(window._stack.currentWidget(), window._study_page)
+            self.assertTrue(window._study_page.isAncestorOf(window._study_topic))
+
     def test_home_generates_and_copies_vendor_neutral_pack_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
+            window._open_study_flow()
             window._study_topic.setPlainText("ponteiros e strings")
             c_index = window._study_language_combo.findData("c")
             self.assertGreaterEqual(c_index, 0)
@@ -228,6 +246,9 @@ class MainWindowTest(unittest.TestCase):
             window._load_exercise(ref, mode="training", overwrite=True)
 
             rendered = window._subject.toPlainText()
+            first_line = next(line for line in rendered.splitlines() if line.strip())
+            self.assertEqual(window._cursor._titles[window._exercise_title], "Argc Counter")
+            self.assertNotEqual(first_line.strip(), "argc_counter")
             self.assertIn("argc_counter", rendered)
             self.assertIn("Arquivo esperado", rendered)
             self.assertIn("argc_counter.c", rendered)
@@ -235,6 +256,10 @@ class MainWindowTest(unittest.TestCase):
             self.assertNotIn("# argc_counter", rendered)
             self.assertNotIn("## Arquivo esperado", rendered)
             self.assertNotIn("`argc_counter.c`", rendered)
+            stylesheet = window._subject.document().defaultStyleSheet()
+            self.assertIn("h2", stylesheet)
+            self.assertIn("h3", stylesheet)
+            self.assertIn("border-top", stylesheet)
 
     def test_settings_open_does_not_run_compiler_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -400,9 +425,8 @@ class MainWindowTest(unittest.TestCase):
             for width, height in ((760, 520), (1024, 720), (1440, 900), (1920, 1080)):
                 window.resize(width, height)
                 QApplication.processEvents()
-                self.assertFalse(window._generate_prompt_button.isHidden())
                 self.assertFalse(window._menu_buttons[0].isHidden())
-                self.assertTrue(window._generate_prompt_button.isEnabled())
+                self.assertTrue(window._menu_buttons[0].isEnabled())
 
 
     def test_theme_change_restyles_window_and_is_persisted(self) -> None:
