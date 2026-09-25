@@ -180,6 +180,28 @@ class MainWindowTest(unittest.TestCase):
             window._show_settings()
             self.assertIs(window._stack.currentWidget(), window._settings_page)
 
+    def test_home_generates_and_copies_vendor_neutral_pack_prompt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._study_topic.setPlainText("ponteiros e strings")
+            c_index = window._study_language_combo.findData("c")
+            self.assertGreaterEqual(c_index, 0)
+            window._study_language_combo.setCurrentIndex(c_index)
+
+            window._generate_study_prompt()
+            prompt = window._study_prompt_output.toPlainText()
+
+            self.assertIn("ponteiros e strings", prompt)
+            self.assertIn("Linguagem de programacao: c", prompt)
+            self.assertIn("Idioma dos subjects/conteudo: pt-BR", prompt)
+            self.assertIn("Contrato atual do pack", prompt)
+            self.assertIn("program_output", prompt)
+            self.assertNotIn("OpenAI", prompt)
+            self.assertNotIn("Claude", prompt)
+
+            window._copy_study_prompt()
+            self.assertEqual(QApplication.clipboard().text(), prompt)
+
     def test_resume_buttons_appear_only_with_active_exam(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
@@ -244,6 +266,20 @@ class MainWindowTest(unittest.TestCase):
             from exam_trainer.resources import pack_contract_text
 
             self.assertIn(pack_contract_text().strip(), content)
+
+    def test_settings_packs_shows_capabilities_and_links_contract_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._show_settings("Packs")
+
+            summary = window._pack_capabilities_summary.text()
+            self.assertIn("schema_version 3", summary)
+            self.assertIn("Runtimes:", summary)
+            self.assertIn("Strategies:", summary)
+            self.assertIn("Validators/expectations:", summary)
+            window._show_pack_help()
+            self.assertIs(window._stack.currentWidget(), window._pack_help_page)
 
     def test_global_style_does_not_use_neon_green_as_solid_button_background(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -316,6 +352,7 @@ class MainWindowTest(unittest.TestCase):
             self.assertTrue(window._tasks.wait())
 
             window._show_history()
+            window._set_history_view("activities")
 
             self.assertIs(window._stack.currentWidget(), window._history_page)
             headers = [
@@ -324,7 +361,7 @@ class MainWindowTest(unittest.TestCase):
             ]
             self.assertEqual(
                 headers,
-                ["LEVEL", "EXERCÍCIO", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"],
+                ["PACK/LEVEL", "ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"],
             )
             matching_row = next(
                 row
@@ -333,6 +370,39 @@ class MainWindowTest(unittest.TestCase):
             )
             self.assertEqual(window._history_table.item(matching_row, 3).text(), "1")
             self.assertEqual(window._history_table.item(matching_row, 4).text(), "FAIL")
+
+    def test_history_exposes_overview_pack_session_and_timeline_views(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=True)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+            window._submit_current()
+            self.assertTrue(window._tasks.wait())
+
+            window._show_history()
+            self.assertEqual(window._history_view, "overview")
+            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "ITEM")
+
+            window._set_history_view("packs")
+            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "PACK")
+
+            window._set_history_view("sessions")
+            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "DATA")
+
+            window._set_history_view("timeline")
+            headers = [window._history_table.horizontalHeaderItem(column).text() for column in range(window._history_table.columnCount())]
+            self.assertEqual(headers, ["DATA", "SESSÃO", "PACK", "ATIVIDADE", "STATUS"])
+            self.assertGreaterEqual(window._history_table.rowCount(), 1)
+
+    def test_home_layout_survives_reference_sizes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            for width, height in ((760, 520), (1024, 720), (1440, 900)):
+                window.resize(width, height)
+                QApplication.processEvents()
+                self.assertFalse(window._generate_prompt_button.isHidden())
+                self.assertFalse(window._menu_buttons[0].isHidden())
+                self.assertTrue(window._generate_prompt_button.isEnabled())
 
 
     def test_theme_change_restyles_window_and_is_persisted(self) -> None:
