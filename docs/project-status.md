@@ -174,3 +174,17 @@ src/exam_trainer/
   - `tests/test_content_language_contract.py` prova `programming_language` independente de `content_language`, subject UTF-8/pt-BR e grading sem dependência do idioma humano;
   - suíte completa local: 208 passed, 5 skipped, 7 warnings, 48 subtests passed.
 - **Pendências:** C e C++ não puderam ser executados manualmente neste ambiente porque gcc/clang/g++/clang++ não estão no PATH; os runtimes reportam indisponibilidade sem crash e os packs são importáveis. `client_server` real do Rank 06 foi normalizado localmente para importação básica; um validator específico continua evolução futura.
+
+
+### Pós-S3 — Subjects autorais, usage constraints e referência opcional
+
+- **Objetivo:** melhorar os packs autorais de estudo/teste e fechar a premissa de que `solution`/`reference` não é obrigatória para toda activity.
+- **Mudanças:**
+  1. `ActivityDefinition`/`ExerciseDefinition` ganham `usage`, com `allowed`, `forbidden`, `constraints`, `style`, `behavior` e `notes`.
+  2. O contrato v3 documenta restrições declarativas/pedagógicas e diferencia isso de validações automáticas.
+  3. `ExpectationRegistry` passa a declarar quais expectations exigem referência. O loader consulta essa capability em vez de aplicar uma regra global por activity.
+  4. `c-basics`, `cpp-basics`, `python-basics` e `java-basics` receberam subjects em pt-BR mais completos, progressão melhor e casos literais variados. Esses packs não precisam mais de diretórios `solution/` quando os testes independentes bastam.
+  5. A janela inicial de escolha de workspace agora fecha após salvar o workspace e emitir o sinal para abrir a UI principal.
+- **Decisão arquitetural:** ADR 0010.
+- **Estado dos packs públicos autorais:** `c-basics` 5 exercícios, `cpp-basics` 4, `python-basics` 9, `java-basics` 4.
+- **Pendências:** restrições de funções/imports/estilo ainda são declarativas nesta V1; enforcement automático deve ser implementado por validators específicos quando necessário.
