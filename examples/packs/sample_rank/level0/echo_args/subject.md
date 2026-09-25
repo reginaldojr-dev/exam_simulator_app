@@ -15,8 +15,8 @@ Examples:
 
 $> ./echo_args hello world | cat -e
 hello world$
-$> ./echo_args "42 Exam" Trainer | cat -e
-42 Exam Trainer$
+$> ./echo_args "Exam" Trainer | cat -e
+Exam Trainer$
 $> ./echo_args | cat -e
 $
 $>

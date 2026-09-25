@@ -397,7 +397,7 @@ class MainWindowTest(unittest.TestCase):
     def test_home_layout_survives_reference_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
-            for width, height in ((760, 520), (1024, 720), (1440, 900)):
+            for width, height in ((760, 520), (1024, 720), (1440, 900), (1920, 1080)):
                 window.resize(width, height)
                 QApplication.processEvents()
                 self.assertFalse(window._generate_prompt_button.isHidden())

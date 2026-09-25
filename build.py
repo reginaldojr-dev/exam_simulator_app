@@ -8,7 +8,7 @@ Uso (com a .venv do projeto ativa):
 Garantias:
 - o executável anterior NÃO é apagado antes de o novo build dar certo (o PyInstaller gera
   numa pasta de staging e só no fim o exe é trocado);
-- o hash considera só o que entra no executável (src/, examples/, README.md, .spec,
+- o hash considera só o que entra no executável (src/, examples/, docs de release, .spec,
   pyproject.toml) e as versões do ambiente (Python, PyInstaller, PySide6, plataforma);
 - _local/ (packs privados locais, artefatos de agentes e rascunhos) não entra no
   executável nem no hash;
@@ -34,6 +34,7 @@ SPEC_FILE = ROOT / "Exam Trainer.spec"
 APP_NAME = "Exam Trainer"
 EXE_NAME = f"{APP_NAME}.exe" if sys.platform == "win32" else APP_NAME
 EXE_PATH = DIST_DIR / EXE_NAME
+CHECKSUM_PATH = DIST_DIR / f"{EXE_NAME}.sha256"
 STATE_FILE = DIST_DIR / ".build_state.json"
 PROJECT_VENV = ROOT / ".venv"
 PROJECT_SRC = ROOT / "src"
@@ -59,6 +60,8 @@ SOURCE_FILES = (
     SPEC_FILE,
     ROOT / "pyproject.toml",
     ROOT / "README.md",
+    ROOT / "LICENSE",
+    ROOT / "CHANGELOG.md",
 )
 
 # Ignorados em QUALQUER nível (caches gerados).
@@ -213,11 +216,23 @@ def run_build(source_hash: str | None = None) -> int:
     code = install_executable(staged_exe)
     if code != EXIT_OK:
         return code
+    write_checksum()
     save_build_hash(source_hash)
     shutil.rmtree(STAGING_DIR, ignore_errors=True)
     print("\nBuild concluída.")
     print(f"Executável: {EXE_PATH}")
     return EXIT_OK
+
+
+def write_checksum() -> str:
+    digest = hashlib.sha256()
+    with EXE_PATH.open("rb") as file:
+        while chunk := file.read(1024 * 1024):
+            digest.update(chunk)
+    checksum = digest.hexdigest()
+    CHECKSUM_PATH.write_text(f"{checksum}  {EXE_NAME}\n", encoding="utf-8")
+    print(f"SHA-256: {CHECKSUM_PATH}")
+    return checksum
 
 
 def install_executable(staged_exe: Path) -> int:

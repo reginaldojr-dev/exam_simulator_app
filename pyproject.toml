@@ -1,7 +1,7 @@
 [project]
 name = "exam-trainer"
-version = "0.1.0"
-description = "Desktop study trainer foundation for 42-style exams."
+version = "1.0.0"
+description = "Local-first desktop trainer for programming practice and exam simulation."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -29,4 +29,5 @@ exam_trainer = ["resources/*.md"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+python_classes = ["*Test"]
 

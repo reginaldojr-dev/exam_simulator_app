@@ -10,6 +10,8 @@ a = Analysis(
     datas=[
         ('examples', 'examples'),
         ('README.md', '.'),
+        ('LICENSE', '.'),
+        ('CHANGELOG.md', '.'),
         ('src/exam_trainer/resources/*.md', 'exam_trainer/resources'),
     ],
     hiddenimports=[],
