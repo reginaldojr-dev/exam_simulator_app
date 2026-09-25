@@ -16,6 +16,7 @@
 - Build real: `python build.py --force` OK.
 - Build cache/run: `python build.py --run` pulou rebuild e abriu o executável.
 - Smoke do executável: `_local/dist/Exam Trainer.exe` abriu com `%APPDATA%` isolado e foi encerrado após 6s.
+- Smoke Qt responsivo: 760x520, 1024x720, 1440x900 e 1920x1080.
 - Skips conhecidos: compilador C/C++ ausente em testes dependentes de toolchain; symlink no Windows exige privilégio.
 - Warnings pytest conhecidos: nenhum na suíte final da S6.
 
