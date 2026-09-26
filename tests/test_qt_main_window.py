@@ -310,7 +310,7 @@ class MainWindowTest(unittest.TestCase):
     def test_import_pack_cancel_zip_dialog_does_not_open_folder_dialog_or_import(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
-            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
+            with mock.patch.object(window, "_ask_pack_source_format", return_value="zip"), \
                  mock.patch.object(QFileDialog, "getOpenFileName", return_value=("", "")) as open_file, \
                  mock.patch.object(QFileDialog, "getExistingDirectory") as open_dir, \
                  mock.patch.object(window._coordinator, "inspect_pack") as inspect_pack:
@@ -320,10 +320,26 @@ class MainWindowTest(unittest.TestCase):
             open_dir.assert_not_called()
             inspect_pack.assert_not_called()
 
+    def test_import_pack_format_choice_dialog_uses_explicit_buttons(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            dialog, zip_button, folder_button, cancel_button = window._pack_source_format_dialog()
+            labels = {button.text() for button in dialog.buttons()}
+
+            self.assertEqual(dialog.windowTitle(), "Importar Pack")
+            self.assertEqual(dialog.text(), "Qual é o formato do pack?")
+            self.assertIn("ZIP", labels)
+            self.assertIn("PASTA", labels)
+            self.assertIn("CANCELAR", labels)
+            self.assertEqual(zip_button.text(), "ZIP")
+            self.assertEqual(folder_button.text(), "PASTA")
+            self.assertEqual(cancel_button.text(), "CANCELAR")
+
     def test_import_pack_cancel_format_choice_opens_no_explorer_and_imports_nothing(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
-            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Cancel), \
+            with mock.patch.object(window, "_ask_pack_source_format", return_value=None), \
                  mock.patch.object(QFileDialog, "getOpenFileName") as open_file, \
                  mock.patch.object(QFileDialog, "getExistingDirectory") as open_dir, \
                  mock.patch.object(window._coordinator, "inspect_pack") as inspect_pack:
@@ -333,6 +349,19 @@ class MainWindowTest(unittest.TestCase):
             open_dir.assert_not_called()
             inspect_pack.assert_not_called()
 
+    def test_import_pack_cancel_folder_dialog_does_not_open_zip_dialog_or_import(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            with mock.patch.object(window, "_ask_pack_source_format", return_value="folder"), \
+                 mock.patch.object(QFileDialog, "getOpenFileName") as open_file, \
+                 mock.patch.object(QFileDialog, "getExistingDirectory", return_value="") as open_dir, \
+                 mock.patch.object(window._coordinator, "inspect_pack") as inspect_pack:
+                window._import_pack()
+
+            open_file.assert_not_called()
+            open_dir.assert_called_once()
+            inspect_pack.assert_not_called()
+
     def test_import_pack_folder_selection_starts_single_import_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
@@ -340,7 +369,7 @@ class MainWindowTest(unittest.TestCase):
             source.mkdir()
             tasks: list[tuple[str, str]] = []
             window._run_task = lambda key, work, on_done, title, on_finally=None: tasks.append((key, title)) or True
-            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No), \
+            with mock.patch.object(window, "_ask_pack_source_format", return_value="folder"), \
                  mock.patch.object(QFileDialog, "getOpenFileName") as open_file, \
                  mock.patch.object(QFileDialog, "getExistingDirectory", return_value=str(source)) as open_dir:
                 window._import_pack()
@@ -356,7 +385,7 @@ class MainWindowTest(unittest.TestCase):
             source = Path(temp_dir) / "bad.zip"
             source.write_text("not a zip", encoding="utf-8")
             shown: list[str] = []
-            with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes), \
+            with mock.patch.object(window, "_ask_pack_source_format", return_value="zip"), \
                  mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(source), "Pack ZIP (*.zip)")), \
                  mock.patch.object(window._coordinator, "inspect_pack", side_effect=ValueError("pack inválido")), \
                  mock.patch.object(QMessageBox, "warning", side_effect=lambda parent, title, text, *a, **k: shown.append(text)):
