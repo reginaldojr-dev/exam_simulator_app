@@ -7,10 +7,11 @@ A aparência vem do QSS do tema ativo.
 from __future__ import annotations
 
 from collections.abc import Callable
-from html import escape
+
+from markdown_it import MarkdownIt
 
 from PySide6.QtCore import QEasingCurve, QPropertyAnimation, Qt
-from PySide6.QtGui import QColor, QFont, QTextBlockFormat, QTextCharFormat, QTextCursor, QTextOption
+from PySide6.QtGui import QTextCursor, QTextOption
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QStackedWidget,
-    QTextEdit,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
@@ -193,193 +194,121 @@ class FeedbackBanner(QFrame):
         animation.start()
 
 
-class SubjectMarkdownView(QTextEdit):
-    """Read-only subject viewer that renders pack Markdown safely enough for UI use."""
+class SubjectMarkdownView(QTextBrowser):
+    """Read-only subject viewer.
+
+    Pipeline: subject.md -> markdown-it-py (CommonMark, raw HTML disabled)
+    -> sandboxed HTML -> QTextBrowser.setHtml() -> CSS centralized here.
+
+    Raw HTML in the source Markdown is never parsed as HTML: markdown-it-py
+    is configured with ``html=False``, so any literal "<", ">" or "&" the
+    author typed (inside or outside fenced/inline code) is escaped by the
+    Markdown renderer into HTML entities in the generated markup. Qt's HTML
+    engine then decodes those entities back to the literal character when it
+    displays the text -- the same two-step "escape for transport, decode for
+    display" that any HTML consumer does. That is what makes both guarantees
+    hold at once: a subject containing "<script>alert(1)</script>" shows up
+    as plain, inert text (never becomes an active tag), and a fenced shell
+    example containing "$> ./program" or C code containing "a < b && c > d"
+    renders with the literal characters, not "&gt;"/"&lt;"/"&amp;".
+    """
 
     EMPTY_MESSAGE = "_Subject vazio._"
+
+    _renderer = MarkdownIt(
+        "commonmark",
+        {"html": False, "linkify": False, "typographer": False},
+    )
 
     def __init__(self) -> None:
         super().__init__()
         self.setReadOnly(True)
         self.setProperty("role", "subject")
-        self.setLineWrapMode(QTextEdit.LineWrapMode.WidgetWidth)
+        self.setOpenExternalLinks(False)
+        self.setOpenLinks(False)
+        self.setLineWrapMode(QTextBrowser.LineWrapMode.WidgetWidth)
         self.setWordWrapMode(QTextOption.WrapMode.WordWrap)
         self.document().setDocumentMargin(20)
         self.document().setDefaultStyleSheet(self._document_stylesheet())
 
     def set_subject_markdown(self, markdown: str) -> None:
         content = markdown if markdown.strip() else self.EMPTY_MESSAGE
-        self.setMarkdown(self._escape_html(content))
-        self._apply_markdown_document_styles()
+        self.setHtml(self._renderer.render(content))
         self.moveCursor(QTextCursor.MoveOperation.Start)
-
-    @staticmethod
-    def _escape_html(markdown: str) -> str:
-        # Pack subjects are Markdown, not trusted HTML. QTextDocument does not run
-        # JavaScript, but escaping keeps raw HTML from becoming active rich text.
-        return escape(markdown, quote=False)
 
     @staticmethod
     def _document_stylesheet() -> str:
         return """
 body {
   margin: 0;
-  font-size: 1em;
-  line-height: 1.58;
+  font-size: 1.18em;
+  line-height: 1.72;
+}
+h1, h2, h3, h4 {
+  font-weight: 800;
+  color: #a6f7a6;
 }
 h1 {
-  margin: 4px 0 14px 0;
-  font-size: 1.22em;
-  font-weight: 800;
+  margin: 8px 0 20px 0;
+  font-size: 1.55em;
   color: #b8ffb8;
 }
 h2 {
-  margin: 24px 0 12px 0;
-  padding-top: 12px;
-  border-top: 1px solid #2f5f3b;
-  font-size: 1.08em;
+  margin: 32px 0 16px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #2f5f3b;
+  font-size: 1.32em;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #a6f7a6;
 }
 h3 {
-  margin: 18px 0 9px 0;
-  padding-top: 8px;
-  border-top: 1px solid #24472d;
-  font-size: 1.01em;
+  margin: 24px 0 12px 0;
+  font-size: 1.16em;
   font-weight: 750;
   color: #9be89b;
 }
 p {
-  margin: 9px 0 13px 0;
+  margin: 12px 0 18px 0;
 }
 ul, ol {
-  margin: 9px 0 14px 24px;
+  margin: 12px 0 18px 30px;
+  padding: 0;
 }
 li {
-  margin: 4px 0 6px 0;
+  margin: 6px 0 10px 0;
 }
 code {
   font-family: Consolas, "Cascadia Mono", "JetBrains Mono", monospace;
+  font-size: 1.02em;
   background-color: #102010;
   color: #e4ffe4;
   border: 1px solid #24472d;
-  padding: 1px 4px;
+  padding: 2px 6px;
   white-space: pre;
 }
 pre {
-  margin: 13px 0 17px 0;
-  padding: 12px 14px;
+  margin: 20px 0 24px 0;
+  padding: 16px 18px;
   background-color: #071307;
   border: 1px solid #2f5f3b;
+  line-height: 1.5;
   white-space: pre;
 }
+pre code {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+}
 blockquote {
-  margin: 12px 0 14px 18px;
+  margin: 14px 0 18px 18px;
   padding-left: 12px;
   border-left: 2px solid #2f5f3b;
 }
 hr {
-  margin: 18px 0;
+  margin: 22px 0;
   color: #24472d;
 }
 """
-
-    def _apply_markdown_document_styles(self) -> None:
-        """Normalize Qt Markdown's compact inline block formats.
-
-        QTextEdit.setMarkdown() preserves Markdown semantics, but it imports
-        paragraphs with tight inline margins and code blocks with zero vertical
-        space. The document stylesheet is not enough to reliably override those
-        generated block formats, so we adjust the QTextDocument formats directly.
-        """
-
-        document = self.document()
-        base_size = max(self.font().pointSizeF(), 10.0)
-        code_background = QColor("#071307")
-        inline_code_background = QColor("#102010")
-        code_foreground = QColor("#e4ffe4")
-        heading_foreground = QColor("#a6f7a6")
-
-        code_blocks: set[int] = set()
-        block = document.begin()
-        while block.isValid():
-            if block.blockFormat().nonBreakableLines():
-                code_blocks.add(block.blockNumber())
-            block = block.next()
-
-        block = document.begin()
-        while block.isValid():
-            block_format = block.blockFormat()
-            heading_level = block_format.headingLevel()
-            is_code_block = block.blockNumber() in code_blocks
-            is_list_item = block.textList() is not None
-
-            if is_code_block:
-                block_format.setTopMargin(2)
-                block_format.setBottomMargin(2)
-                block_format.setLeftMargin(10)
-                block_format.setRightMargin(10)
-                block_format.setLineHeight(120.0, QTextBlockFormat.LineHeightTypes.ProportionalHeight.value)
-                block_format.setBackground(code_background)
-                previous_is_code = block.previous().isValid() and block.previous().blockNumber() in code_blocks
-                next_is_code = block.next().isValid() and block.next().blockNumber() in code_blocks
-                if not previous_is_code:
-                    block_format.setTopMargin(14)
-                if not next_is_code:
-                    block_format.setBottomMargin(16)
-            elif heading_level == 1:
-                block_format.setTopMargin(6)
-                block_format.setBottomMargin(16)
-            elif heading_level == 2:
-                block_format.setTopMargin(24)
-                block_format.setBottomMargin(12)
-            elif heading_level == 3:
-                block_format.setTopMargin(18)
-                block_format.setBottomMargin(10)
-            elif is_list_item:
-                block_format.setTopMargin(4)
-                block_format.setBottomMargin(7)
-                block_format.setLeftMargin(12)
-            else:
-                block_format.setTopMargin(7)
-                block_format.setBottomMargin(12)
-
-            cursor = QTextCursor(block)
-            cursor.setBlockFormat(block_format)
-
-            if heading_level:
-                char_format = QTextCharFormat()
-                char_format.setForeground(heading_foreground)
-                char_format.setFontWeight(QFont.Weight.Bold)
-                if heading_level == 1:
-                    char_format.setFontPointSize(base_size * 1.2)
-                elif heading_level == 2:
-                    char_format.setFontPointSize(base_size * 1.1)
-                elif heading_level == 3:
-                    char_format.setFontPointSize(base_size * 1.03)
-                cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
-                cursor.mergeCharFormat(char_format)
-
-            iterator = block.begin()
-            while not iterator.atEnd():
-                fragment = iterator.fragment()
-                if fragment.isValid():
-                    fragment_format = fragment.charFormat()
-                    family = fragment_format.font().family().lower()
-                    is_code_fragment = fragment_format.font().fixedPitch() or "mono" in family
-                    if is_code_fragment or is_code_block:
-                        code_format = QTextCharFormat()
-                        code_format.setFontFamilies(["Consolas", "Cascadia Mono", "JetBrains Mono", "monospace"])
-                        code_format.setForeground(code_foreground)
-                        code_format.setBackground(code_background if is_code_block else inline_code_background)
-                        code_cursor = QTextCursor(document)
-                        code_cursor.setPosition(fragment.position())
-                        code_cursor.setPosition(fragment.position() + fragment.length(), QTextCursor.MoveMode.KeepAnchor)
-                        code_cursor.mergeCharFormat(code_format)
-                iterator += 1
-
-            block = block.next()
 
 
 def fade_to(stack: QStackedWidget, page: QWidget, animate: bool = True) -> None:

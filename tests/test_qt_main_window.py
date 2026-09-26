@@ -260,7 +260,7 @@ class MainWindowTest(unittest.TestCase):
             stylesheet = window._subject.document().defaultStyleSheet()
             self.assertIn("h2", stylesheet)
             self.assertIn("h3", stylesheet)
-            self.assertIn("border-top", stylesheet)
+            self.assertIn("border-bottom", stylesheet)
 
     def test_settings_open_does_not_run_compiler_probe(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
