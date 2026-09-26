@@ -1515,18 +1515,10 @@ class MainWindow(QMainWindow):
         )
 
     def _choose_pack_source(self) -> Path | None:
-        choice = QMessageBox.question(
-            self,
-            "Importar Pack",
-            "O pack está em um arquivo ZIP?\n\n"
-            "Escolha Sim para selecionar um ZIP.\n"
-            "Escolha Não para selecionar uma pasta.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Yes,
-        )
-        if choice == QMessageBox.StandardButton.Cancel:
+        choice = self._ask_pack_source_format()
+        if choice is None:
             return None
-        if choice == QMessageBox.StandardButton.Yes:
+        if choice == "zip":
             selected, _ = QFileDialog.getOpenFileName(
                 self,
                 "Selecionar pack ZIP",
@@ -1536,6 +1528,31 @@ class MainWindow(QMainWindow):
         else:
             selected = QFileDialog.getExistingDirectory(self, "Selecionar pasta do pack")
         return Path(selected) if selected else None
+
+    def _pack_source_format_dialog(self) -> tuple[QMessageBox, QPushButton, QPushButton, QPushButton]:
+        dialog = QMessageBox(self)
+        dialog.setWindowTitle("Importar Pack")
+        dialog.setIcon(QMessageBox.Icon.Question)
+        dialog.setText("Qual é o formato do pack?")
+        dialog.setInformativeText(
+            "Escolha ZIP para selecionar um arquivo compactado ou Pasta para selecionar uma pasta de pack."
+        )
+        zip_button = dialog.addButton("ZIP", QMessageBox.ButtonRole.ActionRole)
+        folder_button = dialog.addButton("PASTA", QMessageBox.ButtonRole.ActionRole)
+        cancel_button = dialog.addButton("CANCELAR", QMessageBox.ButtonRole.RejectRole)
+        dialog.setDefaultButton(zip_button)
+        dialog.setEscapeButton(cancel_button)
+        return dialog, zip_button, folder_button, cancel_button
+
+    def _ask_pack_source_format(self) -> str | None:
+        dialog, zip_button, folder_button, _cancel_button = self._pack_source_format_dialog()
+        dialog.exec()
+        clicked = dialog.clickedButton()
+        if clicked is zip_button:
+            return "zip"
+        if clicked is folder_button:
+            return "folder"
+        return None
 
     def _confirm_pack_import(self, path: Path, report) -> None:
         if report.has_executable_code:
