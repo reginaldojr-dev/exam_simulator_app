@@ -52,11 +52,11 @@ class TaskRunnerTest(unittest.TestCase):
         errors: list[BaseException] = []
 
         def boom() -> None:
-            raise ValueError("pack inválido")
+            raise ValueError("invalid pack")
 
-        runner.start("k", boom, lambda _: self.fail("não deveria concluir"), errors.append)
+        runner.start("k", boom, lambda _: self.fail("should not complete"), errors.append)
         self.assertTrue(runner.wait())
-        self.assertEqual([str(error) for error in errors], ["pack inválido"])
+        self.assertEqual([str(error) for error in errors], ["invalid pack"])
 
 
 if __name__ == "__main__":

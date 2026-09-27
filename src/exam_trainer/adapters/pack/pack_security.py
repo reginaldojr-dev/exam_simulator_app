@@ -1,11 +1,11 @@
-"""Proteções de sistema de arquivos para packs externos.
+"""Filesystem protections for external packs.
 
-Um pack é conteúdo de terceiros. Antes de ler ou copiar qualquer arquivo dele:
-- nenhum caminho pode sair da raiz do pack (nem via symlink/junction);
-- ZIPs são inspecionados antes de extrair;
-- o destino da importação precisa ficar dentro da pasta gerenciada.
+A pack is third-party content. Before reading or copying any file from it:
+- no path may escape the pack root, including through symlinks/junctions;
+- ZIP files are inspected before extraction;
+- the import destination must stay inside the managed folder.
 
-Nada aqui executa conteúdo do pack.
+Nothing here executes pack content.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ def _is_link(path: Path) -> bool:
 
 
 def ensure_inside(root: Path, candidate: Path) -> Path:
-    """Resolve `candidate` e garante que ele fica dentro de `root` (e não é o próprio root)."""
+    """Resolve `candidate` and ensure it stays inside `root`, not equal to root itself."""
     resolved_root = root.resolve()
     resolved = candidate.resolve()
     if resolved == resolved_root or resolved_root not in resolved.parents:
@@ -40,7 +40,7 @@ def ensure_inside(root: Path, candidate: Path) -> Path:
 
 
 def safe_join(root: Path, relative: PurePath | str) -> Path:
-    """Junta um caminho relativo declarado pelo pack à raiz e confirma que continua dentro dela."""
+    """Join a pack-declared relative path to root and confirm it remains inside."""
     try:
         parsed = parse_relative_path(str(relative))
     except UnsafeValueError as error:
@@ -52,7 +52,7 @@ def safe_join(root: Path, relative: PurePath | str) -> Path:
 
 
 def find_links(root: Path) -> list[Path]:
-    """Lista symlinks/junctions dentro da árvore, sem segui-los."""
+    """List symlinks/junctions inside the tree without following them."""
     links: list[Path] = []
     for current, directories, files in os.walk(root, followlinks=False):
         base = Path(current)
@@ -71,7 +71,7 @@ def reject_links(root: Path) -> None:
 
 
 def validate_zip(archive: zipfile.ZipFile) -> None:
-    """Recusa ZIPs com caminhos absolutos, `..`, drives, symlinks ou tamanho excessivo."""
+    """Reject ZIPs with absolute paths, `..`, drives, symlinks, or excessive size."""
     entries = archive.infolist()
     if len(entries) > MAX_ZIP_ENTRIES:
         raise PackSecurityError(f"ZIP has too many entries ({len(entries)}).")

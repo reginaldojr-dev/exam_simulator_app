@@ -26,10 +26,10 @@ class CompilerPort(Protocol):
 
 
 class ConfigurableCompilerPort(CompilerPort, Protocol):
-    """Compilador com detecção e seleção manual (usado pelo CRuntime nas Configurações)."""
+    """Compiler with detection and manual selection, used by CRuntime in Settings."""
 
     def cached_compiler(self) -> str | None:
-        """Compilador já validado nesta execução (sem rodar processo)."""
+        """Compiler already validated in this run, without spawning a process."""
         raise NotImplementedError
 
     def current_compiler(self) -> str | None:

@@ -82,14 +82,14 @@ class SQLiteProgressRepository:
                 {**row, "activity_kind": DEFAULT_ACTIVITY_KIND},
             )
             if row["mode"] == TRAINING_MODE:
-                # Só treino mexe no progresso pedagógico (ADR 0003).
+                # Only training updates pedagogical progress (ADR 0003).
                 rebuild_progress(connection, str(row["pack_id"]), str(row["exercise_id"]))
 
     def adopt_legacy_attempts(self, exercise_packs: dict[str, str]) -> int:
-        """Associa tentativas `_legacy` ao pack do catálogo (exercise_id -> pack_id único).
+        """Associate `_legacy` attempts with the catalog pack (exercise_id -> unique pack_id).
 
-        Só recebe ids que existem em exatamente um pack instalado; o resto continua legado.
-        Retorna quantas tentativas foram associadas.
+        Receives only ids that exist in exactly one installed pack; the rest
+        stays legacy. Returns how many attempts were associated.
         """
         if not exercise_packs:
             return 0
@@ -146,7 +146,7 @@ class SQLiteProgressRepository:
         return attempts
 
     def list_progress(self, pack_id: str | None = None) -> list[ProgressEntry]:
-        """Progresso pedagógico (só treino), opcionalmente de um pack."""
+        """Pedagogical progress (training only), optionally scoped to one pack."""
         query = """
             SELECT pack_id, exercise_id, activity_kind, status, attempts_count,
                    last_attempt_at, best_passed, best_score, last_mode
@@ -336,7 +336,7 @@ class SQLiteProgressRepository:
         return [dict(row) for row in rows]
 
     def latest_attempts(self) -> dict[tuple[str, str], dict[str, object]]:
-        """Última tentativa (treino ou prova) de cada (pack_id, exercise_id)."""
+        """Latest attempt (training or exam) for each (pack_id, exercise_id)."""
         with self._store.session() as connection:
             rows = connection.execute(
                 """

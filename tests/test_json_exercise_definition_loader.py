@@ -221,7 +221,7 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
 
         definition = JsonExerciseDefinitionLoader().load_data(data)
 
-        # v1 `reference_compare` é normalizado: execução neutra + reference desacoplada
+        # v1 `reference_compare` is normalized: neutral execution + decoupled reference
         self.assertEqual(definition.execution.declared_type, "reference_compare")
         self.assertEqual(definition.execution.type, "function_call")
         self.assertEqual(

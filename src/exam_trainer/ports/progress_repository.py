@@ -17,7 +17,7 @@ class ProgressRepository(Protocol):
 
 
 class TrainerProgressRepository(ProgressRepository, Protocol):
-    """Interface usada pelo coordinator (SQLiteProgressRepository). Progresso por (pack, exercício)."""
+    """Interface used by the coordinator (SQLiteProgressRepository). Progress by pack/exercise."""
 
     def save_grading_result(
         self,

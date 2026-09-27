@@ -1,4 +1,4 @@
-"""Runtime C: compila com o compilador detectado/configurado e executa o binário."""
+"""C runtime: compile with the detected/configured compiler and run the binary."""
 
 from __future__ import annotations
 
@@ -23,15 +23,15 @@ class CRuntime:
     )
 
     def __init__(self, compiler: CompilerPort, manager: ConfigurableCompilerPort | None = None) -> None:
-        """`compiler` compila; `manager` (opcional) é o mesmo compilador com detecção/seleção.
+        """`compiler` compiles; optional `manager` is the same compiler with detection/selection.
 
-        Sem `manager` (ex.: grader isolado em testes) as funções de configuração ficam
-        indisponíveis, mas preparar/executar funciona.
+        Without `manager`, such as in an isolated grader test, configuration
+        functions are unavailable, but prepare/run still works.
         """
         self._compiler = compiler
         self._manager = manager
 
-    # --------------------------------------------------------- disponibilidade
+    # ----------------------------------------------------------- availability
     def is_ready(self) -> bool:
         if self._manager is None:
             return self._compiler.is_available()
@@ -56,7 +56,7 @@ class CRuntime:
         self._manager.set_manual_compiler(str(path))
         return str(path)
 
-    # ------------------------------------------------------------- execução
+    # --------------------------------------------------------------- execution
     def prepare(self, spec: ProgramSpec, build_dir: Path, name: str) -> PreparedProgram:
         sources = [*([spec.harness] if spec.harness is not None else []), spec.main_source, *spec.extra_sources]
         build_dir.mkdir(parents=True, exist_ok=True)

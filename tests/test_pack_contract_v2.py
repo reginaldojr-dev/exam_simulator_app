@@ -1,4 +1,4 @@
-"""Passo 5a: contrato de pack v2 e normalização do v1."""
+"""Step 5a: pack contract v2 and v1 normalization."""
 
 from __future__ import annotations
 
@@ -154,7 +154,7 @@ class ExerciseContractTest(unittest.TestCase):
         self.assertEqual(v1.execution.harness, v2.execution.harness)
         self.assertEqual(v1.reference, v2.reference)
 
-    # ------------------------------------------------------------ rejeições
+    # ------------------------------------------------------------- rejections
     def test_rejects_invalid_schema_version(self) -> None:
         for value in (0, "2", True, 2.0):
             with self.subTest(value=value), self.assertRaisesRegex(ExerciseDefinitionError, "schema_version"):
@@ -274,7 +274,7 @@ class PackContractTest(unittest.TestCase):
 
 @unittest.skipUnless(SystemCCompiler().is_available(), "no compatible C compiler")
 class CBasicsPackGradingRegressionTest(unittest.TestCase):
-    """Não-regressão do caminho C: submissões válidas passam sem depender de solution."""
+    """C path regression: valid submissions pass without depending on solution."""
 
     def test_valid_submissions_pass_and_empty_submission_fails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -71,7 +71,7 @@ class AvailableCompiler:
 
 
 class BlockingGrader:
-    """Segura a correção até o teste liberar, para observar a UI durante o trabalho."""
+    """Hold grading until the test releases it, so the UI can be observed while busy."""
 
     def __init__(self, passed: bool = False) -> None:
         self.passed = passed
@@ -90,11 +90,11 @@ class BlockingGrader:
 
 class FailingGrader:
     def grade(self, request: GradingRequest) -> GradingResult:
-        raise RuntimeError("compilador sumiu")
+        raise RuntimeError("compiler disappeared")
 
 
 class SlowProbeCompiler(AvailableCompiler):
-    """Imita o SystemCCompiler: só sabe se há compilador depois de um probe."""
+    """Mimic SystemCCompiler: only knows whether a compiler exists after a probe."""
 
     def __init__(self, found: bool = True) -> None:
         super().__init__()
@@ -119,8 +119,8 @@ class MainWindowTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls._app = QApplication.instance() or QApplication([])
-        # Diálogos modais travam o modo offscreen para sempre: nos testes eles só são
-        # registrados (testes que querem verificar a mensagem trocam por conta própria).
+        # Modal dialogs lock offscreen mode forever: in tests they are only
+        # recorded. Tests that need to verify messages replace them themselves.
         cls._dialogs: list[tuple[str, str]] = []
         cls._original_dialogs = {
             name: getattr(QMessageBox, name) for name in ("information", "warning", "question", "critical")
@@ -162,7 +162,7 @@ class MainWindowTest(unittest.TestCase):
             workspace_port=LocalWorkspace(),
         )
         window = MainWindow(workspace, coordinator, locale_service=locale_service)
-        # os testes de UI usam o pack C de exemplo (há também o python-basics embutido)
+        # UI tests use the example C pack; python-basics is also bundled.
         for combo in (window._training_pack_combo, window._exam_pack_combo):
             combo.setCurrentIndex(combo.findData("sample_rank"))
         return window
@@ -290,7 +290,7 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("function_call", content)
             self.assertIn("random_arguments", content)
             self.assertIn("reference_output", content)
-            # fonte única: a ajuda mostra o mesmo arquivo do contrato que o README referencia
+            # single source: help shows the same contract file referenced by README
             from exam_trainer.resources import pack_contract_text
 
             self.assertIn(pack_contract_text().strip(), content)
@@ -389,12 +389,12 @@ class MainWindowTest(unittest.TestCase):
             shown: list[str] = []
             with mock.patch.object(window, "_ask_pack_source_format", return_value="zip"), \
                  mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(source), "Pack ZIP (*.zip)")), \
-                 mock.patch.object(window._coordinator, "inspect_pack", side_effect=ValueError("pack inválido")), \
+                 mock.patch.object(window._coordinator, "inspect_pack", side_effect=ValueError("invalid pack")), \
                  mock.patch.object(QMessageBox, "warning", side_effect=lambda parent, title, text, *a, **k: shown.append(text)):
                 window._import_pack()
                 self.assertTrue(window._tasks.wait())
 
-            self.assertEqual(shown, ["pack inválido"])
+            self.assertEqual(shown, ["invalid pack"])
 
     def test_global_style_does_not_use_neon_green_as_solid_button_background(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -780,10 +780,10 @@ class MainWindowTest(unittest.TestCase):
 
             window._submit_current()
             self.assertTrue(grader.started.wait(5))
-            # a UI já voltou: botão travado com o rótulo de progresso
+            # UI already returned: the button is locked with the progress label
             self.assertFalse(window._correct_button.isEnabled())
             self.assertEqual(window._correct_button.text(), "CORRIGINDO...")
-            window._submit_current()  # clique duplicado é ignorado
+            window._submit_current()  # duplicate click is ignored
             grader.release.set()
             self.assertTrue(window._tasks.wait())
 
@@ -803,7 +803,7 @@ class MainWindowTest(unittest.TestCase):
 
             window._submit_current()
             self.assertTrue(grader.started.wait(5))
-            window._tick_exam()  # timer segue desenhando durante a correção
+            window._tick_exam()  # timer keeps drawing during grading
             self.assertIsNotNone(window._exam_state)
             self.assertIn("⏱", window._exam_timer_label.text())
             grader.release.set()
@@ -824,7 +824,7 @@ class MainWindowTest(unittest.TestCase):
                 self.assertTrue(window._tasks.wait())
             finally:
                 QMessageBox.warning = original
-            self.assertEqual(shown, ["compilador sumiu"])
+            self.assertEqual(shown, ["compiler disappeared"])
             self.assertTrue(window._correct_button.isEnabled())
 
     def test_compiler_redetection_runs_in_background(self) -> None:

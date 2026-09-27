@@ -1,4 +1,4 @@
-"""Arquivos de dados empacotados com o app (também no executável do PyInstaller)."""
+"""Data files packaged with the app, including in the PyInstaller executable."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ PACK_CONTRACT = "pack-contract.md"
 
 
 def resource_path(name: str) -> Path:
-    """Caminho real do recurso (funciona em editable install e no exe do PyInstaller)."""
+    """Real resource path; works in editable installs and the PyInstaller executable."""
     return Path(str(resources.files(__name__).joinpath(name)))
 
 

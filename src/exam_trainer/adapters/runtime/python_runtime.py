@@ -1,14 +1,14 @@
-"""Runtime Python: usa o Python INSTALADO no sistema (nunca o Python embutido no exe).
+"""Python runtime: uses the system-installed Python, never the Python embedded in the exe.
 
-- detecção: candidatos do PATH (`py -3` no Windows, `python3`, `python`) validados por um
-  probe real (o processo precisa rodar e reportar versão >= 3.9);
-- seleção manual nas Configurações (também passa pelo probe);
-- preparação: checagem de sintaxe com `py_compile` (o .pyc vai para a pasta .build);
-- execução: `python -I -B -X utf8` (modo isolado: ignora variáveis PYTHON*, site do usuário
-  e o diretório atual no sys.path). Isso NÃO é sandbox: o código roda com as permissões do
-  usuário;
-- `function_call`: o harness é fornecido pelo APP (`python_harness.py`); o pack declara só
-  `entry` e `args_format`.
+- detection: candidates from PATH (`py -3` on Windows, `python3`, `python`) are
+  validated by a real probe; the process must run and report version >= 3.9;
+- manual selection in Settings also goes through the probe;
+- preparation: syntax check with `py_compile`, writing the .pyc to .build;
+- execution: `python -I -B -X utf8` in isolated mode, ignoring PYTHON*
+  variables, user site, and the current directory in sys.path. This is NOT a
+  sandbox: the code runs with the user's permissions;
+- `function_call`: the harness is provided by the app (`python_harness.py`); the
+  pack only declares `entry` and `args_format`.
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ class PythonRuntime:
         self._candidates = candidates if candidates is not None else default_candidates()
         self._detected: str | None = None
 
-    # --------------------------------------------------------- disponibilidade
+    # ----------------------------------------------------------- availability
     def is_ready(self) -> bool:
         return self._detected is not None
 
@@ -102,14 +102,14 @@ class PythonRuntime:
 
     @staticmethod
     def probe(command: tuple[str, ...]) -> str | None:
-        """Roda o interpretador de verdade. Retorna o caminho absoluto dele, ou None."""
+        """Run the real interpreter. Return its absolute path, or None."""
         executable = shutil.which(command[0]) or (command[0] if Path(command[0]).is_file() else None)
         if executable is None:
             return None
         if sys.platform == "win32" and not _looks_like_windows_executable(Path(executable)):
             return None
         if getattr(sys, "frozen", False) and Path(executable).resolve() == Path(sys.executable).resolve():
-            return None  # nunca o próprio exe do app
+            return None  # never the app's own executable
         try:
             completed = subprocess.run(
                 [executable, *command[1:], "-I", "-c", PROBE_SCRIPT],
@@ -132,7 +132,7 @@ class PythonRuntime:
         interpreter = lines[-2].strip()
         return interpreter if interpreter and Path(interpreter).is_file() else None
 
-    # ------------------------------------------------------------- execução
+    # --------------------------------------------------------------- execution
     def prepare(self, spec: ProgramSpec, build_dir: Path, name: str) -> PreparedProgram:
         python = self._find()
         if python is None:

@@ -25,7 +25,7 @@ class SystemCCompiler:
         return self.find_compiler() is not None
 
     def cached_compiler(self) -> str | None:
-        """Compilador já validado nesta execução (não roda nenhum processo)."""
+        """Compiler already validated in this run; does not spawn a process."""
         return self._detected_compiler
 
     def current_compiler(self) -> str | None:

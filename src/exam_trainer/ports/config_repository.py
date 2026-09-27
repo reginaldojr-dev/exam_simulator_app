@@ -13,7 +13,7 @@ class ConfigRepository(Protocol):
 
 
 class AppSettingsRepository(ConfigRepository, Protocol):
-    """Configuração completa usada pelo coordinator (JsonAppConfigRepository)."""
+    """Complete configuration used by the coordinator (JsonAppConfigRepository)."""
 
     def load_editor_command(self) -> str:
         raise NotImplementedError

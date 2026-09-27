@@ -1,7 +1,8 @@
-"""Estratégias de execução por tipo NEUTRO (program_output / function_call).
+"""Execution strategies by neutral type (program_output / function_call).
 
-A estratégia só resolve QUAIS arquivos do pack/workspace formam o programa; COMO ele é
-preparado e executado é problema do runtime da linguagem. Não há `if language == ...` aqui.
+The strategy only resolves which pack/workspace files form the program. How the
+program is prepared and executed is the language runtime's responsibility. There
+is no `if language == ...` here.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ class ProgramOutputStrategy:
 
     def submission(self, definition: ExerciseDefinition, exercise_path: Path, source: Path) -> ProgramSpec:
         harness = definition.execution.harness
-        # v1 reference_compare sem fixture também cai aqui (harness None).
+        # v1 reference_compare without a fixture also lands here (harness None).
         return ProgramSpec(
             main_source=source,
             harness=None if harness is None else pack_file(exercise_path, harness, "harness"),

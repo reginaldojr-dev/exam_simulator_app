@@ -505,7 +505,7 @@ class MainWindow(QMainWindow):
             combo.addItem(item, item)
         return combo
 
-    # ---------------------------------------------------------------- treino
+    # --------------------------------------------------------------- training
     def _build_training_page(self) -> QWidget:
         page, layout = self._page()
         self._training_title = self._title("TREINO")
@@ -576,7 +576,7 @@ class MainWindow(QMainWindow):
         )
         return page
 
-    # ------------------------------------------------------------ modo prova
+    # --------------------------------------------------------------- exam mode
     def _build_exam_page(self) -> QWidget:
         page, layout = self._page()
         self._exam_title = self._title("MODO PROVA")
@@ -629,7 +629,7 @@ class MainWindow(QMainWindow):
         layout.addLayout(self._footer(lambda: self._go(self._exam_page), [("Enter", "iniciar"), ("Esc", "voltar")]))
         return page
 
-    # ------------------------------------------------------------- exercício
+    # --------------------------------------------------------------- exercise
     def _build_exercise_page(self) -> QWidget:
         page, layout = self._page(margins=22, spacing=8)
         self._exercise_title = self._title("")
@@ -646,7 +646,7 @@ class MainWindow(QMainWindow):
         self._exam_timer_label = ui.label("", role="timer")
         meta.addWidget(self._exam_timer_label)
         layout.addLayout(meta)
-        # compat: label única com metadados (usada por quem inspeciona a tela)
+        # compat: single label with metadata, used by screen inspection tests
         self._exercise_meta = self._exercise_id_label
 
         layout.addSpacing(4)
@@ -690,7 +690,7 @@ class MainWindow(QMainWindow):
         )
         return page
 
-    # ------------------------------------------------------------- histórico
+    # ---------------------------------------------------------------- history
     def _build_history_page(self) -> QWidget:
         page, layout = self._page(spacing=8)
         self._history_title = self._title("HISTÓRICO")
@@ -768,7 +768,7 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(column, mode)
         return table
 
-    # --------------------------------------------------------- configurações
+    # ---------------------------------------------------------------- settings
     def _build_settings_page(self) -> QWidget:
         page, layout = self._page(spacing=10)
         self._settings_title = self._title("CONFIGURAÇÕES")
@@ -984,7 +984,7 @@ class MainWindow(QMainWindow):
     def _set_title_label(self, label: QLabel, text: str) -> None:
         self._cursor.set_title(label, text)
 
-    # ------------------------------------------------------------- navegação
+    # -------------------------------------------------------------- navigation
     def _show_home(self) -> None:
         self._show_resume_if_needed()
         self._refresh_home_status()
@@ -1084,10 +1084,11 @@ class MainWindow(QMainWindow):
         return self._tasks.start(key, work, done, failed)
 
     def _runtime_checked(self, language: str, then: Callable[[], None]) -> bool:
-        """True se o runtime da linguagem já foi validado. Senão valida em segundo plano e chama `then`.
+        """True if the language runtime has already been validated.
 
-        A detecção roda processos externos (probe do compilador/interpretador) e pode demorar.
-        Se falhar, o preflight mostra a mensagem e leva às Configurações.
+        Otherwise validates in the background and calls `then`. Detection runs
+        external compiler/interpreter probe processes and may take time. On
+        failure, preflight shows the message and opens Settings.
         """
         if self._coordinator.runtime_ready(language):
             return True
@@ -1254,7 +1255,7 @@ class MainWindow(QMainWindow):
         except Exception as error:
             QMessageBox.warning(self, self._t("Treino"), str(error))
 
-    # ------------------------------------------------------------- exercício
+    # --------------------------------------------------------------- exercise
     def _load_exercise(self, ref: ExerciseRef, mode: str, overwrite: bool = False) -> None:
         active = (
             self._coordinator.prepare_exam_exercise(ref, self._exam_state, overwrite=overwrite)
@@ -1343,7 +1344,7 @@ class MainWindow(QMainWindow):
 
     def _on_training_graded(self, active: ActiveExercise, outcome: CorrectionOutcome) -> None:
         if self._active is not active:
-            return  # o usuário saiu do exercício; a tentativa já foi salva
+            return  # the user left the exercise; the attempt was already saved
         self._last_outcome = outcome
         self._trace_button.setEnabled(True)
         if outcome.result.passed:
@@ -1362,7 +1363,7 @@ class MainWindow(QMainWindow):
             self._show_resume_if_needed()
             return
         self._exam_state = next_state
-        # Se o prazo venceu enquanto corrigia, encerra agora (com a nota já atualizada).
+        # If the deadline expired while grading, finish now with the already updated score.
         self._tick_exam()
         if self._exam_state is None:
             return
@@ -1419,7 +1420,7 @@ class MainWindow(QMainWindow):
         except Exception as error:
             QMessageBox.warning(self, self._t("Treino"), str(error))
 
-    # ------------------------------------------------------------------ prova
+    # -------------------------------------------------------------------- exam
     def _start_exam(self) -> None:
         if not self._exam_preflight_checked(self._start_exam):
             return
@@ -1500,8 +1501,8 @@ class MainWindow(QMainWindow):
         if self._exam_state is None:
             return
         if self._tasks.is_busy("submit"):
-            # Não encerra a prova no meio de uma correção: o timer continua
-            # desenhando e o encerramento acontece quando a correção volta.
+            # Do not finish the exam in the middle of grading: the timer keeps
+            # drawing and the finish happens when grading returns.
             remaining = self._coordinator.remaining_seconds(self._exam_state)
             self._render_exam_timer(replace(self._exam_state, remaining_seconds=remaining))
             return
@@ -1552,7 +1553,7 @@ class MainWindow(QMainWindow):
             f"{self._t('Restante'):<10}: {self._format_seconds(state.remaining_seconds)}"
         )
 
-    # -------------------------------------------------------------- histórico
+    # ---------------------------------------------------------------- history
     def _show_history(self, refresh_filters: bool = True) -> None:
         if refresh_filters:
             self._refresh_history_filters()
@@ -1709,7 +1710,7 @@ class MainWindow(QMainWindow):
             1,
         )
         self._history_table.setRowCount(len(rows))
-        # Agrupa por (pack, level): o mesmo id de level/exercício pode existir em packs diferentes.
+        # Group by (pack, level): the same level/exercise id may exist in different packs.
         multi_pack = len({str(row.get("pack_id", row["pack"])) for row in rows}) > 1
 
         def group_of(row: dict[str, object]) -> str:
@@ -1830,7 +1831,7 @@ class MainWindow(QMainWindow):
             return self._t(status)
         return status
 
-    # ---------------------------------------------------------- configurações
+    # ---------------------------------------------------------------- settings
     def _import_pack(self) -> None:
         if self._tasks.is_busy("import"):
             return
@@ -1939,7 +1940,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _documentation_path() -> Path | None:
-        """README do checkout ou o empacotado no executável; senão o contrato de pack."""
+        """README from checkout or packaged executable; otherwise the pack contract."""
         candidates = []
         bundle = getattr(sys, "_MEIPASS", None)
         if bundle:
@@ -1956,7 +1957,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _pack_help_content() -> str:
-        """Contrato de pack (fonte única: resources/pack-contract.md) + capabilities ativas."""
+        """Pack contract (single source: resources/pack-contract.md) + active capabilities."""
         capabilities = default_exercise_capabilities()
         executions = ", ".join(sorted(capabilities.executions.supported))
         generators = ", ".join(sorted(capabilities.generators.supported))
@@ -2083,8 +2084,8 @@ class MainWindow(QMainWindow):
     def _first_runtime_language(self) -> str | None:
         return next(iter(self._runtime_labels), None)
 
-    def closeEvent(self, event) -> None:  # noqa: N802 — API do Qt
-        # Deixa uma correção/importação em andamento terminar de gravar antes de fechar.
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API
+        # Let in-progress grading/import finish writing before closing.
         self._tasks.wait(15_000)
         super().closeEvent(event)
 

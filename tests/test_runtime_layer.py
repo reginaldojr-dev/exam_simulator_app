@@ -27,10 +27,10 @@ from exam_trainer.ports.runtime_port import LanguageRuntime, PreparedProgram, Pr
 
 
 class ScriptedRuntime:
-    """Runtime falso: o "programa" é o texto do arquivo; roda como função Python simples.
+    """Fake runtime: the "program" is the file text and runs as a simple Python function.
 
-    Formatos do arquivo: `echo` (repete args), `upper` (args em maiúsculas), `sleep`
-    (timeout), `crash` (exit 1), `broken` (falha na preparação).
+    File formats: `echo` repeats args, `upper` uppercases args, `sleep` times
+    out, `crash` exits 1, and `broken` fails preparation.
     """
 
     language = "toy"

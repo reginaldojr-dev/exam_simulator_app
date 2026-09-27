@@ -114,7 +114,7 @@ class PackImporterTest(unittest.TestCase):
     def test_public_c_basics_pack_exercise_ids_are_unique(self) -> None:
         self._assert_unique_ids(C_BASICS, expected=5)
 
-    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
+    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "private pack _local/packs/rank02-original is absent (expected in public clones)")
     def test_private_original_pack_is_valid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             managed = Path(temp_dir) / "managed"
@@ -123,7 +123,7 @@ class PackImporterTest(unittest.TestCase):
             self.assertEqual(original.id, "rank02-original")
             self.assertTrue((managed / "rank02-original" / "level3").is_dir())
 
-    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "pack privado _local/packs/rank02-original ausente (esperado em clones públicos)")
+    @unittest.skipUnless(PRIVATE_ORIGINAL.is_dir(), "private pack _local/packs/rank02-original is absent (expected in public clones)")
     def test_private_original_pack_exercise_ids_are_unique(self) -> None:
         self._assert_unique_ids(PRIVATE_ORIGINAL, expected=55)
 

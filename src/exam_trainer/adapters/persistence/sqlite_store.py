@@ -40,7 +40,7 @@ class SQLiteStore:
         self.schema_version = migrations.migrate(self._database_path, self.connect, had_data)
 
     def _create_base_tables(self) -> None:
-        """Tabelas da versão 0 (legado). Mudanças posteriores vêm das migrações."""
+        """Version 0 tables (legacy). Later changes come from migrations."""
         with self.session() as connection:
             connection.executescript(
                 """

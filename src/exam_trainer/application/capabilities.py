@@ -1,6 +1,7 @@
-"""O que o motor sabe executar. O pack declara; o app decide se suporta.
+"""What the engine can execute. The pack declares; the app decides support.
 
-Um pack que pede algo fora daqui é REJEITADO na importação (não "roda pela metade").
+A pack that asks for anything outside this registry is rejected during import,
+rather than running halfway.
 """
 
 from __future__ import annotations
@@ -54,9 +55,9 @@ class ExpectationRegistry(CapabilityRegistry):
         return identifier in self.reference_required
 
 
-# Quem fornece o harness de `function_call`:
-HARNESS_FROM_PACK = "pack"  # o pack traz o arquivo (C: main.c que chama a função)
-HARNESS_FROM_APP = "app"  # o app gera; o pack só declara entry + args_format (Python)
+# Who provides the `function_call` harness:
+HARNESS_FROM_PACK = "pack"  # the pack provides the file, e.g. C main.c calls the function
+HARNESS_FROM_APP = "app"  # the app generates it; the pack only declares entry + args_format
 
 
 @dataclass(frozen=True)
@@ -127,15 +128,15 @@ JAVA_LANGUAGE = LanguageSupport(
     file_extensions=(".java",),
 )
 
-# Expectations "embutidas" por exercício. Continuam aceitas, mas packs novos devem
-# preferir `reference_output` (solução de referência) ou `literal` (casos fixos).
+# Built-in expectations per exercise. They remain accepted, but new packs should
+# prefer `reference_output` (reference solution) or `literal` (fixed cases).
 LEGACY_BUILTIN_EXPECTATIONS = frozenset(("echo_arguments", "sum_integers"))
 
 
 def default_exercise_capabilities() -> ExerciseCapabilities:
     return ExerciseCapabilities(
         executions=ExecutionRegistry.from_values(
-            # tipos neutros + aliases do contrato v1
+            # neutral types + v1 contract aliases
             (PROGRAM_OUTPUT, FUNCTION_CALL, "function_with_main", "reference_compare")
         ),
         generators=GeneratorRegistry.from_values(

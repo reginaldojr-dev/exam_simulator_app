@@ -1,8 +1,8 @@
-"""Grader genérico: independente de linguagem.
+"""Generic grader: language-independent.
 
-GenericGrader -> ExecutionStrategy (quais arquivos) -> RuntimeRegistry (qual runtime)
--> LanguageRuntime (preparar/executar). Aqui ficam casos, expectations, comparação,
-fail-fast, trace, seeds e política.
+GenericGrader -> ExecutionStrategy (which files) -> RuntimeRegistry (which runtime)
+-> LanguageRuntime (prepare/run). Cases, expectations, comparison, fail-fast,
+trace, seeds, and policy live here.
 """
 
 from __future__ import annotations

@@ -1,17 +1,18 @@
-"""Harness do APP para `function_call` em Python.
+"""App-provided harness for Python `function_call`.
 
-Uso: python -I -B -X utf8 <este arquivo> <submissão.py> <entry> <args_format> [args...]
+Usage: python -I -B -X utf8 <this file> <submission.py> <entry> <args_format> [args...]
 
-- carrega a submissão como módulo (sem ser __main__);
-- converte cada argumento do caso conforme `args_format`:
-    json -> json.loads(arg)   (números, listas, strings com aspas, true/false/null)
-    str  -> o texto como está
-- chama entry(*args) e, se o retorno não for None, imprime json.dumps(retorno) + "\n"
-  (valores não serializáveis em JSON são impressos com repr).
+- loads the submission as a module, not as __main__;
+- converts each case argument according to `args_format`:
+    json -> json.loads(arg)   (numbers, lists, quoted strings, true/false/null)
+    str  -> the text as-is
+- calls entry(*args) and, if the return value is not None, prints
+  json.dumps(return_value) + "\n" (values that are not JSON-serializable are
+  printed with repr).
 
-O texto abaixo (HARNESS_SOURCE) é gravado na pasta .build da workspace. Ele fica como
-string (e não como módulo importável) porque dentro do executável do PyInstaller os
-módulos não existem como arquivos.
+The text below (HARNESS_SOURCE) is written into the workspace .build folder. It
+stays as a string, not an importable module, because inside the PyInstaller
+executable modules do not exist as files.
 """
 
 HARNESS_SOURCE = r'''

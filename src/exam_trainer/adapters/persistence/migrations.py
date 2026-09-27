@@ -1,9 +1,11 @@
-"""Migrações versionadas do banco SQLite.
+"""Versioned SQLite database migrations.
 
-Regras:
-- a versão fica em `schema_meta(version)`; banco sem essa tabela = versão 0 (legado);
-- cada migração roda numa transação e nunca apaga histórico;
-- antes de migrar um banco existente, é feita uma cópia `trainer.sqlite3.bak-v<N>-<data>`.
+Rules:
+- the version lives in `schema_meta(version)`; a database without that table is
+  version 0 (legacy);
+- each migration runs in a transaction and never deletes history;
+- before migrating an existing database, a copy is made as
+  `trainer.sqlite3.bak-v<N>-<date>`.
 """
 
 from __future__ import annotations
@@ -30,11 +32,11 @@ def _add_column(connection: sqlite3.Connection, table: str, column: str, ddl: st
 
 
 def _migration_1_exam_deadline(connection: sqlite3.Connection) -> None:
-    """Prova com deadline absoluto e duração vinda do pack.
+    """Exam with an absolute deadline and duration from the pack.
 
-    Sessões ativas antigas só tinham `remaining_seconds` (o relógio pausava com o
-    app fechado). Para não "cobrar" o tempo em que o app ficou fechado ANTES desta
-    versão, o deadline delas passa a ser agora + remaining_seconds.
+    Old active sessions only had `remaining_seconds`, so the clock paused while
+    the app was closed. To avoid charging time while the app was closed before
+    this version, their deadline becomes now + remaining_seconds.
     """
     _add_column(connection, "exam_sessions", "deadline_at", "TEXT")
     _add_column(connection, "exam_sessions", "duration_seconds", "INTEGER")
@@ -57,10 +59,10 @@ def rebuild_progress(
     pack_id: str | None = None,
     exercise_id: str | None = None,
 ) -> None:
-    """Recalcula `progress` a partir das tentativas de TREINO (fonte da verdade).
+    """Recalculate `progress` from TRAINING attempts, the source of truth.
 
-    Sem argumentos recalcula tudo; com (pack_id, exercise_id) só aquela chave.
-    Tentativas de prova nunca entram aqui (ADR 0003).
+    Without arguments, recalculates everything. With (pack_id, exercise_id),
+    recalculates only that key. Exam attempts never enter here (ADR 0003).
     """
     where = ""
     params: tuple[str, ...] = ()
@@ -108,15 +110,19 @@ def rebuild_progress(
 
 
 def _migration_2_pack_scoped_progress(connection: sqlite3.Connection) -> None:
-    """Progresso por (pack_id, exercise_id) e separado entre treino e prova (ADR 0003).
+    """Progress by (pack_id, exercise_id), separated between training and exam (ADR 0003).
 
-    Estratégia conservadora — nada é apagado:
-    - `attempts` ganha `pack_id` e `session_id`; `mode` nulo (versões antigas) vira `training`;
-    - tentativas de prova legadas recebem o pack da sessão de prova em que aparecem, se único;
-    - as demais ficam com `pack_id = '_legacy'`; o app as associa depois ao pack do catálogo
-      que declara aquele exercise_id, quando houver exatamente um (`adopt_legacy_attempts`);
-    - a tabela `progress` antiga é renomeada para `progress_legacy_v0` (mantida para consulta);
-    - o novo `progress` é recalculado só com tentativas de treino.
+    Conservative strategy: nothing is deleted.
+    - `attempts` gains `pack_id` and `session_id`; null `mode` from old versions
+      becomes `training`;
+    - legacy exam attempts receive the pack from the exam session where they
+      appear, if unique;
+    - the remaining attempts keep `pack_id = '_legacy'`; the app later
+      associates them with the catalog pack that declares that exercise_id when
+      exactly one exists (`adopt_legacy_attempts`);
+    - the old `progress` table is renamed to `progress_legacy_v0`, kept for
+      inspection;
+    - the new `progress` is recalculated only from training attempts.
     """
     _add_column(connection, "attempts", "pack_id", "TEXT")
     _add_column(connection, "attempts", "session_id", "TEXT")
@@ -156,7 +162,7 @@ def _migration_2_pack_scoped_progress(connection: sqlite3.Connection) -> None:
 
 
 def _migration_3_activity_identity_and_policy(connection: sqlite3.Connection) -> None:
-    """Adiciona identidade neutra de activity e policy sem remover colunas legadas."""
+    """Add neutral activity identity and policy without removing legacy columns."""
     _add_column(connection, "attempts", "activity_id", "TEXT")
     _add_column(connection, "attempts", "activity_kind", "TEXT")
     _add_column(connection, "attempts", "policy", "TEXT")
@@ -225,7 +231,7 @@ def backup_database(database_path: Path, from_version: int) -> Path | None:
 
 
 def migrate(database_path: Path, connect: Callable[[], sqlite3.Connection], has_user_data: bool) -> int:
-    """Aplica as migrações pendentes. Retorna a versão final."""
+    """Apply pending migrations. Return the final version."""
     connection = connect()
     try:
         version = current_version(connection)
