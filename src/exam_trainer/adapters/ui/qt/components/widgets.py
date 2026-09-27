@@ -87,12 +87,20 @@ class OptionButton(QPushButton):
 
     - kind="check": marcador [x] / [ ]
     - kind="radio": marcador (•) / ( ); exclusividade via QButtonGroup
-    O texto *sem* marcador fica em `value`.
+    `value` é o identificador estável; `label` é o texto visível.
     """
 
-    def __init__(self, value: str, kind: str = "check", checked: bool = False, caption: str = "") -> None:
+    def __init__(
+        self,
+        value: str,
+        kind: str = "check",
+        checked: bool = False,
+        caption: str = "",
+        label: str | None = None,
+    ) -> None:
         super().__init__()
         self._value = value
+        self._label = label or value
         self._kind = kind
         self._caption = caption
         self.setProperty("variant", "option")
@@ -110,9 +118,13 @@ class OptionButton(QPushButton):
         self._caption = caption
         self._sync()
 
+    def set_label(self, label: str) -> None:
+        self._label = label
+        self._sync()
+
     def _sync(self, *_: object) -> None:
         on, off = ("[x]", "[ ]") if self._kind == "check" else ("(•)", "( )")
-        text = f"{on if self.isChecked() else off} {self._value}"
+        text = f"{on if self.isChecked() else off} {self._label}"
         if self._caption:
             text += f"    {self._caption}"
         self.setProperty("baseText", text)

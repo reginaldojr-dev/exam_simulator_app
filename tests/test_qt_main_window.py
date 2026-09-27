@@ -9,7 +9,7 @@ from unittest import mock
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
 
 from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
@@ -625,6 +625,95 @@ class MainWindowTest(unittest.TestCase):
                 [window._locale_combo.itemText(index) for index in range(window._locale_combo.count())],
                 ["Português (Brasil)", "English", "Español"],
             )
+
+    def test_random_draw_options_replace_labels_in_pt_br_en_and_es(self) -> None:
+        expectations = {
+            "pt-BR": (
+                "(•) Priorizar não concluídos",
+                "( ) Somente não concluídos",
+                "( ) Todos os exercícios",
+                "[ ] Permitir repetidos",
+            ),
+            "en": (
+                "(•) Prioritize uncompleted",
+                "( ) Only uncompleted",
+                "( ) All exercises",
+                "[ ] Allow repeats",
+            ),
+            "es": (
+                "(•) Priorizar no completados",
+                "( ) Solo no completados",
+                "( ) Todos los ejercicios",
+                "[ ] Permitir repetidos",
+            ),
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._choose_random_training()
+            for locale, expected in expectations.items():
+                window._locale.set_locale(locale)
+                actual = (
+                    window._prioritize_radio.property("baseText"),
+                    window._only_uncompleted_radio.property("baseText"),
+                    window._all_radio.property("baseText"),
+                    window._allow_repeated_check.property("baseText"),
+                )
+                self.assertEqual(actual, expected)
+                for text in actual:
+                    self.assertNotRegex(text, r"Priorizar não concluídos\\s+Prioritize")
+                    self.assertNotRegex(text, r"Somente não concluídos\\s+Only")
+                    self.assertNotRegex(text, r"Todos os exercícios\\s+All")
+
+            self.assertEqual(window._prioritize_radio.value, "prioritize_uncompleted")
+            self.assertEqual(window._only_uncompleted_radio.value, "only_uncompleted")
+            self.assertEqual(window._all_radio.value, "all_exercises")
+            self.assertEqual(window._allow_repeated_check.value, "allow_repeats")
+
+    def test_settings_editor_buttons_follow_locale(self) -> None:
+        expectations = {
+            "pt-BR": {"[ SELECIONAR EXECUTÁVEL ]", "[ SALVAR EDITOR ]"},
+            "en": {"[ SELECT EXECUTABLE ]", "[ SAVE EDITOR ]"},
+            "es": {"[ SELECCIONAR EJECUTABLE ]", "[ GUARDAR EDITOR ]"},
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            for locale, expected in expectations.items():
+                window._locale.set_locale(locale)
+                window._show_settings()
+                labels = {button.property("baseText") for button in window._settings_page.findChildren(QPushButton)}
+                self.assertTrue(expected.issubset(labels))
+
+    def test_runtime_settings_status_and_actions_follow_locale(self) -> None:
+        expectations = {
+            "pt-BR": {
+                "status": "● não verificado — use [ DETECTAR NOVAMENTE ]",
+                "detect": "[ DETECTAR NOVAMENTE ]",
+                "select_cpp": "[ SELECIONAR COMPILADOR C++ ]",
+                "title_cpp": "COMPILADOR C++",
+            },
+            "en": {
+                "status": "● Not checked — use [ DETECT AGAIN ]",
+                "detect": "[ DETECT AGAIN ]",
+                "select_cpp": "[ SELECT C++ COMPILER ]",
+                "title_cpp": "C++ COMPILER",
+            },
+            "es": {
+                "status": "● No verificado — usa [ DETECTAR DE NUEVO ]",
+                "detect": "[ DETECTAR DE NUEVO ]",
+                "select_cpp": "[ SELECCIONAR COMPILADOR C++ ]",
+                "title_cpp": "COMPILADOR C++",
+            },
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            compiler = SlowProbeCompiler(found=True)
+            window = self._window(temp_dir, compiler=compiler)
+            for locale, expected in expectations.items():
+                window._locale.set_locale(locale)
+                window._show_settings()
+                self.assertEqual(window._settings_compiler.text(), expected["status"])
+                self.assertEqual(window._settings_action_text("detect-runtime:cpp"), expected["detect"])
+                self.assertEqual(window._settings_action_text("select-runtime:cpp"), expected["select_cpp"])
+                self.assertEqual(window._settings_title_text("runtime:cpp"), expected["title_cpp"])
 
     def test_locale_combo_persists_selection(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

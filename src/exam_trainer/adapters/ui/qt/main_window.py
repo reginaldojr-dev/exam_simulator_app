@@ -230,10 +230,10 @@ class MainWindow(QMainWindow):
         self._training_pack_label.setText(f"> {self._t('Rank / Pack').upper()}")
         self._training_levels_label.setText(f"> {self._t('Levels').upper()}")
         self._random_draw_label.setText(f"> {self._t('Sorteio').upper()}")
-        self._prioritize_radio.set_caption(self._t("Priorizar não concluídos"))
-        self._only_uncompleted_radio.set_caption(self._t("Somente não concluídos"))
-        self._all_radio.set_caption(self._t("Todos os exercícios"))
-        self._allow_repeated_check.set_caption(self._t("Permitir repetidos"))
+        self._prioritize_radio.set_label(self._t("Priorizar não concluídos"))
+        self._only_uncompleted_radio.set_label(self._t("Somente não concluídos"))
+        self._all_radio.set_label(self._t("Todos os exercícios"))
+        self._allow_repeated_check.set_label(self._t("Permitir repetidos"))
         self._set_button(self._start_training_button, self._action("Start training", "primary"))
         self._choose_level_training() if self._training_kind == "level" else self._choose_random_training()
 
@@ -538,12 +538,12 @@ class MainWindow(QMainWindow):
         random_options.setSpacing(2)
         self._selection_group = QButtonGroup(self)
         self._selection_group.setExclusive(True)
-        self._prioritize_radio = ui.OptionButton("Priorizar não concluídos", kind="radio", checked=True)
-        self._only_uncompleted_radio = ui.OptionButton("Somente não concluídos", kind="radio")
-        self._all_radio = ui.OptionButton("Todos os exercícios", kind="radio")
+        self._prioritize_radio = ui.OptionButton("prioritize_uncompleted", kind="radio", checked=True, label="Priorizar não concluídos")
+        self._only_uncompleted_radio = ui.OptionButton("only_uncompleted", kind="radio", label="Somente não concluídos")
+        self._all_radio = ui.OptionButton("all_exercises", kind="radio", label="Todos os exercícios")
         for radio in (self._prioritize_radio, self._only_uncompleted_radio, self._all_radio):
             self._selection_group.addButton(radio)
-        self._allow_repeated_check = ui.OptionButton("Permitir repetidos", kind="check")
+        self._allow_repeated_check = ui.OptionButton("allow_repeats", kind="check", label="Permitir repetidos")
         self._random_draw_label = ui.section_label("> SORTEIO")
         random_options.addWidget(self._random_draw_label)
         for widget in (self._prioritize_radio, self._only_uncompleted_radio, self._all_radio):
@@ -823,11 +823,11 @@ class MainWindow(QMainWindow):
                 self._settings_compiler = label
             sections.addWidget(
                 self._settings_card(
-                    status.display_name.upper(),
+                    f"runtime:{language}",
                     [label],
                     [
-                        ("[ DETECTAR NOVAMENTE ]", lambda lang=language: self._redetect_runtime(lang)),
-                        (f"[ SELECIONAR {status.display_name.upper()} ]", lambda lang=language: self._choose_manual_runtime(lang)),
+                        (f"detect-runtime:{language}", lambda lang=language: self._redetect_runtime(lang)),
+                        (f"select-runtime:{language}", lambda lang=language: self._choose_manual_runtime(lang)),
                     ],
                 )
             )
@@ -895,26 +895,46 @@ class MainWindow(QMainWindow):
             "EDITOR/IDE": "Editor/IDE",
             "PACKS": "Packs",
         }
+        if source.startswith("runtime:"):
+            return self._runtime_ui_name(source.removeprefix("runtime:")).upper()
         return self._t(mapping.get(source, source)).upper()
 
     def _settings_action_text(self, source: str) -> str:
+        if source.startswith("detect-runtime:"):
+            return self._action("Detectar novamente")
+        if source.startswith("select-runtime:"):
+            language = source.removeprefix("select-runtime:")
+            return self._action("Selecionar {runtime}", runtime=self._runtime_ui_name(language))
         normalized = source.strip()
         if normalized.startswith("[ ") and normalized.endswith(" ]"):
             normalized = normalized[2:-2]
-        normalized = normalized.title()
         action_map = {
-            "Alterar Workspace": "Alterar workspace",
-            "Selecionar Executável": "Selecionar executável",
-            "Salvar Editor": "Salvar editor",
-            "Detectar Novamente": "Detectar novamente",
-            "Importar Pack": "Importar Pack",
-            "Atualizar Packs": "Atualizar Packs",
-            "Abrir Documentação De Packs": "Abrir documentação de Packs",
+            "ALTERAR WORKSPACE": "Alterar workspace",
+            "SELECIONAR EXECUTÁVEL": "Selecionar executável",
+            "SALVAR EDITOR": "Salvar editor",
+            "DETECTAR NOVAMENTE": "Detectar novamente",
+            "IMPORTAR PACK": "Importar Pack",
+            "ATUALIZAR PACKS": "Atualizar Packs",
+            "ABRIR DOCUMENTAÇÃO DE PACKS": "Abrir documentação de Packs",
         }
-        if normalized.startswith("Selecionar "):
-            runtime = normalized.removeprefix("Selecionar ")
+        upper = normalized.upper()
+        if upper in action_map:
+            return self._action(action_map[upper])
+        if upper.startswith("SELECIONAR "):
+            runtime = normalized[len("SELECIONAR ") :]
             return self._action("Selecionar {runtime}", runtime=runtime)
-        return self._action(action_map.get(normalized, normalized))
+        return self._action(normalized)
+
+    def _runtime_ui_name(self, language: str) -> str:
+        names = {
+            "c": self._t("Compilador C"),
+            "cpp": self._t("Compilador C++"),
+            "python": "Python",
+            "java": "Java",
+        }
+        if language in names:
+            return names[language]
+        return self._coordinator.runtime_display_name(language)
 
     def _build_pack_help_page(self) -> QWidget:
         page, layout = self._page()
@@ -981,7 +1001,7 @@ class MainWindow(QMainWindow):
         total = len(self._coordinator.runtime_statuses())
         runtimes = self._t("{ready}/{total} verificados", ready=ready, total=total) if total else self._t("0 registrados")
         exam = f"   ·   {self._t('prova em andamento')}" if self._coordinator.load_active_exam() is not None else ""
-        self._home_status.setText(f"packs: {packs}   ·   runtimes: {runtimes}{exam}")
+        self._home_status.setText(f"{self._t('packs')}: {packs}   ·   {self._t('runtimes')}: {runtimes}{exam}")
 
     def _refresh_study_languages(self) -> None:
         current = self._study_language_combo.currentData()
