@@ -65,3 +65,25 @@ class JsonAppConfigRepositoryTest(unittest.TestCase):
 
             self.assertEqual(repository.load_compiler_path(), str(compiler))
 
+    def test_default_ui_locale_is_pt_br(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = JsonAppConfigRepository(Path(temp_dir) / "config.json")
+
+            self.assertEqual(repository.load_ui_locale(), "pt-BR")
+
+    def test_saves_and_loads_ui_locale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repository = JsonAppConfigRepository(Path(temp_dir) / "config.json")
+
+            repository.save_ui_locale("en")
+
+            self.assertEqual(repository.load_ui_locale(), "en")
+
+    def test_invalid_ui_locale_falls_back_to_pt_br(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_path = Path(temp_dir) / "config.json"
+            config_path.write_text(json.dumps({"ui_locale": "fr"}), encoding="utf-8")
+            repository = JsonAppConfigRepository(config_path)
+
+            self.assertEqual(repository.load_ui_locale(), "pt-BR")
+
