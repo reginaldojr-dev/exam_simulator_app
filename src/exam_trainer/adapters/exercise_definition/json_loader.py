@@ -104,9 +104,10 @@ class JsonExerciseDefinitionLoader:
         return self.load_data(raw_data, language)
 
     def load_data(self, raw_data: Any, language: str = DEFAULT_LANGUAGE) -> ExerciseDefinition:
-        """Carrega v1 ou v2 e normaliza para o modelo neutro.
+        """Load v1/v2/v3 and normalize to the neutral model.
 
-        `language` vem do pack (v1 = "c"). O exercício herda a linguagem do pack.
+        `language` comes from the pack for v1; the exercise inherits the pack
+        language unless the contract version declares its own.
         """
         data = self._require_object(raw_data, "exercise definition")
         schema_version = read_schema_version(data, ExerciseDefinitionError)
@@ -240,7 +241,7 @@ class JsonExerciseDefinitionLoader:
         if not self._capabilities.executions.supports(declared):
             raise ExerciseDefinitionError(f"Unknown execution type: {declared}.")
         support = self._capabilities.language(language)
-        assert support is not None  # validado em load_data
+        assert support is not None  # validated in load_data
 
         if "fixture" in data and "harness" in data:
             raise ExerciseDefinitionError("Use execution.harness or execution.fixture, not both.")
@@ -258,7 +259,7 @@ class JsonExerciseDefinitionLoader:
         if "args_format" in data:
             args_format = self._require_identifier(data, "args_format")
 
-        # ---- normalização dos aliases do v1 -------------------------------------
+        # ---- v1 alias normalization ---------------------------------------------
         kind = declared
         legacy_reference = None
         if declared == "function_with_main":
@@ -275,7 +276,7 @@ class JsonExerciseDefinitionLoader:
                 "execution.reference is only valid with reference_compare; use a top-level reference."
             )
 
-        # ---- regras por linguagem ------------------------------------------------
+        # ---- language-specific rules --------------------------------------------
         if kind not in support.executions:
             raise ExerciseDefinitionError(
                 f"Execution type {declared} is not supported for language {language}."

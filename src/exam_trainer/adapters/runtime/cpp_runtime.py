@@ -1,4 +1,4 @@
-"""Runtime C++: compila com C++17 e executa o binário gerado."""
+"""C++ runtime: compile with C++17 and run the generated binary."""
 
 from __future__ import annotations
 

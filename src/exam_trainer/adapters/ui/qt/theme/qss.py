@@ -1,7 +1,7 @@
-"""Gera o QSS único da aplicação a partir dos tokens.
+"""Generate the application's single QSS from tokens.
 
-Telas não escrevem QSS. Elas marcam widgets com propriedades
-(`variant`, `role`, `status`) e este arquivo decide a aparência.
+Screens do not write QSS. They mark widgets with properties (`variant`, `role`,
+`status`), and this file decides appearance.
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ QFrame[role="banner"][status="fail"] {{ background: {t.fail_background}; border:
 QFrame[role="hintbar"] {{ border-top: 1px solid {t.border}; }}
 QFrame[role="card"] QLabel, QFrame[role="banner"] QLabel, QFrame[role="hintbar"] QLabel {{ background: transparent; }}
 
-/* ---------- botões ---------- */
+/* ---------- buttons ---------- */
 QPushButton {{
     background: {t.background}; color: {t.text_primary};
     border: 2px solid {t.border}; border-bottom: {bw}px solid {t.bevel}; border-radius: {r}px;
@@ -96,11 +96,11 @@ QCheckBox:hover, QRadioButton:hover, QCheckBox:focus, QRadioButton:focus {{ colo
 QCheckBox::indicator, QRadioButton::indicator {{ width: 12px; height: 12px; border: 1px solid {t.border_strong}; background: {t.surface}; }}
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {t.selected_background}; border: 2px solid {t.border_strong}; }}
 
-/* ---------- painéis de texto (subject, trace, docs) ---------- */
+/* ---------- text panels (subject, trace, docs) ---------- */
 QTextEdit {{ background: {t.surface}; color: {t.text_primary}; border: 1px solid {t.border}; border-radius: {r}px; padding: 10px; selection-background-color: {t.selected_background}; selection-color: {t.text_bright}; }}
 QTextEdit[role="terminal"] {{ font-family: {t.font_body}; }}
 
-/* ---------- tabela ---------- */
+/* ---------- table ---------- */
 QTableView, QTableWidget {{ background: {t.surface}; color: {t.text_primary}; gridline-color: {t.surface_alt}; border: 1px solid {t.border}; border-radius: {r}px; selection-background-color: {t.selected_background}; selection-color: {t.text_bright}; outline: 0; }}
 QTableView::item, QTableWidget::item {{ padding: 4px 8px; border-bottom: 1px solid {t.surface_alt}; }}
 QHeaderView {{ background: {t.surface}; border: 0; }}
@@ -116,7 +116,7 @@ QScrollBar::handle:horizontal {{ background: {t.border}; min-width: 24px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
 
-/* ---------- diálogos ---------- */
+/* ---------- dialogs ---------- */
 QMessageBox QLabel {{ color: {t.text_primary}; }}
 QMessageBox QPushButton {{ min-width: 90px; text-align: center; }}
 """

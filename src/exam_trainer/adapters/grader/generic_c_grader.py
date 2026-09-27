@@ -1,4 +1,4 @@
-"""Compatibilidade: o antigo grader C agora é o GenericGrader com um CRuntime."""
+"""Compatibility: the old C grader is now GenericGrader with a CRuntime."""
 
 from __future__ import annotations
 

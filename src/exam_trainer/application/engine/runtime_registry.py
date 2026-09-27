@@ -11,7 +11,7 @@ class UnsupportedLanguageError(ValueError):
 
 
 class RuntimeRegistry:
-    """language -> runtime. Único lugar que sabe quais linguagens o app executa."""
+    """language -> runtime. The only place that knows which languages the app runs."""
 
     def __init__(self, runtimes: Iterable[LanguageRuntime] = ()) -> None:
         self._runtimes: dict[str, LanguageRuntime] = {}
@@ -25,7 +25,7 @@ class RuntimeRegistry:
         try:
             return self._runtimes[language]
         except KeyError as error:
-            raise UnsupportedLanguageError(f"Nenhum runtime instalado para a linguagem: {language}.") from error
+            raise UnsupportedLanguageError(f"No runtime installed for language: {language}.") from error
 
     def has(self, language: str) -> bool:
         return language in self._runtimes

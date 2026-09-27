@@ -110,7 +110,7 @@ class ImporterSecurityTest(unittest.TestCase):
         with self.assertRaises(PackImportError):
             self._import(source)
 
-    @unittest.skipIf(os.name == "nt", "criar symlink no Windows exige privilégio")
+    @unittest.skipIf(os.name == "nt", "creating symlinks on Windows requires privileges")
     def test_symlinks_are_rejected(self) -> None:
         source = self.root / "evil"
         exercise_dir = write_pack(source, fixture="fixtures/main.c")

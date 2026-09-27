@@ -88,7 +88,7 @@ def validate_editor_executable(executable: str | Path) -> Path:
 
 
 class SubprocessEditorFactory:
-    """Implementação padrão de `EditorFactory` (application/ports) via subprocess."""
+    """Default `EditorFactory` implementation using subprocess."""
 
     def display_name(self, command: str) -> str:
         return editor_display_name(command)

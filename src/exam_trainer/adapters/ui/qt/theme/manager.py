@@ -10,10 +10,10 @@ from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
 
 
 class ThemeManager(QObject):
-    """Único ponto que sabe qual tema está ativo.
+    """Single point that knows which theme is active.
 
-    Telas pedem cores via `color("success")` e se inscrevem em `theme_changed`
-    quando desenham algo fora do QSS (ex.: itens de tabela).
+    Screens request colors through `color("success")` and subscribe to
+    `theme_changed` when they draw anything outside QSS, such as table items.
     """
 
     theme_changed = Signal(object)

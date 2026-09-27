@@ -1,8 +1,8 @@
-"""Garante que `exam_trainer` vem DESTE repositório.
+"""Ensure `exam_trainer` comes from this repository.
 
-Pega o caso de uma instalação editable de outra cópia do projeto
-(ex.: Documents/ChatGPT/exam_simullator) sequestrando o import.
-Roda num processo novo, a partir da raiz do projeto, como o usuário faria.
+Catches the case where an editable install from another project copy, such as
+Documents/ChatGPT/exam_simullator, hijacks the import. Runs in a fresh process
+from the project root, as a user would.
 """
 
 from __future__ import annotations
@@ -27,15 +27,15 @@ class EnvironmentTest(unittest.TestCase):
         self.assertEqual(
             completed.returncode,
             0,
-            "exam_trainer não é importável. Rode: python -m pip install -e . (dentro da .venv)\n" + completed.stderr,
+            "exam_trainer is not importable. Run: python -m pip install -e . (inside .venv)\n" + completed.stderr,
         )
         origin = Path(completed.stdout.strip()).resolve()
         expected = (ROOT / "src" / "exam_trainer").resolve()
         self.assertEqual(
             origin.parent,
             expected,
-            f"exam_trainer vem de {origin}, não de {expected}. "
-            "Há outra cópia instalada: veja README > Troubleshooting.",
+            f"exam_trainer comes from {origin}, not {expected}. "
+            "Another copy is installed: see README > Troubleshooting.",
         )
 
 

@@ -1,12 +1,12 @@
-"""Porta de runtime por linguagem.
+"""Runtime port per programming language.
 
-Divisão de responsabilidades:
-- o GRADER (GenericGrader) cuida de casos, expectations, comparação, fail-fast, trace,
-  seeds e política;
-- o RUNTIME cuida de disponibilidade, preparação (compilar / checar sintaxe / gerar
-  harness), execução, stdout/stderr/exit code e timeout.
+Responsibility split:
+- the GRADER (GenericGrader) handles cases, expectations, comparison, fail-fast,
+  trace, seeds, and policy;
+- the RUNTIME handles availability, preparation (compile / syntax check /
+  harness generation), execution, stdout/stderr/exit code, and timeout.
 
-Nenhum runtime usa shell. Nenhum runtime oferece sandbox.
+No runtime uses a shell. No runtime provides a sandbox.
 """
 
 from __future__ import annotations
@@ -20,11 +20,11 @@ from exam_trainer.ports.compiler_port import CompilationResult
 
 @dataclass(frozen=True)
 class ProgramSpec:
-    """O que precisa virar um programa executável (submissão ou referência)."""
+    """What must become an executable program: submission or reference."""
 
     main_source: Path
-    harness: Path | None = None  # harness fornecido pelo PACK (C)
-    entry: str | None = None  # função chamada pelo harness do APP (Python)
+    harness: Path | None = None  # harness provided by the pack (C)
+    entry: str | None = None  # function called by the app harness (Python)
     args_format: str | None = None
     extra_sources: tuple[Path, ...] = ()
 
@@ -32,8 +32,8 @@ class ProgramSpec:
 @dataclass(frozen=True)
 class PreparedProgram:
     success: bool
-    build: CompilationResult  # comando + saída da preparação (vai para o trace)
-    argv: tuple[str, ...] = ()  # prefixo do comando; os argumentos do caso vêm depois
+    build: CompilationResult  # preparation command + output; included in trace
+    argv: tuple[str, ...] = ()  # command prefix; case arguments are appended later
     cwd: Path | None = None
 
 
@@ -52,7 +52,7 @@ class RuntimeStatus:
     supported: bool
     available: bool
     checked: bool = False
-    tool: str | None = None  # ex.: caminho do compilador / do interpretador
+    tool: str | None = None  # e.g. compiler/interpreter path
     message: str = ""
     details: tuple[str, ...] = field(default_factory=tuple)
 
@@ -71,24 +71,24 @@ class RuntimeDescriptor:
 @runtime_checkable
 class LanguageRuntime(Protocol):
     language: str
-    display_name: str  # ex.: "Compilador C", "Python"
+    display_name: str  # e.g. "C compiler", "Python"
 
     def is_ready(self) -> bool:
-        """Já validado nesta execução? NÃO roda processo externo (seguro na thread da UI)."""
+        """Already validated in this run? Does NOT spawn a process; safe on the UI thread."""
         ...
 
     def check_available(self) -> bool:
-        """Detecta/valida (pode rodar processos; chamar fora da thread da UI)."""
+        """Detect/validate availability; may spawn processes, so call outside the UI thread."""
         ...
 
     def current_tool(self) -> str | None:
-        """Ferramenta configurada/detectada, sem rodar processo."""
+        """Configured/detected tool without spawning a process."""
         ...
 
     def redetect(self) -> str | None: ...
 
     def configure_manual(self, path: Path) -> str:
-        """Valida e grava a ferramenta escolhida pelo usuário. ValueError se inválida."""
+        """Validate and save the user-selected tool. Raises ValueError if invalid."""
         ...
 
     def prepare(self, spec: ProgramSpec, build_dir: Path, name: str) -> PreparedProgram: ...

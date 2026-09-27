@@ -14,22 +14,23 @@ class EditorPort(Protocol):
 
 
 class EditorFactory(Protocol):
-    """Cria e valida editores a partir do comando configurado pelo usuário.
+    """Create and validate editors from the user-configured command.
 
-    A application (`MVPTrainerCoordinator`) conhece só esta fronteira; quem decide QUAL
-    editor concreto existe (subprocess, presets conhecidos no disco etc.) é o adapter.
+    The application (`MVPTrainerCoordinator`) only knows this boundary; the
+    adapter decides which concrete editor exists (subprocess, known presets on
+    disk, and so on).
     """
 
     def display_name(self, command: str) -> str:
         raise NotImplementedError
 
     def validate(self, command: str) -> Path:
-        """Valida o executável. Levanta `EditorLaunchError` se inválido."""
+        """Validate the executable. Raises `EditorLaunchError` if invalid."""
         raise NotImplementedError
 
     def create(self, executable: str) -> EditorPort:
         raise NotImplementedError
 
     def resolve_known(self, label: str) -> str | None:
-        """Resolve um preset conhecido (ex.: "VS Code") para um caminho instalado, se houver."""
+        """Resolve a known preset, such as "VS Code", to an installed path if available."""
         raise NotImplementedError

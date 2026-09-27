@@ -1,4 +1,4 @@
-"""Campos comuns do contrato de pack (pack.json e exercise.json). Ver resources/pack-contract.md."""
+"""Common pack contract fields (pack.json and exercise.json). See resources/pack-contract.md."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ MAX_TOPIC_LENGTH = 40
 
 
 def read_schema_version(data: dict[str, Any], error_type: type[ValueError]) -> int:
-    """`schema_version` ausente = 1 (contrato v1). Qualquer outro valor fora do suportado é erro."""
+    """Missing `schema_version` means 1 (v1 contract). Any unsupported value is an error."""
     version = data.get("schema_version", 1)
     if not isinstance(version, int) or isinstance(version, bool) or version not in SUPPORTED_SCHEMA_VERSIONS:
         supported = ", ".join(str(value) for value in SUPPORTED_SCHEMA_VERSIONS)

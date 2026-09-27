@@ -27,10 +27,10 @@ class PackImportError(ValueError):
 
 @dataclass(frozen=True)
 class PackImportReport:
-    """Resultado da validação de um pack, antes de copiá-lo.
+    """Result of pack validation before copying it.
 
-    `executable_files`: arquivos do pack que serão COMPILADOS/EXECUTADOS durante a
-    correção (fixtures e references). A importação em si nunca executa nada.
+    `executable_files`: pack files that will be COMPILED/EXECUTED during
+    grading (fixtures and references). Import itself never executes anything.
     """
 
     pack: PackDefinition
@@ -54,7 +54,7 @@ class LocalPackImporter:
         self._exercise_loader = exercise_loader or JsonExerciseDefinitionLoader()
 
     def inspect_pack(self, source_path: Path | str) -> PackImportReport:
-        """Valida o pack (pasta ou ZIP) sem copiar nada."""
+        """Validate the pack (folder or ZIP) without copying anything."""
         source = Path(source_path)
         if not source.exists():
             raise PackImportError(f"Pack source does not exist: {source}")
@@ -78,8 +78,8 @@ class LocalPackImporter:
                 raise PackImportError(str(error)) from error
             if destination.exists():
                 shutil.rmtree(destination)
-            # A árvore já foi verificada sem links; symlinks=True impede seguir qualquer
-            # link que apareça entre a validação e a cópia.
+            # The tree was already checked without links; symlinks=True avoids
+            # following any link that appears between validation and copying.
             shutil.copytree(prepared_source, destination, symlinks=True)
             return pack
 

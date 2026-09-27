@@ -1,7 +1,7 @@
-"""Modelo NEUTRO de exercício (independente de versão do JSON e de linguagem).
+"""Neutral exercise model independent of JSON version and programming language.
 
-O loader normaliza o contrato v1 e o v2 para estas classes; o grader/runtime só
-conhecem este modelo. Ver `resources/pack-contract.md`.
+The loader normalizes v1 and v2 contracts into these classes; grader/runtime
+code only knows this model. See `resources/pack-contract.md`.
 """
 
 from __future__ import annotations
@@ -17,15 +17,15 @@ from exam_trainer.domain.activity_definition import (
     ValidationStep,
 )
 
-# Tipos de execução neutros (o que o runtime precisa fazer com a submissão).
+# Neutral execution types: what the runtime must do with the submission.
 PROGRAM_OUTPUT = "program_output"
 FUNCTION_CALL = "function_call"
 EXECUTION_KINDS = (PROGRAM_OUTPUT, FUNCTION_CALL)
 
-# Aliases do contrato v1 -> tipo neutro. Continuam aceitos (não removidos abruptamente).
+# Contract v1 aliases to neutral types. They remain accepted for compatibility.
 LEGACY_EXECUTION_ALIASES = {
     "function_with_main": FUNCTION_CALL,
-    "reference_compare": None,  # decidido pela presença de fixture (ver loader)
+    "reference_compare": None,  # decided by fixture presence; see loader
 }
 
 
@@ -37,18 +37,20 @@ class SubmissionDefinition:
 
 @dataclass(frozen=True)
 class ExecutionDefinition:
-    """Como a submissão é executada.
+    """How a submission is executed.
 
-    - `type`: tipo neutro (`program_output` | `function_call`);
-    - `fixture`: harness fornecido pelo PACK (C: um main.c que chama a função);
-    - `entry`/`args_format`: para linguagens em que o APP fornece o harness (Python):
-      nome da função chamada e formato dos argumentos de cada caso;
-    - `declared_type`: o tipo como estava no JSON (ex.: `function_with_main`, v1).
+    - `type`: neutral type (`program_output` | `function_call`);
+    - `fixture`: harness provided by the pack, such as a C `main.c` that calls
+      the target function;
+    - `entry`/`args_format`: for languages where the app provides the harness
+      (Python), the called function name and each case's argument format;
+    - `declared_type`: the type as declared in JSON, such as
+      `function_with_main` in v1.
     """
 
     type: str
     fixture: PurePath | None = None
-    reference: PurePath | None = None  # compat v1: mesmo valor de ExerciseDefinition.reference.source
+    reference: PurePath | None = None  # v1 compat: same value as ExerciseDefinition.reference.source
     entry: str | None = None
     args_format: str | None = None
     declared_type: str | None = None
@@ -60,7 +62,7 @@ class ExecutionDefinition:
 
 @dataclass(frozen=True)
 class ReferenceDefinition:
-    """Solução de referência que gera a saída esperada (`expectation: reference_output`)."""
+    """Reference solution that generates expected output (`expectation: reference_output`)."""
 
     source: PurePath
     harness: PurePath | None = None
@@ -139,7 +141,7 @@ class ExerciseDefinition:
 
     @property
     def executable_files(self) -> tuple[PurePath, ...]:
-        """Arquivos do pack que serão compilados/executados na correção."""
+        """Pack files that will be compiled or executed during grading."""
         files: list[PurePath] = []
         if self.execution.fixture is not None:
             files.append(self.execution.fixture)

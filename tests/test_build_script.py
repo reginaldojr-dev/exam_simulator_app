@@ -52,7 +52,7 @@ class BuildScriptLaunchTest(unittest.TestCase):
 
 
 class BuildScriptInputsTest(unittest.TestCase):
-    """Hash, ignorados e troca segura do exe, num projeto falso em pasta temporária."""
+    """Hashing, ignores, and safe exe replacement in a fake temporary project."""
 
     def setUp(self) -> None:
         self.build = _load_build_module()
@@ -153,7 +153,7 @@ class BuildScriptInputsTest(unittest.TestCase):
             self.assertEqual(self.build.EXE_PATH.read_text(encoding="utf-8"), "new exe")
             self.assertIn(self.build.EXE_NAME, self.build.CHECKSUM_PATH.read_text(encoding="utf-8"))
             self.assertEqual(run.call_count, 1)
-            self.assertEqual(self.build.main([]), 0)  # nada mudou: não chama PyInstaller
+            self.assertEqual(self.build.main([]), 0)  # nothing changed: does not call PyInstaller
             self.assertEqual(run.call_count, 1)
             self.assertEqual(self.build.main(["--force"]), 0)
             self.assertEqual(run.call_count, 2)

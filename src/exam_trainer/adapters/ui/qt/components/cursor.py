@@ -1,10 +1,11 @@
-"""Cursor piscante centralizado.
+"""Centralized blinking cursor.
 
-Um único QTimer para a janela inteira. Regras:
-- só o título da tela ativa pisca;
-- no máximo UM item pisca além do título: o botão com hover/foco ou, se não houver,
-  o botão START da tela (alvo "ocioso");
-- ao entrar numa tela, o título é digitado letra a letra (typewriter) usando o mesmo timer.
+A single QTimer for the entire window. Rules:
+- only the active screen title blinks;
+- at most one item blinks besides the title: the hovered/focused button, or if
+  none exists, the screen START button (idle target);
+- when entering a screen, the title is typed letter by letter using the same
+  timer.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ class CursorController(QObject):
         self._typed = 0
         self._timer.start(self.BLINK_MS)
 
-    # ---------- configuração ----------
+    # ---------- configuration ----------
     def configure(self, *, enabled: bool, animations: bool, cursor_char: str) -> None:
         self._enabled = enabled
         self._animations = animations
@@ -48,7 +49,7 @@ class CursorController(QObject):
     def timer(self) -> QTimer:
         return self._timer
 
-    # ---------- registro ----------
+    # ---------- registration ----------
     def register_title(self, label: QLabel, text: str) -> None:
         self._titles[label] = text
         label.setText(self._title_text(label, text))
@@ -89,10 +90,11 @@ class CursorController(QObject):
             self._timer.setInterval(self.TYPE_MS)
         self._render()
 
-    # ---------- eventos ----------
+    # ---------- events ----------
     def eventFilter(self, source: QObject, event: QEvent) -> bool:
-        # Na destruição da janela o Qt ainda entrega Leave/FocusOut aos botões
-        # enquanto labels/estado já foram liberados: isso não pode virar traceback.
+        # During window destruction, Qt may still deliver Leave/FocusOut to
+        # buttons after labels/state have been released; this must not become a
+        # traceback.
         try:
             self._handle_event(source, event)
         except (AttributeError, RuntimeError):

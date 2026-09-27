@@ -1,11 +1,11 @@
-"""Temas disponíveis.
+"""Available themes.
 
-Regra que vale para TODOS os temas: a cor `accent` nunca é fundo de área grande
-(botão, linha, tab, item selecionado). Ela aparece em texto, borda, cursor e
-detalhes pequenos. Os testes verificam isso.
+Rule for every theme: the `accent` color is never used as a large-area
+background (button, row, tab, selected item). It appears in text, border,
+cursor, and small details. Tests verify this.
 
-Para criar um tema novo: adicione um ThemeTokens aqui e registre em THEMES.
-Nenhuma tela precisa mudar.
+To create a new theme: add ThemeTokens here and register it in THEMES. No screen
+needs to change.
 """
 
 from __future__ import annotations

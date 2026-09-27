@@ -1,7 +1,7 @@
-"""Componentes reutilizáveis.
+"""Reusable components.
 
-Telas criam widgets por aqui e só escolhem o *papel* (variant/role/status).
-A aparência vem do QSS do tema ativo.
+Screens create widgets through this module and only choose the role
+(variant/role/status). Appearance comes from the active theme QSS.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def repolish(widget: QWidget) -> None:
 
 def button(text: str, handler: Callable[[], None] | None = None, variant: str = "default") -> QPushButton:
     if variant not in BUTTON_VARIANTS:
-        raise ValueError(f"variant desconhecida: {variant}")
+        raise ValueError(f"Unknown variant: {variant}")
     widget = QPushButton(text)
     widget.setProperty("variant", variant)
     widget.setProperty("baseText", text)
@@ -69,7 +69,7 @@ def section_label(text: str) -> QLabel:
 
 def set_status(widget: QWidget, status: str) -> None:
     if status not in STATUSES:
-        raise ValueError(f"status desconhecido: {status}")
+        raise ValueError(f"Unknown status: {status}")
     widget.setProperty("status", status or None)
     repolish(widget)
 
@@ -83,11 +83,11 @@ def card(status: str | None = None) -> QFrame:
 
 
 class OptionButton(QPushButton):
-    """Opção clicável de linha inteira: `[x] level0`, `( ) Todos`.
+    """Full-line clickable option: `[x] level0`, `( ) All`.
 
-    - kind="check": marcador [x] / [ ]
-    - kind="radio": marcador (•) / ( ); exclusividade via QButtonGroup
-    `value` é o identificador estável; `label` é o texto visível.
+    - kind="check": [x] / [ ] marker
+    - kind="radio": (•) / ( ) marker; exclusivity comes from QButtonGroup
+    `value` is the stable identifier; `label` is the visible text.
     """
 
     def __init__(
@@ -132,7 +132,7 @@ class OptionButton(QPushButton):
 
 
 class HintBar(QFrame):
-    """Rodapé com atalhos de teclado: [1-4] navegar · [Esc] voltar."""
+    """Footer with keyboard shortcuts: [1-4] navigate, [Esc] back."""
 
     def __init__(self, hints: list[tuple[str, str]]) -> None:
         super().__init__()
@@ -146,7 +146,7 @@ class HintBar(QFrame):
 
 
 class FeedbackBanner(QFrame):
-    """Faixa de resultado (PASS/FAIL) com animação curta de entrada."""
+    """Result strip (PASS/FAIL) with a short entry animation."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -328,7 +328,7 @@ hr {
 
 
 def fade_to(stack: QStackedWidget, page: QWidget, animate: bool = True) -> None:
-    """Troca de tela com fade curto; remove o efeito ao final (não pesa o repaint)."""
+    """Switch screens with a short fade; remove the effect at the end to keep repaint light."""
     if stack.currentWidget() is page:
         return
     stack.setCurrentWidget(page)

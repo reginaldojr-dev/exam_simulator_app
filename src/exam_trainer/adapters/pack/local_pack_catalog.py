@@ -27,7 +27,7 @@ class LocalPackCatalog:
 
     @property
     def load_errors(self) -> dict[str, str]:
-        """Packs instalados que não passam mais na validação (pasta -> motivo)."""
+        """Installed packs that no longer pass validation (folder -> reason)."""
         return dict(self._load_errors)
 
     def _load_pack(self, root: Path) -> PackDefinition | None:

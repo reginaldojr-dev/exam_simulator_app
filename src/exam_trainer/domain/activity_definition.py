@@ -21,11 +21,11 @@ class UsageCategory:
 
 @dataclass(frozen=True)
 class UsageConstraints:
-    """Restrições declarativas/pedagógicas da activity.
+    """Declarative and pedagogical activity constraints.
 
-    Elas são parte do contrato do conteúdo. O loader valida a forma; validators
-    podem evoluir para aplicar subconjuntos verificáveis sem a UI fazer parsing
-    de subject.
+    They are part of the content contract. The loader validates their shape;
+    validators may later apply verifiable subsets without the UI parsing the
+    subject.
     """
 
     allowed: UsageCategory = field(default_factory=UsageCategory)

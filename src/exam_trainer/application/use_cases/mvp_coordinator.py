@@ -85,10 +85,11 @@ class MVPTrainerCoordinator:
         rng: random.Random | None = None,
         session_policies: SessionPolicyRegistry | None = None,
     ) -> None:
-        """`runtimes`: um runtime por linguagem, montado por quem compõe o app
-        (composition root ou o próprio teste) — a application nunca instancia um adapter
-        de runtime concreto. O mesmo vale para `editor_factory`: quem sabe criar/validar
-        um editor concreto é o adapter, não o coordinator."""
+        """`runtimes`: one runtime per language, assembled by the composition root
+        or the test itself. The application never instantiates a concrete runtime
+        adapter. The same applies to `editor_factory`: the adapter knows how to
+        create/validate a concrete editor, not the coordinator.
+        """
         self._pack_catalog = pack_catalog
         self._progress_repository = progress_repository
         self._workspace = workspace
@@ -109,10 +110,10 @@ class MVPTrainerCoordinator:
         self.adopt_legacy_progress()
 
     def adopt_legacy_progress(self) -> int:
-        """Associa tentativas antigas (sem pack) ao pack instalado que declara o exercício.
+        """Associate old packless attempts with the installed pack that declares the exercise.
 
-        Só quando o exercise_id existe em exatamente um pack; nunca apaga nada. Falhas
-        aqui não podem impedir o app de abrir.
+        Only when the exercise_id exists in exactly one pack. Never deletes
+        anything. Failures here must not prevent the app from opening.
         """
         try:
             owners: dict[str, set[str]] = {}
@@ -121,7 +122,7 @@ class MVPTrainerCoordinator:
                     owners.setdefault(ref.definition.id, set()).add(pack.id)
             unique = {exercise_id: next(iter(packs)) for exercise_id, packs in owners.items() if len(packs) == 1}
             return self._progress_repository.adopt_legacy_attempts(unique)
-        except Exception:  # noqa: BLE001 — migração oportunista, nunca bloqueia
+        except Exception:  # noqa: BLE001 - opportunistic migration, never blocking
             return 0
 
     def list_packs(self) -> list[PackDefinition]:
@@ -231,14 +232,14 @@ class MVPTrainerCoordinator:
         return ()
 
     def runtime_ready(self, language: str) -> bool:
-        """Sem processo externo: seguro na thread da UI. False = ainda não verificado."""
+        """No external process: safe on the UI thread. False means not checked yet."""
         return self._runtimes.has(language) and self._runtimes.get(language).is_ready()
 
     def runtime_available(self, language: str) -> bool:
-        """Pode rodar processos (probe). Chamar fora da thread da UI."""
+        """May spawn probe processes. Call outside the UI thread."""
         return self._runtimes.has(language) and self._runtimes.get(language).check_available()
 
-    # C: atalhos usados pela tela de Configurações > Compilador
+    # C: shortcuts used by Settings > Compiler
     def current_compiler(self) -> str | None:
         language = self._runtimes.primary_language()
         return None if language is None else self.runtime_current_tool(language)
@@ -254,14 +255,14 @@ class MVPTrainerCoordinator:
         self.save_manual_runtime(language, compiler_path)
 
     def save_manual_runtime(self, language: str, path: Path) -> str:
-        """Valida (roda o probe) e grava a ferramenta escolhida para a linguagem."""
+        """Validate with a probe and save the selected tool for the language."""
         configured = self.runtime(language).configure_manual(path)
         if self._config_repository is not None:
             self._config_repository.save_runtime_path(language, str(path))
         return configured
 
     def exercise_history_rows(self) -> list[dict[str, object]]:
-        """Uma linha por activity instalada + tentativas de packs ausentes/legados."""
+        """One row per installed activity plus attempts from missing/legacy packs."""
         return self._history.exercise_rows(self.list_packs(), self._pack_catalog.list_exercises)
 
     def exam_history_rows(self) -> list[dict[str, object]]:
@@ -271,7 +272,7 @@ class MVPTrainerCoordinator:
         return self._history.timeline(query)
 
     def inspect_pack(self, source_path: Path):
-        """Valida um pack sem copiá-lo; informa se ele traz código executável."""
+        """Validate a pack without copying it; report whether it contains executable code."""
         return self._pack_importer.inspect_pack(source_path)
 
     def import_pack(self, source_path: Path) -> PackDefinition:
@@ -302,7 +303,7 @@ class MVPTrainerCoordinator:
         return self._preflight_languages(languages)
 
     def preflight_runtime(self, language: str) -> PreflightResult:
-        """O runtime da linguagem do pack está pronto? (pode rodar o probe)."""
+        """Is the pack language runtime ready? May run the probe."""
         return self._preflight_languages((language,))
 
     def preflight_exercise(self, ref: ExerciseRef) -> PreflightResult:
@@ -413,10 +414,11 @@ class MVPTrainerCoordinator:
         )
 
     def _migrate_legacy_training_workspace(self, training_root: Path, exercise_id: str) -> None:
-        """Move `training/<exercise_id>/` (layout antigo) para `training/<pack_id>/<exercise_id>/`.
+        """Move `training/<exercise_id>/` (old layout) to `training/<pack_id>/<exercise_id>/`.
 
-        Só move quando o destino ainda não existe e a pasta antiga é mesmo um workspace de
-        exercício (tem `subject.txt`). Nunca apaga nada; se não der para mover, deixa como está.
+        Moves only when the target does not exist yet and the old folder is
+        actually an exercise workspace with `subject.txt`. Never deletes
+        anything; if it cannot move, it leaves the folder in place.
         """
         legacy = self._workspace_root / "training" / exercise_id
         target = training_root / exercise_id
@@ -485,8 +487,11 @@ class MVPTrainerCoordinator:
         return state
 
     def load_active_exam(self) -> ExamState | None:
-        """Carrega a prova ativa. Se o prazo absoluto já passou (inclusive com o app
-        fechado), encerra como timeout com a nota parcial e devolve None."""
+        """Load the active exam.
+
+        If the absolute deadline has already passed, including while the app was
+        closed, finish it as timed out with the partial score and return None.
+        """
         row = self._progress_repository.load_active_exam()
         if row is None:
             return None
@@ -513,7 +518,7 @@ class MVPTrainerCoordinator:
         return state
 
     def pop_expired_exam(self) -> ExamState | None:
-        """Prova que expirou enquanto o app estava fechado (para avisar o usuário uma vez)."""
+        """Exam that expired while the app was closed, to notify the user once."""
         expired, self._expired_exam = self._expired_exam, None
         return expired
 
@@ -562,10 +567,10 @@ class MVPTrainerCoordinator:
         return outcome, next_state
 
     def tick_exam(self, state: ExamState) -> ExamState | None:
-        """Recalcula o tempo restante a partir do deadline absoluto.
+        """Recalculate remaining time from the absolute deadline.
 
-        Não grava nada no banco: o deadline já está persistido. Só quando o prazo
-        acaba a prova é encerrada (timeout, nota parcial).
+        Does not write to the database: the deadline is already persisted. The
+        exam is only finished when the deadline expires (timeout, partial score).
         """
         remaining = self._remaining(state)
         if remaining <= 0:
@@ -575,7 +580,7 @@ class MVPTrainerCoordinator:
         return replace(state, remaining_seconds=remaining)
 
     def remaining_seconds(self, state: ExamState) -> int:
-        """Tempo restante pelo deadline absoluto, sem efeitos colaterais."""
+        """Remaining time from the absolute deadline, with no side effects."""
         return self._remaining(state)
 
     def _remaining(self, state: ExamState) -> int:
@@ -588,7 +593,7 @@ class MVPTrainerCoordinator:
         raise ValueError(f"Pack not found: {pack_id}")
 
     def _exam_levels(self, pack: PackDefinition) -> list[tuple[str, list[ExerciseRef]]]:
-        """Levels na ordem declarada no pack.json (nunca ordem alfabética), sem levels vazios."""
+        """Levels in pack.json declaration order, never alphabetical, without empty levels."""
         refs = self._pack_catalog.list_exercises(pack.id)
         grouped: list[tuple[str, list[ExerciseRef]]] = []
         for level_id in pack.level_ids:
@@ -641,7 +646,7 @@ class MVPTrainerCoordinator:
         return CorrectionOutcome(
             result=result,
             trace_path=trace_path,
-            # treino: tentativas de treino desse exercício; prova: tentativas nesta sessão
+            # training: attempts for this exercise; exam: attempts in this session
             attempts_count=self._progress_repository.attempts_count(
                 pack_id, exercise_id, mode, session_id=session_id
             ),

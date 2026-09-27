@@ -20,10 +20,10 @@ class PackDefinition:
     name: str
     version: str
     levels: tuple[PackLevelDefinition, ...]
-    # Duração da prova declarada pelo pack (`exam.duration_minutes`).
-    # None = pack não declarou; use `exam_duration_seconds_or_default`.
+    # Exam duration declared by the pack (`exam.duration_minutes`).
+    # None means the pack did not declare one; use `exam_duration_seconds_or_default`.
     exam_duration_seconds: int | None = None
-    # Contratos legados podem declarar uma linguagem padrão; v3 usa linguagem por atividade.
+    # Legacy contracts can declare a default language; v3 uses per-activity languages.
     schema_version: int = 1
     language: str = DEFAULT_LANGUAGE
     content_language: str = "pt-BR"

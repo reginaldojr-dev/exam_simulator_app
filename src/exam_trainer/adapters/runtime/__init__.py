@@ -1,1 +1,1 @@
-"""Runtimes por linguagem (implementações de ports.runtime_port.LanguageRuntime)."""
+"""Runtimes by language (implementations of ports.runtime_port.LanguageRuntime)."""

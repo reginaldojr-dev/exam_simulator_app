@@ -50,7 +50,7 @@ class JsonAppConfigRepository:
         self._save_data(data)
 
     def load_runtime_path(self, language: str) -> str | None:
-        """Ferramenta escolhida manualmente para a linguagem (C = compiler_path, legado)."""
+        """Manually selected tool for the language (C = compiler_path, legacy)."""
         if language == "c":
             return self.load_compiler_path()
         paths = self._load_data().get("runtime_paths")

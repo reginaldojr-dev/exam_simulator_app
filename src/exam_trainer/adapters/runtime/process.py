@@ -1,4 +1,4 @@
-"""Execução de processo compartilhada pelos runtimes: sem shell, com timeout."""
+"""Shared process execution for runtimes: no shell, with timeout."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ def run_process(
     cwd: Path | None = None,
     encoding: str | None = None,
 ) -> ProcessOutcome:
-    """`encoding=None` mantém o comportamento antigo (encoding do sistema, usado pelo C)."""
+    """`encoding=None` preserves the old behavior: system encoding, used by C."""
     try:
         completed = subprocess.run(
             argv,

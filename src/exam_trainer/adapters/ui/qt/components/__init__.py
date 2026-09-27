@@ -1,1 +1,1 @@
-"""Componentes visuais reutilizáveis da UI Qt."""
+"""Reusable visual components for the Qt UI."""

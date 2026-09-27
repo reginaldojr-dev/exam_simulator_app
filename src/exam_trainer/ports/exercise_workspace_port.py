@@ -47,11 +47,15 @@ class ExerciseWorkspacePort(Protocol):
         raise NotImplementedError
 
     def move_directory(self, source: Path, target: Path) -> None:
-        """Migra `source` para `target` (best-effort; nunca levanta). Usado para migrar
-        layouts antigos de workspace sem apagar nada."""
+        """Move `source` to `target` best-effort and never raise.
+
+        Used to migrate old workspace layouts without deleting anything.
+        """
         raise NotImplementedError
 
     def remove_directory(self, path: Path) -> None:
-        """Remove `path` recursivamente, se existir. Usado para limpar sessões de prova
-        encerradas."""
+        """Remove `path` recursively if it exists.
+
+        Used to clean up finished exam sessions.
+        """
         raise NotImplementedError

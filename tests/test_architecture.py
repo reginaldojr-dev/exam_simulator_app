@@ -1,23 +1,26 @@
-"""Testes de arquitetura: protegem as fronteiras entre camadas.
+"""Architecture tests: protect boundaries between layers.
 
-Leem o código-fonte com `ast` (não importam módulo nenhum). Regras:
+They read source code with `ast` and do not import any modules. Rules:
 
-- domain: só stdlib pura; sem PySide6, sqlite3, subprocess, shutil, os, socket, HTTP,
-  e sem `pathlib.Path` concreto (só PurePath/PurePosixPath). Não importa outras camadas.
-- application: não importa adapters, infrastructure, PySide6, sqlite3, subprocess nem HTTP.
-- application não mexe em arquivos diretamente (shutil/os): isso é trabalho de adapter.
-- ports: só dependem de domain (e de outros ports).
-- UI (adapters/ui): só importa application, os próprios módulos de UI e resources.
-- GenericGrader não conhece runtime nem compilador concreto.
-- comparar `language` com uma linguagem específica (`language == "c"`,
-  `language == DEFAULT_LANGUAGE`, `language in ("c", "cpp")`) só nos lugares que conhecem
-  linguagens: runtimes, RuntimeRegistry e a migração de configuração legada.
-- nada no app importa FastAPI/requests/httpx/aiohttp/http.client/urllib.request.
+- domain: pure stdlib only; no PySide6, sqlite3, subprocess, shutil, os, socket,
+  HTTP, or concrete `pathlib.Path` (only PurePath/PurePosixPath). Does not import
+  other layers.
+- application: does not import adapters, infrastructure, PySide6, sqlite3,
+  subprocess, or HTTP.
+- application does not touch files directly (shutil/os): that is adapter work.
+- ports: depend only on domain and other ports.
+- UI (adapters/ui): imports only application, UI modules, and resources.
+- GenericGrader does not know concrete runtimes or compilers.
+- comparing `language` with a specific language (`language == "c"`,
+  `language == DEFAULT_LANGUAGE`, `language in ("c", "cpp")`) is allowed only in
+  language-aware places: runtimes, RuntimeRegistry, and legacy configuration
+  migration.
+- nothing in the app imports FastAPI/requests/httpx/aiohttp/http.client/urllib.request.
 
-Violações que ainda existem ficam em `KNOWN_VIOLATIONS`, com a sessão do roadmap de
-fechamento da V1 que as resolve. O teste correspondente é `expectedFailure`: quando a
-sessão resolver, o teste passa a dar "unexpected success" e a marcação precisa sair.
-Na S6 este dicionário tem que estar vazio.
+Remaining violations live in `KNOWN_VIOLATIONS`, with the V1 closure roadmap
+session that resolves them. The corresponding test is marked `expectedFailure`:
+when the session resolves it, the test becomes an unexpected success and the mark
+must be removed. In S6 this dictionary must be empty.
 """
 
 from __future__ import annotations
@@ -29,15 +32,15 @@ from pathlib import Path
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "exam_trainer"
 
-# teste -> sessão do roadmap que remove a violação
+# test -> roadmap session that removes the violation
 KNOWN_VIOLATIONS: dict[str, str] = {}
 
 
 def expected_until(session: str):
-    """Marca um teste como violação conhecida até a sessão `session`."""
+    """Mark a test as a known violation until `session`."""
 
     def decorate(test):
-        test.__doc__ = f"{test.__doc__ or ''} [violação conhecida até {session}]"
+        test.__doc__ = f"{test.__doc__ or ''} [known violation until {session}]"
         return unittest.expectedFailure(test)
 
     return decorate
@@ -45,8 +48,8 @@ def expected_until(session: str):
 
 @dataclass(frozen=True)
 class ImportRef:
-    module: str  # módulo importado (absoluto)
-    names: tuple[str, ...]  # nomes importados em `from x import a, b`
+    module: str  # imported module, absolute
+    names: tuple[str, ...]  # imported names in `from x import a, b`
     file: str
     line: int
 
@@ -99,7 +102,7 @@ def violations(paths: list[Path], forbidden: tuple[str, ...]) -> list[str]:
     for path in paths:
         for ref in imports_of(path):
             if _matches(ref.module, forbidden):
-                found.append(f"{ref.file}:{ref.line} importa {ref.module}")
+                found.append(f"{ref.file}:{ref.line} imports {ref.module}")
     return found
 
 
@@ -126,12 +129,12 @@ class DependencyBoundariesTest(unittest.TestCase):
         self.assertNoViolations(violations(files_in("domain"), forbidden))
 
     def test_domain_uses_only_pure_paths(self) -> None:
-        """domain não usa pathlib.Path concreto (que faz I/O); só PurePath/PurePosixPath."""
+        """domain does not use concrete pathlib.Path (which does I/O), only PurePath/PurePosixPath."""
         found = []
         for path in files_in("domain"):
             for ref in imports_of(path):
                 if ref.module == "pathlib" and "Path" in ref.names:
-                    found.append(f"{ref.file}:{ref.line} importa pathlib.Path")
+                    found.append(f"{ref.file}:{ref.line} imports pathlib.Path")
         self.assertNoViolations(found)
 
     # ------------------------------------------------------------- application
@@ -145,7 +148,7 @@ class DependencyBoundariesTest(unittest.TestCase):
         self.assertNoViolations(violations(files_in("application"), forbidden))
 
     def test_application_does_not_touch_the_filesystem(self) -> None:
-        """Mover/apagar pastas é trabalho do adapter de workspace, não da application."""
+        """Moving/deleting folders is workspace adapter work, not application work."""
         self.assertNoViolations(violations(files_in("application"), ("shutil", "os")))
 
     # ------------------------------------------------------------------- ports
@@ -166,7 +169,7 @@ class DependencyBoundariesTest(unittest.TestCase):
         for path in files_in("adapters", "ui"):
             for ref in imports_of(path):
                 if ref.module.startswith("exam_trainer") and not _matches(ref.module, allowed):
-                    found.append(f"{ref.file}:{ref.line} importa {ref.module}")
+                    found.append(f"{ref.file}:{ref.line} imports {ref.module}")
         self.assertNoViolations(found)
 
     def test_only_ui_and_entry_point_import_pyside(self) -> None:
@@ -185,11 +188,11 @@ class DependencyBoundariesTest(unittest.TestCase):
 
     # --------------------------------------------------------------- language
     def test_language_checks_only_in_language_aware_modules(self) -> None:
-        """`language == "c"`/`language == DEFAULT_LANGUAGE` só onde a linguagem é o assunto do módulo."""
+        """`language == "c"`/`language == DEFAULT_LANGUAGE` only where language is the module subject."""
         allowed_prefixes = (
             "adapters/runtime/",
             "application/engine/runtime_registry.py",
-            "adapters/persistence/json_app_config_repository.py",  # migração da config legada (S2)
+            "adapters/persistence/json_app_config_repository.py",  # legacy config migration (S2)
         )
         found = []
         for path in files_in():
@@ -206,7 +209,7 @@ class DependencyBoundariesTest(unittest.TestCase):
                 if any(_is_language_name(item) for item in operands) and any(
                     _is_specific_language_value(item) for item in operands
                 ):
-                    found.append(f"{rel}:{node.lineno} compara language com uma linguagem específica")
+                    found.append(f"{rel}:{node.lineno} compares language with a specific language")
         self.assertNoViolations(found)
 
     # -------------------------------------------------------------------- HTTP
@@ -215,10 +218,10 @@ class DependencyBoundariesTest(unittest.TestCase):
 
 
 def _is_specific_language_value(node: ast.AST) -> bool:
-    """Literal de string, constante em MAIÚSCULAS ou coleção literal de strings.
+    """String literal, uppercase constant, or literal collection of strings.
 
-    `language in self._runtimes` (pertinência a um registro) não conta: isso é consulta,
-    não um `if` por linguagem.
+    `language in self._runtimes` (registry membership) does not count: it is a
+    lookup, not a per-language `if`.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
         return True

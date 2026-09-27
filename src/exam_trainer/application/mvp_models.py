@@ -25,8 +25,8 @@ class ExerciseRef:
     content_path: Path
 
 
-# `ProgressEntry` é uma regra pura (domain/progress.py); reexportada aqui para não
-# quebrar quem já importa de `application.mvp_models` (ADR 0007).
+# `ProgressEntry` is a pure rule (domain/progress.py); re-exported here to avoid
+# breaking existing imports from `application.mvp_models` (ADR 0007).
 
 
 @dataclass(frozen=True)

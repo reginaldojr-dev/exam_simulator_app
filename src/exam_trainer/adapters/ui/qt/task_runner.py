@@ -1,15 +1,15 @@
-"""Execução de trabalho pesado fora da thread da UI.
+"""Heavy work execution outside the UI thread.
 
-Tudo que roda processo externo ou mexe muito em disco (corrigir, importar/validar
-pack, detectar/validar compilador) passa por aqui. O callback de sucesso/erro é
-sempre entregue na thread da UI (sinal Qt com conexão enfileirada), então ele pode
-mexer em widgets à vontade.
+Everything that spawns external processes or does heavier disk work (grading,
+importing/validating packs, detecting/validating compilers) goes through here.
+Success/error callbacks are always delivered on the UI thread through queued Qt
+signals, so they may safely touch widgets.
 
-Regras:
-- uma chave (`key`) só pode ter uma tarefa em andamento: `start` devolve False se
-  já houver outra — é o que impede submissão duplicada;
-- a função de trabalho NÃO pode tocar em widgets;
-- exceções viram `on_error(exc)`; nunca sobem como traceback para o usuário.
+Rules:
+- a key can have only one in-flight task: `start` returns False if another is
+  already running, which prevents duplicate submissions;
+- the worker function MUST NOT touch widgets;
+- exceptions become `on_error(exc)` and never rise as traceback to the user.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from PySide6.QtCore import QCoreApplication, QDeadlineTimer, QObject, QRunnable,
 
 
 class _Relay(QObject):
-    """Vive na thread da UI; os sinais emitidos pela worker chegam enfileirados."""
+    """Lives on the UI thread; worker-emitted signals arrive queued."""
 
     finished = Signal(str, object)
     failed = Signal(str, object)
@@ -38,7 +38,7 @@ class _Job(QRunnable):
     def run(self) -> None:  # thread da pool
         try:
             result = self._work()
-        except BaseException as error:  # noqa: BLE001 — tudo vira on_error
+        except BaseException as error:  # noqa: BLE001 - everything becomes on_error
             self._relay.failed.emit(self._key, error)
             return
         self._relay.finished.emit(self._key, result)
@@ -70,7 +70,7 @@ class TaskRunner(QObject):
         return True
 
     def wait(self, timeout_ms: int = 30_000) -> bool:
-        """Para testes/encerramento: espera as tarefas e entrega os callbacks."""
+        """For tests/shutdown: wait for tasks and deliver callbacks."""
         deadline = QDeadlineTimer(timeout_ms)
         while self._callbacks and not deadline.hasExpired():
             self._pool.waitForDone(50)

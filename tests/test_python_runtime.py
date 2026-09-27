@@ -47,7 +47,7 @@ class PythonRuntimeUnitTest(unittest.TestCase):
 
     def test_pack_python_harness_is_refused(self) -> None:
         runtime = PythonRuntime(candidates=[])
-        runtime._detected = sys.executable  # não roda nada: a recusa vem antes
+        runtime._detected = sys.executable  # runs nothing: rejection happens first
         with tempfile.TemporaryDirectory() as temp_dir:
             source = Path(temp_dir) / "x.py"
             source.write_text("", encoding="utf-8")

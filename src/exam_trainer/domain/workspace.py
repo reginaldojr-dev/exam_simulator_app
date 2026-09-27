@@ -10,11 +10,11 @@ class WorkspaceError(ValueError):
 
 @dataclass(frozen=True)
 class Workspace:
-    """Regra pura: um caminho de workspace não pode ser vazio.
+    """Pure workspace rule: a workspace path cannot be empty.
 
-    `path` é tipado como `PurePath` (sem I/O). Expandir `~` e resolver o caminho é
-    trabalho de quem chama `from_path` (application/adapters), usando `pathlib.Path`
-    concreto antes de entregar o valor aqui — o domain nunca importa `Path`.
+    `path` is represented as `PurePath` and performs no I/O. Expanding `~` and
+    resolving the concrete path belongs to the caller/application adapter before
+    the value reaches the domain; the domain never imports `Path`.
     """
 
     path: PurePath

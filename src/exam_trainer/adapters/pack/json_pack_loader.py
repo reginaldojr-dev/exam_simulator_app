@@ -33,7 +33,7 @@ class PackDefinitionError(ValueError):
 
 class JsonPackLoader:
     def __init__(self, supported_languages: frozenset[str] | None = None) -> None:
-        # None = pega das capabilities padrão do app.
+        # None means use the app's default capabilities.
         if supported_languages is None:
             supported_languages = frozenset(default_exercise_capabilities().languages)
         self._languages = supported_languages
@@ -66,7 +66,7 @@ class JsonPackLoader:
             topics = read_topics(data.get("topics", []), PackDefinitionError)
             self._read_languages_metadata(data.get("languages", []))
         else:
-            # v1: sem language/topics. Campos extras continuam ignorados como antes.
+            # v1: no language/topics. Extra fields remain ignored as before.
             language, content_language, topics = DEFAULT_LANGUAGE, "pt-BR", ()
         if language not in self._languages:
             supported = ", ".join(sorted(self._languages))

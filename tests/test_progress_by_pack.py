@@ -1,4 +1,4 @@
-"""Passo 4: progresso por (pack_id, exercise_id), treino separado de prova, migração legada."""
+"""Step 4: progress by (pack_id, exercise_id), training/exam split, legacy migration."""
 
 from __future__ import annotations
 
@@ -45,16 +45,16 @@ CREATE TABLE exam_level_results (
     passed INTEGER NOT NULL, attempts_count INTEGER NOT NULL, updated_at TEXT NOT NULL,
     PRIMARY KEY (session_id, level_index)
 );
--- treino antigo sem mode (save_attempt legado) e com mode
+-- old training without mode (legacy save_attempt) and with mode
 INSERT INTO attempts VALUES ('a1', 'ex_0_0', 'graded', 0, 0, '', '2026-01-01T10:00:00', NULL);
 INSERT INTO attempts VALUES ('a2', 'ex_0_0', 'graded', 1, 100, '', '2026-01-01T11:00:00', 'training');
--- prova antiga: PASS em ex_0_1 dentro de uma sessão do pack 'alpha'
+-- old exam: PASS on ex_0_1 inside an 'alpha' pack session
 INSERT INTO attempts VALUES ('a3', 'ex_0_1', 'graded', 1, 100, '', '2026-01-02T10:00:00', 'exam');
 INSERT INTO exam_sessions VALUES ('s1', 'alpha', 1, 'ex_1_0', 50, 0, 1, 'completed', '/x', '2026-01-02T09:00:00', '2026-01-02T12:00:00');
 INSERT INTO exam_level_results VALUES ('s1', 0, 'ex_0_1', 1, 1, '2026-01-02T10:00:00');
--- exercício que não existe em nenhum pack instalado
+-- exercise that does not exist in any installed pack
 INSERT INTO attempts VALUES ('a4', 'ghost', 'graded', 0, 0, '', '2026-01-03T10:00:00', 'training');
--- progress legado mistura prova com treino
+-- legacy progress mixes exam and training
 INSERT INTO progress VALUES ('ex_0_0', 'completed', 2, '2026-01-01T11:00:00', 1, 100, 'training');
 INSERT INTO progress VALUES ('ex_0_1', 'completed', 1, '2026-01-02T10:00:00', 1, 100, 'exam');
 INSERT INTO progress VALUES ('ghost', 'attempted', 1, '2026-01-03T10:00:00', 0, 0, 'training');
@@ -66,7 +66,7 @@ class ProgressByPackTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self.bundled = self.root / "bundled"
-        # alpha e beta compartilham ids de exercício (ex_0_0, ex_0_1, ...)
+        # alpha and beta share exercise ids (ex_0_0, ex_0_1, ...)
         build_pack(self.bundled / "alpha", "alpha", levels=2, per_level=2)
         build_pack(self.bundled / "beta", "beta", levels=1, per_level=2)
         self.grader = SwitchGrader()
@@ -102,7 +102,7 @@ class ProgressByPackTest(unittest.TestCase):
         active = coordinator.prepare_exercise(self._ref(coordinator, pack_id, exercise_id), overwrite=True)
         return coordinator.submit_training(active)
 
-    # ------------------------------------------------------------ chave por pack
+    # -------------------------------------------------------------- pack key
     def test_same_exercise_id_in_two_packs_has_separate_progress(self) -> None:
         coordinator = self.coordinator()
         self._train(coordinator, "alpha", "ex_0_0", passed=True)
@@ -119,7 +119,7 @@ class ProgressByPackTest(unittest.TestCase):
         self._train(coordinator, "alpha", "ex_0_0", passed=True)
         options = TrainingOptions(pack_id="beta", level_ids=("level0",), selection_mode="only_uncompleted")
         chosen = {coordinator.choose_training_exercise(options).definition.id for _ in range(2)}
-        # concluir em alpha não esconde ex_0_0 de beta
+        # completing in alpha does not hide beta's ex_0_0
         self.assertEqual(chosen, {"ex_0_0", "ex_0_1"})
 
     def test_training_workspace_is_scoped_by_pack(self) -> None:
@@ -143,7 +143,7 @@ class ProgressByPackTest(unittest.TestCase):
         self.assertTrue(active.had_existing_submission)
         self.assertEqual(active.submission_path.read_text(encoding="utf-8"), "int main(void){return 0;}")
 
-    # ------------------------------------------------------ treino x prova
+    # ------------------------------------------------------ training vs exam
     def test_exam_attempts_are_history_but_not_training_progress(self) -> None:
         coordinator = self.coordinator()
         state = coordinator.start_exam("beta", 600)
@@ -171,7 +171,7 @@ class ProgressByPackTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             repo.save_grading_result("alpha", "ex_0_0", GradingResult(passed=True, trace_data=TraceData(())), "practice")
 
-    # ----------------------------------------------------------- migração v0
+    # ----------------------------------------------------------- v0 migration
     def _legacy_database(self) -> None:
         connection = sqlite3.connect(self.database)
         connection.executescript(LEGACY_V0_SCHEMA)
@@ -186,31 +186,31 @@ class ProgressByPackTest(unittest.TestCase):
 
         self.assertEqual(db.execute("SELECT version FROM schema_meta").fetchone()[0], migrations.LATEST_VERSION)
         self.assertEqual(db.execute("SELECT COUNT(*) FROM attempts").fetchone()[0], 4)
-        # tabela antiga preservada, com os mesmos dados
+        # old table is preserved with the same data
         self.assertEqual(db.execute("SELECT COUNT(*) FROM progress_legacy_v0").fetchone()[0], 3)
         self.assertEqual(len(list(self.root.glob("trainer.sqlite3.bak-v0-*"))), 1)
-        # mode nulo virou training
+        # null mode became training
         self.assertEqual(db.execute("SELECT mode FROM attempts WHERE id='a1'").fetchone()[0], "training")
-        # prova antiga: pack descoberto pela sessão de prova
+        # old exam: pack discovered through the exam session
         self.assertEqual(db.execute("SELECT pack_id FROM attempts WHERE id='a3'").fetchone()[0], "alpha")
-        # 'ghost' não existe em nenhum pack: continua legado
+        # 'ghost' exists in no pack: stays legacy
         self.assertEqual(db.execute("SELECT pack_id FROM attempts WHERE id='a4'").fetchone()[0], LEGACY_PACK_ID)
-        # ex_0_0 existe em alpha E beta: ambíguo, continua legado (não chuta)
+        # ex_0_0 exists in alpha AND beta: ambiguous, stays legacy (no guessing)
         self.assertEqual(db.execute("SELECT pack_id FROM attempts WHERE id='a1'").fetchone()[0], LEGACY_PACK_ID)
         db.close()
 
-        # progresso de treino só com treino; a prova em ex_0_1 não conta
+        # training progress only uses training; the ex_0_1 exam does not count
         self.assertNotIn("ex_0_1", repo.progress_by_exercise("alpha"))
         legacy = repo.progress_by_exercise(LEGACY_PACK_ID)
         self.assertTrue(legacy["ex_0_0"].best_passed)
         self.assertEqual(legacy["ex_0_0"].attempts_count, 2)
-        # linhas legadas continuam visíveis no histórico
+        # legacy rows remain visible in history
         labels = {(row["pack"], row["exercise_id"]) for row in coordinator.exercise_history_rows()}
         self.assertIn(("(legado)", "ghost"), labels)
         self.assertIn(("(legado)", "ex_0_0"), labels)
 
     def test_unambiguous_legacy_attempts_are_adopted_by_the_installed_pack(self) -> None:
-        shutil.rmtree(self.bundled / "beta")  # agora ex_0_0 só existe em alpha
+        shutil.rmtree(self.bundled / "beta")  # now ex_0_0 only exists in alpha
         self._legacy_database()
         coordinator = self.coordinator()
         repo = coordinator._progress_repository
