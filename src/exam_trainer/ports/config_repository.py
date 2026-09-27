@@ -38,3 +38,9 @@ class AppSettingsRepository(ConfigRepository, Protocol):
 
     def save_theme(self, theme_key: str) -> None:
         raise NotImplementedError
+
+    def load_ui_locale(self) -> str:
+        raise NotImplementedError
+
+    def save_ui_locale(self, locale: str) -> None:
+        raise NotImplementedError

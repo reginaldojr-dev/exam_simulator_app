@@ -106,6 +106,10 @@ class OptionButton(QPushButton):
     def value(self) -> str:
         return self._value
 
+    def set_caption(self, caption: str) -> None:
+        self._caption = caption
+        self._sync()
+
     def _sync(self, *_: object) -> None:
         on, off = ("[x]", "[ ]") if self._kind == "check" else ("(•)", "( )")
         text = f"{on if self.isChecked() else off} {self._value}"

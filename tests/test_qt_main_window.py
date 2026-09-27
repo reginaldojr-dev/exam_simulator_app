@@ -14,9 +14,11 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
+from exam_trainer.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
 from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.adapters.runtime.c_runtime import CRuntime
+from exam_trainer.adapters.ui.qt.i18n import LocaleService
 from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
@@ -138,7 +140,7 @@ class MainWindowTest(unittest.TestCase):
         for name, original in cls._original_dialogs.items():
             setattr(QMessageBox, name, original)
 
-    def _window(self, temp_dir: str, passed: bool = True, grader=None, compiler=None) -> MainWindow:
+    def _window(self, temp_dir: str, passed: bool = True, grader=None, compiler=None, locale_service=None) -> MainWindow:
         root = Path(temp_dir)
         workspace = root / "workspace"
         workspace.mkdir()
@@ -159,7 +161,7 @@ class MainWindowTest(unittest.TestCase):
             editor_factory=SubprocessEditorFactory(),
             workspace_port=LocalWorkspace(),
         )
-        window = MainWindow(workspace, coordinator)
+        window = MainWindow(workspace, coordinator, locale_service=locale_service)
         # os testes de UI usam o pack C de exemplo (há também o python-basics embutido)
         for combo in (window._training_pack_combo, window._exam_pack_combo):
             combo.setCurrentIndex(combo.findData("sample_rank"))
@@ -516,6 +518,17 @@ class MainWindowTest(unittest.TestCase):
                 self.assertFalse(window._menu_buttons[0].isHidden())
                 self.assertTrue(window._menu_buttons[0].isEnabled())
 
+    def test_settings_locale_layout_survives_reference_sizes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._locale.set_locale("es")
+            window._show_settings()
+            for width, height in ((760, 520), (1024, 720), (1440, 900), (1920, 1080)):
+                window.resize(width, height)
+                QApplication.processEvents()
+                self.assertFalse(window._locale_combo.isHidden())
+                self.assertEqual(window._locale_combo.count(), 3)
+
 
     def test_theme_change_restyles_window_and_is_persisted(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -562,6 +575,112 @@ class MainWindowTest(unittest.TestCase):
 
             self.assertEqual(window._cursor._titles[window._title_home], "EXAM TRAINER")
             self.assertEqual(window.windowTitle(), "Exam Trainer")
+
+    def test_home_is_pt_br_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            labels = [button.property("baseText") for button in window._menu_buttons]
+
+            self.assertIn("> [2] TREINAR", labels)
+            self.assertIn("> [3] MODO PROVA", labels)
+            self.assertIn("> [4] HISTÓRICO", labels)
+
+    def test_home_can_switch_to_english_at_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._locale.set_locale("en")
+
+            labels = [button.property("baseText") for button in window._menu_buttons]
+            self.assertIn("> [1] STUDY SOMETHING NEW", labels)
+            self.assertIn("> [2] TRAINING", labels)
+            self.assertIn("> [3] EXAM MODE", labels)
+            self.assertIn("> [4] HISTORY", labels)
+            self.assertIn("> [5] SETTINGS", labels)
+
+    def test_home_can_switch_to_spanish_at_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._locale.set_locale("es")
+
+            labels = [button.property("baseText") for button in window._menu_buttons]
+            self.assertIn("> [1] ESTUDIAR ALGO NUEVO", labels)
+            self.assertIn("> [2] ENTRENAR", labels)
+            self.assertIn("> [3] MODO EXAMEN", labels)
+            self.assertIn("> [4] HISTORIAL", labels)
+            self.assertIn("> [5] CONFIGURACIÓN", labels)
+
+    def test_settings_shows_translated_locale_selector_with_three_languages(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._locale.set_locale("en")
+            window._show_settings()
+
+            self.assertEqual(window._locale_label.text(), "Interface language")
+            self.assertEqual(window._locale_combo.count(), 3)
+            self.assertEqual(
+                [window._locale_combo.itemText(index) for index in range(window._locale_combo.count())],
+                ["Português (Brasil)", "English", "Español"],
+            )
+
+    def test_locale_combo_persists_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = JsonAppConfigRepository(Path(temp_dir) / "config.json")
+            locale_service = LocaleService(config, self._app)
+            window = self._window(temp_dir, locale_service=locale_service)
+
+            window._show_settings()
+            window._locale_combo.setCurrentIndex(window._locale_combo.findData("es"))
+
+            self.assertEqual(config.load_ui_locale(), "es")
+
+    def test_pack_content_and_exercise_name_are_not_translated_by_ui_locale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = next(
+                ref
+                for ref in window._coordinator._pack_catalog.list_exercises("c-basics")
+                if ref.definition.id == "argc_counter"
+            )
+
+            window._locale.set_locale("en")
+            window._load_exercise(ref, mode="training", overwrite=True)
+
+            self.assertEqual(window._cursor._titles[window._exercise_title], "Argc Counter")
+            rendered = window._subject.toPlainText()
+            self.assertIn("Arquivo esperado", rendered)
+            self.assertIn("argc_counter.c", rendered)
+
+    def test_internal_status_values_are_not_translated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=False)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._locale.set_locale("es")
+            window._load_exercise(ref, mode="training", overwrite=True)
+            window._submit_current()
+            self.assertTrue(window._tasks.wait())
+
+            rows = window._coordinator.exercise_history_rows()
+            self.assertTrue(any(row["latest_result"] == "FAIL" for row in rows))
+
+    def test_runtime_preflight_message_is_translated_from_structured_missing_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            compiler = SlowProbeCompiler(found=False)
+            window = self._window(temp_dir, compiler=compiler)
+            window._locale.set_locale("en")
+            shown: list[str] = []
+            original = QMessageBox.information
+            QMessageBox.information = staticmethod(lambda parent, title, text, *a, **k: shown.append(text))
+            try:
+                window._open_exam_setup()
+                self.assertTrue(window._tasks.wait())
+            finally:
+                QMessageBox.information = original
+
+            self.assertEqual(shown, ["Install or configure a compatible runtime to submit this exercise."])
 
     def test_grading_runs_off_the_ui_thread_and_blocks_duplicate_submissions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

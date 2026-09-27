@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from exam_trainer.adapters.ui.qt.components import widgets as ui
 from exam_trainer.adapters.ui.qt.components.cursor import CursorController
+from exam_trainer.adapters.ui.qt.i18n import LOCALE_LABELS, LocaleService, SUPPORTED_UI_LOCALES, tr
 from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
 from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
@@ -53,11 +54,11 @@ from exam_trainer.application.use_cases.mvp_coordinator import (
 )
 
 MENU_WIDTH = 460
-EXAM_STATUS_LABELS = {
-    "completed": ("[✓] aprovada", "success"),
-    "timeout": ("[✗] tempo esgotado", "fail"),
-    "abandoned": ("[✗] abandonada", "fail"),
-    "in_progress": ("[…] em andamento", "warning"),
+EXAM_STATUS_KEYS = {
+    "completed": ("completed_exam", "success"),
+    "timeout": ("timeout_exam", "fail"),
+    "abandoned": ("abandoned_exam", "fail"),
+    "in_progress": ("in_progress_exam", "warning"),
 }
 
 
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow):
         workspace_path: Path,
         coordinator: MVPTrainerCoordinator,
         theme_manager: ThemeManager | None = None,
+        locale_service: LocaleService | None = None,
         task_runner: TaskRunner | None = None,
     ) -> None:
         super().__init__()
@@ -81,8 +83,11 @@ class MainWindow(QMainWindow):
         self._training_kind = "level"
         self._pending_action: Callable[[], None] | None = None
         self._level_checks: list[ui.OptionButton] = []
+        self._footer_buttons: list[tuple[QPushButton, str]] = []
 
         self._theme = theme_manager or ThemeManager(self._saved_theme_key())
+        self._locale = locale_service or LocaleService(coordinator)
+        self._locale.locale_changed.connect(self._on_locale_changed)
         self._cursor = CursorController(self)
 
         self.setWindowTitle("Exam Trainer")
@@ -125,6 +130,7 @@ class MainWindow(QMainWindow):
         self._show_resume_if_needed()
         self._refresh_home_status()
         self._refresh_study_languages()
+        self._retranslate_static_ui()
         self._cursor.enter_page(self._home_page)
 
     # ------------------------------------------------------------------ tema
@@ -149,6 +155,172 @@ class MainWindow(QMainWindow):
         saver = getattr(self._coordinator, "save_theme", None)
         if callable(saver):
             saver(str(key))
+
+    # --------------------------------------------------------------- i18n
+    def _t(self, text: str, **values: object) -> str:
+        translated = self._locale.translate(text)
+        return translated.format(**values) if values else translated
+
+    def _action(self, text: str, style: str = "bracket", **values: object) -> str:
+        translated = self._t(text, **values).upper()
+        if style == "primary":
+            return f"> {translated}"
+        if style == "indexed":
+            return translated
+        return f"[ {translated} ]"
+
+    def _set_button(self, button: QPushButton, text: str) -> None:
+        self._cursor.set_button_text(button, text)
+
+    def _on_locale_changed(self, _locale: str) -> None:
+        self._retranslate_static_ui()
+        self._refresh_home_status()
+        self._refresh_study_languages()
+        self._refresh_packs()
+        self._refresh_levels()
+        if self._active is not None:
+            self._refresh_exercise_frame()
+            if self._exam_state is not None:
+                self._render_exam_timer(self._exam_state)
+        if self._stack.currentWidget() is self._history_page:
+            self._show_history()
+        elif self._stack.currentWidget() is self._settings_page:
+            self._show_settings()
+        elif self._stack.currentWidget() is self._exam_prepare_page:
+            self._show_exam_prepare()
+
+    def _set_locale_from_combo(self, index: int) -> None:
+        locale = self._locale_combo.itemData(index)
+        if isinstance(locale, str):
+            self._locale.set_locale(locale)
+
+    def _retranslate_static_ui(self) -> None:
+        self._set_title_label(self._title_home, "EXAM TRAINER")
+        menu_labels = (
+            self._t("Quero estudar algo novo"),
+            self._t("Treinar"),
+            self._t("Modo prova"),
+            self._t("Histórico"),
+            self._t("Configurações"),
+        )
+        for index, (button, label) in enumerate(zip(self._menu_buttons, menu_labels, strict=True), start=1):
+            self._set_button(button, f"> [{index}] {label.upper()}")
+
+        self._set_title_label(self._study_title, self._t("Quero estudar algo novo título"))
+        self._study_description.setText(self._t("Descreva o que quer estudar, gere um prompt compatível e importe o pack resultante."))
+        self._study_topic.setPlaceholderText(self._t("Ex.: ponteiros e strings, OOP em Python, arrays em Java..."))
+        self._study_section_label.setText(f"> {self._t('O que você quer estudar?').upper()}")
+        for label, text in self._study_field_labels:
+            label.setText(self._t(text))
+        self._reset_combo_items(self._study_level_combo, ("Básico", "Intermediário", "Avançado"))
+        self._reset_combo_items(self._study_goal_combo, ("Aprender", "Praticar", "Revisar", "Validar conhecimento"))
+        self._reset_combo_items(self._study_format_combo, ("Exercícios", "Projeto", "Misto", "Revisão", "Simulado"))
+        self._reset_combo_items(self._study_content_language_combo, ("Português (pt-BR)", "Inglês (en)"), ("pt-BR", "en"))
+        self._reset_combo_items(self._study_size_combo, ("Curto", "Médio", "Completo"))
+        self._set_button(self._generate_prompt_button, self._action("Gerar prompt", "primary"))
+        self._set_button(self._copy_prompt_button, self._action("Copiar prompt"))
+        self._set_button(self._study_import_button, self._action("Importar Pack"))
+        self._study_prompt_output.setPlaceholderText(self._t("O prompt gerado aparecerá aqui."))
+        if not self._study_prompt_output.toPlainText().strip():
+            self._study_status.setText(self._t("1. gere o prompt · 2. copie · 3. cole na IA que preferir · 4. importe o pack"))
+
+        self._set_title_label(self._training_title, self._t("Treino").upper())
+        self._set_button(self._level_training_button, f"[1] {self._t('Treino por Level').upper()}")
+        self._set_button(self._random_training_button, f"[2] {self._t('Treino aleatório').upper()}")
+        self._training_pack_label.setText(f"> {self._t('Rank / Pack').upper()}")
+        self._training_levels_label.setText(f"> {self._t('Levels').upper()}")
+        self._random_draw_label.setText(f"> {self._t('Sorteio').upper()}")
+        self._prioritize_radio.set_caption(self._t("Priorizar não concluídos"))
+        self._only_uncompleted_radio.set_caption(self._t("Somente não concluídos"))
+        self._all_radio.set_caption(self._t("Todos os exercícios"))
+        self._allow_repeated_check.set_caption(self._t("Permitir repetidos"))
+        self._set_button(self._start_training_button, self._action("Start training", "primary"))
+        self._choose_level_training() if self._training_kind == "level" else self._choose_random_training()
+
+        self._set_title_label(self._exam_title, self._t("Modo prova").upper())
+        self._exam_resume_header.setText(f"● {self._t('Prova em andamento').upper()}")
+        self._set_button(self._resume_exam_button, self._action("Continuar prova", "primary"))
+        self._set_button(self._end_exam_button, self._action("Encerrar prova"))
+        self._exam_new_label.setText(f"> {self._t('Nova prova — Rank / Pack').upper()}")
+        self._set_button(self._prepare_exam_button, self._action("Preparar prova", "primary"))
+        self._set_title_label(self._exam_prepare_title, self._t("Preparar prova").upper())
+        self._set_button(self._start_exam_button, self._action("Start exam", "primary"))
+
+        self._set_button(self._open_editor_button, self._action("Abrir IDE"))
+        self._set_button(self._correct_button, self._action("Corrigir", "primary"))
+        self._set_button(self._trace_button, self._action("Ver trace"))
+        self._set_button(self._next_button, self._action("Próximo/trocar"))
+        self._set_button(self._exercise_back_button, self._action("Voltar"))
+        self._set_title_label(self._trace_title, "TRACE")
+        self._set_button(self._save_trace_button, self._action("Salvar trace como..."))
+
+        self._set_title_label(self._history_title, self._t("Histórico").upper())
+        history_tabs = {
+            "overview": "Visão geral",
+            "packs": "Por Pack",
+            "activities": "Atividades",
+            "sessions": "Sessões",
+            "timeline": "Linha do tempo",
+        }
+        for key, button in self._history_view_buttons.items():
+            self._set_button(button, self._action(history_tabs[key]))
+        self._history_pack_label.setText(self._t("Pack"))
+        self._history_policy_label.setText(self._t("Sessão"))
+        self._refresh_history_policy_filter()
+
+        self._set_title_label(self._settings_title, self._t("Configurações").upper())
+        self._locale_label.setText(self._t("Idioma da interface"))
+        self._refresh_locale_combo()
+        self._refresh_editor_combo()
+        self._refresh_settings_cards()
+        self._set_title_label(self._pack_help_title, self._t("Como criar um Pack").upper())
+        self._set_button(self._open_full_docs_button, self._action("Abrir documentação completa"))
+        for button, source in self._footer_buttons:
+            self._set_button(button, self._footer_text(source))
+
+    def _footer_text(self, source: str) -> str:
+        if source == "[ VOLTAR ]":
+            return self._action("Voltar")
+        if source == "[ VOLTAR AO EXERCÍCIO ]":
+            return self._action("Voltar ao exercício")
+        if source == "[ VOLTAR PARA CONFIGURAÇÕES ]":
+            return self._action("Voltar para Configurações")
+        return source
+
+    def _reset_combo_items(self, combo: QComboBox, labels: tuple[str, ...], values: tuple[str, ...] | None = None) -> None:
+        current = combo.currentData()
+        combo.blockSignals(True)
+        combo.clear()
+        for index, label in enumerate(labels):
+            value = values[index] if values is not None else label
+            combo.addItem(self._t(label), value)
+        if current is not None:
+            index = combo.findData(current)
+            if index >= 0:
+                combo.setCurrentIndex(index)
+        combo.blockSignals(False)
+
+    def _refresh_locale_combo(self) -> None:
+        current = self._locale.locale
+        self._locale_combo.blockSignals(True)
+        self._locale_combo.clear()
+        for locale in SUPPORTED_UI_LOCALES:
+            self._locale_combo.addItem(LOCALE_LABELS[locale], locale)
+        index = self._locale_combo.findData(current)
+        self._locale_combo.setCurrentIndex(max(0, index))
+        self._locale_combo.blockSignals(False)
+
+    def _refresh_editor_combo(self) -> None:
+        current = self._editor_combo.currentData() or self._editor_combo.currentText()
+        self._editor_combo.blockSignals(True)
+        self._editor_combo.clear()
+        for label in ("VS Code", "Zed", "Cursor", "Outro..."):
+            self._editor_combo.addItem(self._t(label), label)
+        index = self._editor_combo.findData(current)
+        if index < 0:
+            index = self._editor_combo.findData("Outro...")
+        self._editor_combo.setCurrentIndex(max(0, index))
+        self._editor_combo.blockSignals(False)
 
     # --------------------------------------------------------------- helpers
     def _go(self, page: QWidget) -> None:
@@ -196,6 +368,7 @@ class MainWindow(QMainWindow):
         if back is not None:
             row = QHBoxLayout()
             back_button = self._button(back_text, back)
+            self._footer_buttons.append((back_button, back_text))
             back_button.setMinimumWidth(180)
             row.addWidget(back_button)
             row.addStretch(1)
@@ -242,14 +415,14 @@ class MainWindow(QMainWindow):
 
     def _build_study_page(self) -> QWidget:
         page, layout = self._page(margins=28)
-        layout.addWidget(self._title("QUERO ESTUDAR ALGO NOVO"))
-        layout.addWidget(
-            ui.label(
+        self._study_title = self._title("QUERO ESTUDAR ALGO NOVO")
+        layout.addWidget(self._study_title)
+        self._study_description = ui.label(
                 "Descreva o que quer estudar, gere um prompt compatível e importe o pack resultante.",
                 role="muted",
                 wrap=True,
             )
-        )
+        layout.addWidget(self._study_description)
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
@@ -265,7 +438,8 @@ class MainWindow(QMainWindow):
         self._study_topic.setPlaceholderText("Ex.: ponteiros e strings, OOP em Python, arrays em Java...")
         self._study_topic.setFixedHeight(72)
         self._study_topic.setAcceptRichText(False)
-        study_layout.addWidget(ui.section_label("> O QUE VOCÊ QUER ESTUDAR?"))
+        self._study_section_label = ui.section_label("> O QUE VOCÊ QUER ESTUDAR?")
+        study_layout.addWidget(self._study_section_label)
         study_layout.addWidget(self._study_topic)
 
         fields = QGridLayout()
@@ -279,6 +453,7 @@ class MainWindow(QMainWindow):
         self._study_content_language_combo.setItemData(0, "pt-BR")
         self._study_content_language_combo.setItemData(1, "en")
         self._study_size_combo = self._combo(("Curto", "Médio", "Completo"))
+        self._study_field_labels: list[tuple[QLabel, str]] = []
         for index, (caption, widget) in enumerate(
             (
                 ("Nível", self._study_level_combo),
@@ -290,7 +465,9 @@ class MainWindow(QMainWindow):
             )
         ):
             row, column = divmod(index, 2)
-            fields.addWidget(ui.label(caption, role="muted"), row * 2, column)
+            label = ui.label(caption, role="muted")
+            self._study_field_labels.append((label, caption))
+            fields.addWidget(label, row * 2, column)
             fields.addWidget(widget, row * 2 + 1, column)
         study_layout.addLayout(fields)
 
@@ -331,7 +508,8 @@ class MainWindow(QMainWindow):
     # ---------------------------------------------------------------- treino
     def _build_training_page(self) -> QWidget:
         page, layout = self._page()
-        layout.addWidget(self._title("TREINO"))
+        self._training_title = self._title("TREINO")
+        layout.addWidget(self._training_title)
 
         tabs = QHBoxLayout()
         tabs.setSpacing(0)
@@ -366,17 +544,20 @@ class MainWindow(QMainWindow):
         for radio in (self._prioritize_radio, self._only_uncompleted_radio, self._all_radio):
             self._selection_group.addButton(radio)
         self._allow_repeated_check = ui.OptionButton("Permitir repetidos", kind="check")
-        random_options.addWidget(ui.section_label("> SORTEIO"))
+        self._random_draw_label = ui.section_label("> SORTEIO")
+        random_options.addWidget(self._random_draw_label)
         for widget in (self._prioritize_radio, self._only_uncompleted_radio, self._all_radio):
             random_options.addWidget(widget)
         random_options.addSpacing(6)
         random_options.addWidget(self._allow_repeated_check)
 
         options.addWidget(self._training_mode_label)
-        options.addWidget(ui.section_label("> RANK / PACK"))
+        self._training_pack_label = ui.section_label("> RANK / PACK")
+        options.addWidget(self._training_pack_label)
         options.addWidget(self._training_pack_combo)
         options.addSpacing(6)
-        options.addWidget(ui.section_label("> LEVELS"))
+        self._training_levels_label = ui.section_label("> LEVELS")
+        options.addWidget(self._training_levels_label)
         options.addLayout(self._level_checks_layout)
         options.addWidget(self._random_options)
         options.addSpacing(18)
@@ -398,13 +579,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------ modo prova
     def _build_exam_page(self) -> QWidget:
         page, layout = self._page()
-        layout.addWidget(self._title("MODO PROVA"))
+        self._exam_title = self._title("MODO PROVA")
+        layout.addWidget(self._exam_title)
 
         self._exam_resume_card = ui.card(status="pending")
         resume = QVBoxLayout(self._exam_resume_card)
         resume.setContentsMargins(16, 12, 16, 14)
         resume.setSpacing(8)
-        resume.addWidget(ui.label("● PROVA EM ANDAMENTO", status="pending"))
+        self._exam_resume_header = ui.label("● PROVA EM ANDAMENTO", status="pending")
+        resume.addWidget(self._exam_resume_header)
         self._exam_resume_label = ui.label("", wrap=True)
         resume.addWidget(self._exam_resume_label)
         resume_buttons = QHBoxLayout()
@@ -416,7 +599,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._exam_resume_card)
 
         layout.addSpacing(8)
-        layout.addWidget(ui.section_label("> NOVA PROVA — RANK / PACK"))
+        self._exam_new_label = ui.section_label("> NOVA PROVA — RANK / PACK")
+        layout.addWidget(self._exam_new_label)
         self._exam_pack_combo = QComboBox()
         layout.addWidget(self._exam_pack_combo)
         prepare_row = QHBoxLayout()
@@ -432,7 +616,8 @@ class MainWindow(QMainWindow):
 
     def _build_exam_prepare_page(self) -> QWidget:
         page, layout = self._page()
-        layout.addWidget(self._title("PREPARAR PROVA"))
+        self._exam_prepare_title = self._title("PREPARAR PROVA")
+        layout.addWidget(self._exam_prepare_title)
         layout.addWidget(ui.label("exam.conf — less", role="panel-caption"))
         self._exam_prepare_text = self._terminal_text()
         layout.addWidget(self._exam_prepare_text, 1)
@@ -479,23 +664,25 @@ class MainWindow(QMainWindow):
         self._correct_button = self._button("> CORRIGIR", self._submit_current, "primary")
         self._trace_button = self._button("[ VER TRACE ]", self._show_trace)
         self._next_button = self._button("[ PRÓXIMO/TROCAR ]", self._next_exercise)
-        back_button = self._button("[ VOLTAR ]", self._back_from_exercise)
+        self._exercise_back_button = self._button("[ VOLTAR ]", self._back_from_exercise)
         buttons.addWidget(self._open_editor_button, 3)
         buttons.addWidget(self._correct_button, 3)
         buttons.addWidget(self._trace_button, 2)
         buttons.addWidget(self._next_button, 3)
-        buttons.addWidget(back_button, 2)
+        buttons.addWidget(self._exercise_back_button, 2)
         layout.addLayout(buttons)
         return page
 
     def _build_trace_page(self) -> QWidget:
         page, layout = self._page()
-        layout.addWidget(self._title("TRACE"))
+        self._trace_title = self._title("TRACE")
+        layout.addWidget(self._trace_title)
         layout.addWidget(ui.label("trace.log — less", role="panel-caption"))
         self._trace_text = self._terminal_text()
         layout.addWidget(self._trace_text, 1)
         row = QHBoxLayout()
-        row.addWidget(self._button("[ SALVAR TRACE COMO... ]", self._save_trace_as))
+        self._save_trace_button = self._button("[ SALVAR TRACE COMO... ]", self._save_trace_as)
+        row.addWidget(self._save_trace_button)
         row.addStretch(1)
         layout.addLayout(row)
         layout.addLayout(
@@ -506,7 +693,8 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- histórico
     def _build_history_page(self) -> QWidget:
         page, layout = self._page(spacing=8)
-        layout.addWidget(self._title("HISTÓRICO"))
+        self._history_title = self._title("HISTÓRICO")
+        layout.addWidget(self._history_title)
         layout.addSpacing(4)
         self._history_view = "overview"
         view_row = QHBoxLayout()
@@ -531,13 +719,15 @@ class MainWindow(QMainWindow):
         self._history_pack_filter = QComboBox()
         self._history_pack_filter.currentIndexChanged.connect(lambda _index=0: self._show_history(refresh_filters=False))
         self._history_policy_filter = QComboBox()
-        self._history_policy_filter.addItem("Todas as sessões", "")
-        self._history_policy_filter.addItem("Training", "training")
-        self._history_policy_filter.addItem("Exam", "exam")
+        self._history_policy_filter.addItem(self._t("Todas as sessões"), "")
+        self._history_policy_filter.addItem(self._t("Training filter"), "training")
+        self._history_policy_filter.addItem(self._t("Exam filter"), "exam")
         self._history_policy_filter.currentIndexChanged.connect(lambda _index=0: self._show_history(refresh_filters=False))
-        filters.addWidget(ui.label("Pack", role="muted"))
+        self._history_pack_label = ui.label("Pack", role="muted")
+        filters.addWidget(self._history_pack_label)
         filters.addWidget(self._history_pack_filter, 2)
-        filters.addWidget(ui.label("Sessão", role="muted"))
+        self._history_policy_label = ui.label("Sessão", role="muted")
+        filters.addWidget(self._history_policy_label)
         filters.addWidget(self._history_policy_filter, 1)
         filters.addStretch(1)
         layout.addLayout(filters)
@@ -597,6 +787,12 @@ class MainWindow(QMainWindow):
         self._theme_combo.currentIndexChanged.connect(self._change_theme)
         sections.addWidget(self._settings_card("TEMA", [self._theme_combo], []))
 
+        # idioma da interface
+        self._locale_label = ui.label("", role="muted")
+        self._locale_combo = QComboBox()
+        self._locale_combo.currentIndexChanged.connect(self._set_locale_from_combo)
+        sections.addWidget(self._settings_card("IDIOMA", [self._locale_label, self._locale_combo], []))
+
         # workspace
         self._settings_workspace = ui.label("", wrap=True)
         sections.addWidget(
@@ -605,8 +801,7 @@ class MainWindow(QMainWindow):
 
         # editor
         self._editor_combo = QComboBox()
-        self._editor_combo.addItems(("VS Code", "Zed", "Cursor", "Outro..."))
-        self._editor_combo.currentTextChanged.connect(self._editor_preset_changed)
+        self._editor_combo.currentIndexChanged.connect(self._editor_preset_changed)
         self._settings_editor = QLineEdit()
         sections.addWidget(
             self._settings_card(
@@ -666,27 +861,72 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(14, 10, 14, 12)
         layout.setSpacing(8)
-        layout.addWidget(ui.section_label(title))
+        title_label = ui.section_label(title)
+        title_label.setProperty("sourceText", title)
+        layout.addWidget(title_label)
         for widget in body:
             layout.addWidget(widget)
         if actions:
             row = QHBoxLayout()
             row.setSpacing(8)
             for text, handler in actions:
-                row.addWidget(self._button(text, handler))
+                button = self._button(text, handler)
+                button.setProperty("sourceText", text)
+                row.addWidget(button)
             row.addStretch(1)
             layout.addLayout(row)
         return frame
 
+    def _refresh_settings_cards(self) -> None:
+        for label in self._settings_page.findChildren(QLabel):
+            source = label.property("sourceText")
+            if isinstance(source, str):
+                label.setText(self._settings_title_text(source))
+        for button in self._settings_page.findChildren(QPushButton):
+            source = button.property("sourceText")
+            if isinstance(source, str):
+                self._set_button(button, self._settings_action_text(source))
+
+    def _settings_title_text(self, source: str) -> str:
+        mapping = {
+            "TEMA": "Tema",
+            "IDIOMA": "Idioma da interface",
+            "WORKSPACE": "Workspace",
+            "EDITOR/IDE": "Editor/IDE",
+            "PACKS": "Packs",
+        }
+        return self._t(mapping.get(source, source)).upper()
+
+    def _settings_action_text(self, source: str) -> str:
+        normalized = source.strip()
+        if normalized.startswith("[ ") and normalized.endswith(" ]"):
+            normalized = normalized[2:-2]
+        normalized = normalized.title()
+        action_map = {
+            "Alterar Workspace": "Alterar workspace",
+            "Selecionar Executável": "Selecionar executável",
+            "Salvar Editor": "Salvar editor",
+            "Detectar Novamente": "Detectar novamente",
+            "Importar Pack": "Importar Pack",
+            "Atualizar Packs": "Atualizar Packs",
+            "Abrir Documentação De Packs": "Abrir documentação de Packs",
+        }
+        if normalized.startswith("Selecionar "):
+            runtime = normalized.removeprefix("Selecionar ")
+            return self._action("Selecionar {runtime}", runtime=runtime)
+        return self._action(action_map.get(normalized, normalized))
+
     def _build_pack_help_page(self) -> QWidget:
         page, layout = self._page()
-        layout.addWidget(self._title("COMO CRIAR UM PACK"))
+        self._pack_help_title = self._title("COMO CRIAR UM PACK")
+        layout.addWidget(self._pack_help_title)
         layout.addWidget(ui.label("PACKS.md — less", role="panel-caption"))
         self._pack_help_text = self._terminal_text()
         self._pack_help_text.setPlainText(self._pack_help_content())
         layout.addWidget(self._pack_help_text, 1)
         row = QHBoxLayout()
-        row.addWidget(self._button("[ ABRIR DOCUMENTAÇÃO COMPLETA ]", self._open_full_documentation))
+        self._open_full_docs_button = self._button("[ ABRIR DOCUMENTAÇÃO COMPLETA ]", self._open_full_documentation)
+        row.addWidget(self._open_full_docs_button)
         row.addStretch(1)
         layout.addLayout(row)
         layout.addLayout(
@@ -739,19 +979,19 @@ class MainWindow(QMainWindow):
         packs = len(self._coordinator.list_packs())
         ready = sum(1 for status in self._coordinator.runtime_statuses() if status.tool)
         total = len(self._coordinator.runtime_statuses())
-        runtimes = f"{ready}/{total} verificados" if total else "0 registrados"
-        exam = "   ·   prova em andamento" if self._coordinator.load_active_exam() is not None else ""
+        runtimes = self._t("{ready}/{total} verificados", ready=ready, total=total) if total else self._t("0 registrados")
+        exam = f"   ·   {self._t('prova em andamento')}" if self._coordinator.load_active_exam() is not None else ""
         self._home_status.setText(f"packs: {packs}   ·   runtimes: {runtimes}{exam}")
 
     def _refresh_study_languages(self) -> None:
         current = self._study_language_combo.currentData()
         self._study_language_combo.blockSignals(True)
         self._study_language_combo.clear()
-        self._study_language_combo.addItem("Automático", "automatic")
+        self._study_language_combo.addItem(self._t("Automático"), "automatic")
         for status in self._coordinator.runtime_statuses():
             label = f"{status.display_name} ({status.language})"
             if not status.available and not status.tool:
-                label += " · não verificado"
+                label += f" · {self._t('não verificado')}"
             self._study_language_combo.addItem(label, status.language)
         if current is not None:
             index = self._study_language_combo.findData(current)
@@ -774,10 +1014,10 @@ class MainWindow(QMainWindow):
         try:
             contract = pack_contract_text()
         except OSError:
-            contract = "Contrato de pack não encontrado nesta instalação."
+            contract = self._t("Documentação do contrato não encontrada nesta instalação.")
         prompt = self._coordinator.build_pack_prompt(self._study_intent(), contract)
         self._study_prompt_output.setPlainText(prompt)
-        self._study_status.setText("Prompt gerado. Copie, use no gerador/IA que preferir e importe o pack.")
+        self._study_status.setText(self._t("Prompt gerado. Copie, use no gerador/IA que preferir e importe o pack."))
 
     def _copy_study_prompt(self) -> None:
         prompt = self._study_prompt_output.toPlainText()
@@ -785,7 +1025,7 @@ class MainWindow(QMainWindow):
             self._generate_study_prompt()
             prompt = self._study_prompt_output.toPlainText()
         QApplication.clipboard().setText(prompt)
-        self._study_status.setText("Prompt copiado para a área de transferência.")
+        self._study_status.setText(self._t("Prompt copiado para a área de transferência."))
 
     def _open_training_setup(self) -> None:
         if not self._handle_preflight(self._coordinator.preflight_training(), self._open_training_setup):
@@ -833,12 +1073,12 @@ class MainWindow(QMainWindow):
             return True
         if self._tasks.is_busy("runtime"):
             return False
-        self._home_status.setText("verificando ambiente de execução...")
+        self._home_status.setText(self._t("verificando ambiente de execução..."))
         self._run_task(
             "runtime",
             lambda: self._coordinator.preflight_runtime(language),
             lambda preflight: then() if preflight.ok else self._handle_preflight(preflight, then),
-            "Ambiente de execução",
+            self._t("Ambiente de execução"),
             on_finally=self._refresh_home_status,
         )
         return False
@@ -850,12 +1090,12 @@ class MainWindow(QMainWindow):
             return self._handle_preflight(preflight, then)
         if self._tasks.is_busy("runtime"):
             return False
-        self._home_status.setText("verificando ambientes de execução...")
+        self._home_status.setText(self._t("verificando ambientes de execução..."))
         self._run_task(
             "runtime",
             lambda: self._coordinator.preflight_exam(pack_id),
             lambda preflight: then() if preflight.ok else self._handle_preflight(preflight, then),
-            "Ambiente de execução",
+            self._t("Ambiente de execução"),
             on_finally=self._refresh_home_status,
         )
         return False
@@ -864,9 +1104,16 @@ class MainWindow(QMainWindow):
         if preflight.ok:
             return True
         self._pending_action = resume
-        QMessageBox.information(self, "Configuração necessária", preflight.message)
+        QMessageBox.information(self, self._t("Configuração necessária"), self._preflight_user_message(preflight))
         self._show_settings(preflight.missing)
         return False
+
+    def _preflight_user_message(self, preflight: PreflightResult) -> str:
+        if preflight.missing == "editor":
+            return self._t("Configure um editor/IDE válido antes de abrir a pasta do exercício.")
+        if preflight.missing == "Runtimes":
+            return self._t("Instale ou configure um runtime compatível para corrigir este exercício.")
+        return preflight.message
 
     def _resume_pending_if_ready(self) -> None:
         if self._pending_action is None:
@@ -877,7 +1124,7 @@ class MainWindow(QMainWindow):
 
     def _choose_level_training(self) -> None:
         self._training_kind = "level"
-        self._training_mode_label.setText("Treino por Level — escolha os levels e comece.")
+        self._training_mode_label.setText(self._t("Treino por Level — escolha os levels e comece."))
         self._random_options.setVisible(False)
         self._training_options_panel.setVisible(True)
         self._level_training_button.setChecked(True)
@@ -885,7 +1132,7 @@ class MainWindow(QMainWindow):
 
     def _choose_random_training(self) -> None:
         self._training_kind = "random"
-        self._training_mode_label.setText("Treino Aleatório — sorteia exercícios dos levels marcados.")
+        self._training_mode_label.setText(self._t("Treino Aleatório — sorteia exercícios dos levels marcados."))
         self._random_options.setVisible(True)
         self._training_options_panel.setVisible(True)
         self._level_training_button.setChecked(False)
@@ -909,7 +1156,7 @@ class MainWindow(QMainWindow):
                 f"● {pack.name}   id={pack.id}   v{pack.version}   levels={len(pack.levels)}"
                 for pack in packs
             )
-            or "○ nenhum pack instalado"
+            or f"○ {self._t('nenhum pack instalado')}"
         )
         self._pack_capabilities_summary.setText(self._pack_capabilities_text())
         self._refresh_levels()
@@ -918,16 +1165,16 @@ class MainWindow(QMainWindow):
     def _pack_capabilities_text(self) -> str:
         capabilities = self._coordinator.exercise_capabilities()
         statuses = self._coordinator.runtime_statuses()
-        runtimes = ", ".join(f"{status.display_name} ({status.language})" for status in statuses) or "nenhum"
-        executions = ", ".join(sorted(capabilities.executions.supported)) or "nenhuma"
-        generators = ", ".join(sorted(capabilities.generators.supported)) or "nenhum"
-        expectations = ", ".join(sorted(capabilities.expectations.supported)) or "nenhuma"
+        runtimes = ", ".join(f"{status.display_name} ({status.language})" for status in statuses) or self._t("nenhum")
+        executions = ", ".join(sorted(capabilities.executions.supported)) or self._t("nenhuma")
+        generators = ", ".join(sorted(capabilities.generators.supported)) or self._t("nenhum")
+        expectations = ", ".join(sorted(capabilities.expectations.supported)) or self._t("nenhuma")
         return (
-            "Contrato: schema_version 3\n"
-            f"Runtimes: {runtimes}\n"
-            f"Strategies: {executions}\n"
-            f"Generators: {generators}\n"
-            f"Validators/expectations: {expectations}"
+            f"{self._t('Contrato')}: schema_version 3\n"
+            f"{self._t('Runtimes')}: {runtimes}\n"
+            f"{self._t('Strategies')}: {executions}\n"
+            f"{self._t('Generators')}: {generators}\n"
+            f"{self._t('Validators/expectations')}: {expectations}"
         )
 
     def _refresh_levels(self) -> None:
@@ -967,10 +1214,10 @@ class MainWindow(QMainWindow):
     def _make_training_options(self) -> TrainingOptions:
         pack_id = self._selected_training_pack_id()
         if pack_id is None:
-            raise ValueError("Nenhum pack selecionado.")
+            raise ValueError(self._t("Nenhum pack selecionado."))
         levels = self._selected_levels()
         if not levels:
-            raise ValueError("Selecione pelo menos um level.")
+            raise ValueError(self._t("Selecione pelo menos um level."))
         return TrainingOptions(
             pack_id=pack_id,
             level_ids=levels,
@@ -985,7 +1232,7 @@ class MainWindow(QMainWindow):
             self._training_options = self._make_training_options()
             self._load_exercise(self._coordinator.choose_training_exercise(self._training_options), mode="training")
         except Exception as error:
-            QMessageBox.warning(self, "Treino", str(error))
+            QMessageBox.warning(self, self._t("Treino"), str(error))
 
     # ------------------------------------------------------------- exercício
     def _load_exercise(self, ref: ExerciseRef, mode: str, overwrite: bool = False) -> None:
@@ -995,7 +1242,11 @@ class MainWindow(QMainWindow):
             else self._coordinator.prepare_exercise(ref, overwrite=overwrite)
         )
         if active.had_existing_submission and not overwrite:
-            answer = QMessageBox.question(self, "Implementação existente", "Já existe implementação na workspace. Continuar implementação?")
+            answer = QMessageBox.question(
+                self,
+                self._t("Implementação existente"),
+                self._t("Já existe implementação na workspace. Continuar implementação?"),
+            )
             if answer != QMessageBox.StandardButton.Yes:
                 active = (
                     self._coordinator.prepare_exam_exercise(ref, self._exam_state, overwrite=True)
@@ -1005,16 +1256,15 @@ class MainWindow(QMainWindow):
         self._mode = mode
         self._active = active
         self._last_outcome = None
-        self._set_title_label(self._exercise_title, active.ref.definition.name)
-        self._exercise_id_label.setText(f"ID: {active.ref.definition.id}")
-        self._exercise_rank_label.setText(f"RANK: {active.ref.pack.name}")
-        self._exercise_level_label.setText(f"LEVEL: {active.ref.level_id}")
+        self._refresh_exercise_frame()
         self._exam_timer_label.setVisible(mode == "exam")
         if mode == "exam" and self._exam_state is not None:
             self._render_exam_timer(self._exam_state)
         self._subject.set_subject_markdown(active.subject_text)
         self._feedback.clear()
-        self._open_editor_button.setToolTip(f"Abrir a pasta do exercício no {self._coordinator.editor_display_name()}")
+        self._open_editor_button.setToolTip(
+            self._t("Abrir a pasta do exercício no {editor}", editor=self._coordinator.editor_display_name())
+        )
         self._trace_button.setEnabled(False)
         self._next_button.setVisible(mode == "training")
         self._next_button.setEnabled(mode == "training")
@@ -1029,6 +1279,18 @@ class MainWindow(QMainWindow):
             self._coordinator.open_in_editor(self._active)
         except Exception as error:
             QMessageBox.warning(self, "Editor", str(error))
+
+    def _refresh_exercise_frame(self) -> None:
+        if self._active is None:
+            return
+        active = self._active
+        self._set_title_label(self._exercise_title, active.ref.definition.name)
+        self._exercise_id_label.setText(f"ID: {active.ref.definition.id}")
+        self._exercise_rank_label.setText(f"{self._t('Rank').upper()}: {active.ref.pack.name}")
+        self._exercise_level_label.setText(f"LEVEL: {active.ref.level_id}")
+        self._open_editor_button.setToolTip(
+            self._t("Abrir a pasta do exercício no {editor}", editor=self._coordinator.editor_display_name())
+        )
 
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):
@@ -1049,11 +1311,14 @@ class MainWindow(QMainWindow):
             work = lambda: self._coordinator.submit_training(active)  # noqa: E731
             on_done = lambda outcome: self._on_training_graded(active, outcome)  # noqa: E731
         self._set_grading(True)
-        self._run_task("submit", work, on_done, "Correção", on_finally=lambda: self._set_grading(False))
+        self._run_task("submit", work, on_done, self._t("Correção"), on_finally=lambda: self._set_grading(False))
 
     def _set_grading(self, busy: bool) -> None:
         self._correct_button.setEnabled(not busy)
-        self._cursor.set_button_text(self._correct_button, "CORRIGINDO..." if busy else "> CORRIGIR")
+        self._cursor.set_button_text(
+            self._correct_button,
+            self._t("Corrigindo...").upper() if busy else self._action("Corrigir", "primary"),
+        )
         self._next_button.setEnabled(not busy and self._mode == "training")
 
     def _on_training_graded(self, active: ActiveExercise, outcome: CorrectionOutcome) -> None:
@@ -1073,7 +1338,7 @@ class MainWindow(QMainWindow):
         if next_state is None:
             self._timer.stop()
             self._exam_state = None
-            self._show_pass_feedback("PROVA CONCLUÍDA — nota 100%.")
+            self._show_pass_feedback(self._t("Prova concluída — nota 100%."))
             self._show_resume_if_needed()
             return
         self._exam_state = next_state
@@ -1085,32 +1350,32 @@ class MainWindow(QMainWindow):
             try:
                 self._load_exercise(self._coordinator.exam_ref(next_state), mode="exam")
             except Exception as error:
-                QMessageBox.warning(self, "Prova", str(error))
+                QMessageBox.warning(self, self._t("Modo prova"), str(error))
                 return
-            self._show_pass_feedback("Exercício anterior concluído. Próximo exercício carregado.")
+            self._show_pass_feedback(self._t("Exercício anterior concluído. Próximo exercício carregado."))
             return
         if self._active is active:
-            self._show_fail_feedback("Você continua neste exercício. Corrija e envie de novo.")
+            self._show_fail_feedback(self._t("Você continua neste exercício. Corrija e envie de novo."))
 
     def _show_training_fail_feedback(self) -> None:
-        self._show_fail_feedback("Veja o trace técnico, ajuste no editor e corrija de novo.")
+        self._show_fail_feedback(self._t("Veja o trace técnico, ajuste no editor e corrija de novo."))
 
     def _show_training_pass_feedback(self) -> None:
-        self._show_pass_feedback("EXERCÍCIO CONCLUÍDO.", with_next=True)
+        self._show_pass_feedback(self._t("Exercício concluído.").upper(), with_next=True)
 
     def _show_fail_feedback(self, message: str) -> None:
         editor = self._coordinator.editor_display_name()
         actions = [
-            ui.button("[ VER TRACE ]", self._show_trace, "small"),
-            ui.button(f"[ ABRIR NO {editor.upper()} ]", self._open_editor, "small"),
-            ui.button("[ VOLTAR PARA CORRIGIR ]", self._feedback.clear, "small"),
+            ui.button(self._action("Ver trace"), self._show_trace, "small"),
+            ui.button(self._action("Abrir no {editor}", editor=editor), self._open_editor, "small"),
+            ui.button(self._action("Voltar para corrigir"), self._feedback.clear, "small"),
         ]
         self._feedback.show_result("fail", "[✗] FAIL", message, actions, animate=self._theme.tokens.animations)
 
     def _show_pass_feedback(self, message: str, with_next: bool = False) -> None:
         actions: list[QPushButton] = []
         if with_next and self._mode == "training":
-            actions.append(ui.button("[ PRÓXIMO EXERCÍCIO ]", self._next_exercise, "small"))
+            actions.append(ui.button(self._action("Próximo exercício"), self._next_exercise, "small"))
         self._feedback.show_result("pass", "[✓] PASS", message, actions, animate=self._theme.tokens.animations)
 
     def _show_trace(self) -> None:
@@ -1122,7 +1387,7 @@ class MainWindow(QMainWindow):
     def _save_trace_as(self) -> None:
         if self._last_outcome is None:
             return
-        target, _ = QFileDialog.getSaveFileName(self, "Salvar trace", "trace.txt")
+        target, _ = QFileDialog.getSaveFileName(self, self._t("Salvar trace como..."), "trace.txt")
         if target:
             Path(target).write_text(self._last_outcome.result.trace_data.as_text(), encoding="utf-8")
 
@@ -1132,7 +1397,7 @@ class MainWindow(QMainWindow):
         try:
             self._load_exercise(self._coordinator.choose_training_exercise(self._training_options), mode="training")
         except Exception as error:
-            QMessageBox.warning(self, "Treino", str(error))
+            QMessageBox.warning(self, self._t("Treino"), str(error))
 
     # ------------------------------------------------------------------ prova
     def _start_exam(self) -> None:
@@ -1140,7 +1405,7 @@ class MainWindow(QMainWindow):
             return
         pack_id = self._selected_exam_pack_id()
         if pack_id is None:
-            QMessageBox.warning(self, "Prova", "Nenhum pack selecionado.")
+            QMessageBox.warning(self, self._t("Modo prova"), self._t("Nenhum pack selecionado."))
             return
         try:
             self._exam_state = self._coordinator.start_exam(pack_id)
@@ -1148,39 +1413,39 @@ class MainWindow(QMainWindow):
             self._load_exercise(self._coordinator.exam_ref(self._exam_state), mode="exam")
             self._show_resume_if_needed()
         except Exception as error:
-            QMessageBox.warning(self, "Prova", str(error))
+            QMessageBox.warning(self, self._t("Modo prova"), str(error))
 
     def _show_exam_prepare(self) -> None:
         if not self._exam_preflight_checked(self._show_exam_prepare):
             return
         pack_id = self._selected_exam_pack_id()
         if pack_id is None:
-            QMessageBox.warning(self, "Prova", "Nenhum pack selecionado.")
+            QMessageBox.warning(self, self._t("Modo prova"), self._t("Nenhum pack selecionado."))
             return
         pack = self._selected_pack(pack_id)
         if pack is None:
-            QMessageBox.warning(self, "Prova", "Pack selecionado não encontrado.")
+            QMessageBox.warning(self, self._t("Modo prova"), self._t("Pack selecionado não encontrado."))
             return
         levels = self._coordinator.list_levels(pack_id)
         lines = [
-            f"Pack/Rank : {pack.name}",
+            f"{self._t('Pack/Rank'):<10}: {pack.name}",
             f"ID        : {pack.id}",
             f"Levels    : {len(levels)}",
             "",
-            "Estrutura da prova baseada no pack real:",
+            self._t("Estrutura da prova baseada no pack real:"),
             *(f"  {index}. {level}" for index, level in enumerate(levels, start=1)),
             "",
-            f"Duração   : {self._format_seconds(self._coordinator.exam_duration_seconds(pack_id))}"
-            + ("" if pack.exam_duration_seconds else "  (padrão; o pack não declara exam.duration_minutes)"),
-            "Aprovação : 100%",
+            f"{self._t('Duração'):<10}: {self._format_seconds(self._coordinator.exam_duration_seconds(pack_id))}"
+            + ("" if pack.exam_duration_seconds else f"  ({self._t('padrão; o pack não declara exam.duration_minutes')})"),
+            f"{self._t('Aprovação'):<10}: 100%",
             "",
-            "Regras:",
-            "- ao errar, permanece no mesmo exercício;",
-            "- ao passar, avança automaticamente;",
-            "- não é permitido trocar exercício;",
-            "- o relógio NÃO pausa: fechar o app não para o tempo;",
-            "- se o tempo acabar, a prova encerra e salva nota parcial;",
-            "- se fechar no meio, a sessão pode ser retomada enquanto houver tempo.",
+            f"{self._t('Regras')}:",
+            f"- {self._t('ao errar, permanece no mesmo exercício;')}",
+            f"- {self._t('ao passar, avança automaticamente;')}",
+            f"- {self._t('não é permitido trocar exercício;')}",
+            f"- {self._t('o relógio NÃO pausa: fechar o app não para o tempo;')}",
+            f"- {self._t('se o tempo acabar, a prova encerra e salva nota parcial;')}",
+            f"- {self._t('se fechar no meio, a sessão pode ser retomada enquanto houver tempo.')}",
         ]
         self._exam_prepare_text.setPlainText("\n".join(lines))
         self._go(self._exam_prepare_page)
@@ -1194,7 +1459,7 @@ class MainWindow(QMainWindow):
     def _resume_exam(self) -> None:
         state = self._coordinator.load_active_exam()
         if state is None:
-            QMessageBox.information(self, "Prova", "Não há prova em andamento.")
+            QMessageBox.information(self, self._t("Modo prova"), self._t("Não há prova em andamento."))
             return
         self._exam_state = state
         self._timer.start(1000)
@@ -1203,13 +1468,13 @@ class MainWindow(QMainWindow):
     def _end_exam(self) -> None:
         state = self._coordinator.load_active_exam()
         if state is None:
-            QMessageBox.information(self, "Prova", "Não há prova em andamento.")
+            QMessageBox.information(self, self._t("Modo prova"), self._t("Não há prova em andamento."))
             return
         self._coordinator.finish_exam(state, "abandoned", state.score)
         self._timer.stop()
         self._exam_state = None
         self._show_resume_if_needed()
-        QMessageBox.information(self, "Prova", "Prova encerrada.")
+        QMessageBox.information(self, self._t("Modo prova"), self._t("Prova encerrada."))
 
     def _tick_exam(self) -> None:
         if self._exam_state is None:
@@ -1224,15 +1489,15 @@ class MainWindow(QMainWindow):
         if state is None:
             self._timer.stop()
             self._exam_state = None
-            self._exam_timer_label.setText("TEMPO ESGOTADO")
+            self._exam_timer_label.setText(self._t("Tempo esgotado").upper())
             ui.set_status(self._exam_timer_label, "fail")
-            QMessageBox.information(self, "Prova", "Tempo esgotado. Prova encerrada.")
+            QMessageBox.information(self, self._t("Modo prova"), self._t("Tempo esgotado. Prova encerrada."))
             return
         self._exam_state = state
         self._render_exam_timer(state)
 
     def _render_exam_timer(self, state: ExamState) -> None:
-        self._exam_timer_label.setText(f"⏱ {self._format_seconds(state.remaining_seconds)}   NOTA {state.score:.0f}%")
+        self._exam_timer_label.setText(f"⏱ {self._format_seconds(state.remaining_seconds)}   {self._t('Nota').upper()} {state.score:.0f}%")
 
     @staticmethod
     def _format_seconds(total: int) -> str:
@@ -1248,9 +1513,11 @@ class MainWindow(QMainWindow):
             self._exam_state = None
             QMessageBox.information(
                 self,
-                "Prova",
-                "O tempo da prova terminou enquanto o app estava fechado.\n"
-                f"A prova foi encerrada com nota parcial de {expired.score:.0f}%.",
+                self._t("Modo prova"),
+                self._t(
+                    "O tempo da prova terminou enquanto o app estava fechado.\nA prova foi encerrada com nota parcial de {score}%.",
+                    score=f"{expired.score:.0f}",
+                ),
             )
         has_state = state is not None
         self._exam_resume_card.setVisible(has_state)
@@ -1260,9 +1527,9 @@ class MainWindow(QMainWindow):
             self._exam_resume_label.setText("")
             return
         self._exam_resume_label.setText(
-            f"Rank      : {state.pack_id}\n"
-            f"Exercício : {state.exercise_id}\n"
-            f"Restante  : {self._format_seconds(state.remaining_seconds)}"
+            f"{self._t('Rank'):<10}: {state.pack_id}\n"
+            f"{self._t('Exercício'):<10}: {state.exercise_id}\n"
+            f"{self._t('Restante'):<10}: {self._format_seconds(state.remaining_seconds)}"
         )
 
     # -------------------------------------------------------------- histórico
@@ -1277,11 +1544,24 @@ class MainWindow(QMainWindow):
         self._history_view = view
         self._render_history()
 
+    def _refresh_history_policy_filter(self) -> None:
+        current = self._history_policy_filter.currentData()
+        self._history_policy_filter.blockSignals(True)
+        self._history_policy_filter.clear()
+        self._history_policy_filter.addItem(self._t("Todas as sessões"), "")
+        self._history_policy_filter.addItem(self._t("Training filter"), "training")
+        self._history_policy_filter.addItem(self._t("Exam filter"), "exam")
+        if current is not None:
+            index = self._history_policy_filter.findData(current)
+            if index >= 0:
+                self._history_policy_filter.setCurrentIndex(index)
+        self._history_policy_filter.blockSignals(False)
+
     def _refresh_history_filters(self) -> None:
         current = self._history_pack_filter.currentData()
         self._history_pack_filter.blockSignals(True)
         self._history_pack_filter.clear()
-        self._history_pack_filter.addItem("Todos os packs", "")
+        self._history_pack_filter.addItem(self._t("Todos os packs"), "")
         for pack in self._coordinator.list_packs():
             self._history_pack_filter.addItem(f"{pack.name} ({pack.id})", pack.id)
         if current is not None:
@@ -1305,10 +1585,10 @@ class MainWindow(QMainWindow):
         bar_width = 20
         filled = 0 if not rows else round((completed / len(rows)) * bar_width)
         bar = "█" * filled + "░" * (bar_width - filled)
-        self._history_summary.setText(f"[{bar}] {completed}/{len(rows)} concluídos")
+        self._history_summary.setText(f"[{bar}] {self._t('{completed}/{total} concluídos', completed=completed, total=len(rows))}")
         self._history_pass.setText(f"PASS: {completed}")
         self._history_fail.setText(f"FAIL: {attempted}")
-        self._history_pending.setText(f"PENDENTES: {pending}")
+        self._history_pending.setText(f"{self._t('Pendentes').upper()}: {pending}")
         if self._history_view == "packs":
             self._populate_history_by_pack(rows)
         elif self._history_view == "activities":
@@ -1354,13 +1634,13 @@ class MainWindow(QMainWindow):
         packs = len({str(row.get("pack_id")) for row in rows})
         last = "-" if not timeline else f"{timeline[0].policy} · {timeline[0].identity.activity_id} · {timeline[0].status}"
         data = (
-            ("Atividades concluídas", str(completed)),
-            ("Atividades tentadas", str(attempted)),
-            ("Packs usados", str(packs)),
-            ("Sessões de prova", str(len(sessions))),
-            ("Última atividade", last),
+            (self._t("Atividades concluídas"), str(completed)),
+            (self._t("Atividades tentadas"), str(attempted)),
+            (self._t("Packs usados"), str(packs)),
+            (self._t("Sessões de prova"), str(len(sessions))),
+            (self._t("Última atividade"), last),
         )
-        self._set_history_headers(("ITEM", "VALOR"), 1)
+        self._set_history_headers((self._t("Item").upper(), self._t("Valor").upper()), 1)
         self._history_table.setRowCount(len(data))
         for row_index, (label, value) in enumerate(data):
             self._history_table.setItem(row_index, 0, self._item(label, "text_secondary"))
@@ -1379,7 +1659,10 @@ class MainWindow(QMainWindow):
             group["attempts"] = int(group["attempts"]) + int(row["attempts"])
             if row.get("last_attempt_at"):
                 group["latest"] = self._format_date(row["last_attempt_at"])
-        self._set_history_headers(("PACK", "ATIVIDADES", "CONCLUÍDAS", "TENTATIVAS", "ÚLTIMA"), 0)
+        self._set_history_headers(
+            ("PACK", self._t("Atividades").upper(), self._t("Concluídas").upper(), self._t("Tentativas").upper(), self._t("Última").upper()),
+            0,
+        )
         items = sorted(grouped.items())
         self._history_table.setRowCount(len(items))
         for row_index, (_pack_id, group) in enumerate(items):
@@ -1394,7 +1677,17 @@ class MainWindow(QMainWindow):
                 self._history_table.setItem(row_index, column, item)
 
     def _populate_history_table(self, rows: list[dict[str, object]]) -> None:
-        self._set_history_headers(("PACK/LEVEL", "ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"), 1)
+        self._set_history_headers(
+            (
+                self._t("Pack/Level").upper(),
+                self._t("Atividade").upper(),
+                self._t("Status").upper(),
+                self._t("Tentativas").upper(),
+                self._t("Último resultado").upper(),
+                self._t("Data").upper(),
+            ),
+            1,
+        )
         self._history_table.setRowCount(len(rows))
         # Agrupa por (pack, level): o mesmo id de level/exercício pode existir em packs diferentes.
         multi_pack = len({str(row.get("pack_id", row["pack"])) for row in rows}) > 1
@@ -1429,7 +1722,7 @@ class MainWindow(QMainWindow):
             cells = (
                 self._item(f"{level}/" if seen[level] == 1 else "", "text_secondary"),
                 self._item(f"{branch} {row['exercise_id']}"),
-                self._item(f"{marker} {status}", status_color),
+                self._item(f"{marker} {self._display_history_status(status)}", status_color),
                 self._item(str(attempts), None if attempts else "text_secondary", align_right=True),
                 self._item(latest, latest_color),
                 self._item(self._format_date(row["last_attempt_at"]), "text_secondary"),
@@ -1448,11 +1741,22 @@ class MainWindow(QMainWindow):
 
     def _populate_history_sessions(self) -> None:
         exam_rows = self._filtered_exam_rows()
-        self._set_history_headers(("DATA", "PACK", "STATUS", "NOTA", "DURAÇÃO", "ATIVIDADES"), 5)
+        self._set_history_headers(
+            (
+                self._t("Data").upper(),
+                "PACK",
+                self._t("Status").upper(),
+                self._t("Nota").upper(),
+                self._t("Duração tabela").upper(),
+                self._t("Atividades").upper(),
+            ),
+            5,
+        )
         self._history_table.setRowCount(len(exam_rows))
         for row_index, row in enumerate(exam_rows):
             raw_status = str(row.get("status") or "-")
-            status, status_color = EXAM_STATUS_LABELS.get(raw_status, (raw_status, "text_secondary"))
+            status_key, status_color = EXAM_STATUS_KEYS.get(raw_status, (raw_status, "text_secondary"))
+            status = self._t(status_key)
             score = row.get("final_score")
             try:
                 score_text = f"{float(score):.0f}%"
@@ -1475,7 +1779,10 @@ class MainWindow(QMainWindow):
 
     def _populate_history_timeline(self) -> None:
         entries = self._coordinator.history_timeline(self._history_query())
-        self._set_history_headers(("DATA", "SESSÃO", "PACK", "ATIVIDADE", "STATUS"), 3)
+        self._set_history_headers(
+            (self._t("Data").upper(), self._t("Sessão").upper(), "PACK", self._t("Atividade").upper(), self._t("Status").upper()),
+            3,
+        )
         self._history_table.setRowCount(len(entries))
         for row_index, entry in enumerate(entries):
             status_color = "success" if entry.passed else ("fail" if entry.passed is False else "text_secondary")
@@ -1484,7 +1791,7 @@ class MainWindow(QMainWindow):
                 self._item(entry.policy or "-"),
                 self._item(entry.identity.pack_id),
                 self._item(entry.identity.activity_id),
-                self._item(entry.status, status_color),
+                self._item(self._display_history_status(entry.status), status_color),
             )
             for column, item in enumerate(cells):
                 self._history_table.setItem(row_index, column, item)
@@ -1498,6 +1805,11 @@ class MainWindow(QMainWindow):
         except ValueError:
             return str(value)[:16]
 
+    def _display_history_status(self, status: str) -> str:
+        if status in {"concluído", "tentado"}:
+            return self._t(status)
+        return status
+
     # ---------------------------------------------------------- configurações
     def _import_pack(self) -> None:
         if self._tasks.is_busy("import"):
@@ -1505,12 +1817,12 @@ class MainWindow(QMainWindow):
         path = self._choose_pack_source()
         if path is None:
             return
-        self._packs_summary.setText("validando pack...")
+        self._packs_summary.setText(self._t("validando pack..."))
         self._run_task(
             "import",
             lambda: self._coordinator.inspect_pack(path),
             lambda report: self._confirm_pack_import(path, report),
-            "Importar Pack",
+            self._t("Importar Pack"),
             on_finally=self._refresh_packs,
         )
 
@@ -1521,25 +1833,25 @@ class MainWindow(QMainWindow):
         if choice == "zip":
             selected, _ = QFileDialog.getOpenFileName(
                 self,
-                "Selecionar pack ZIP",
+                self._t("Selecionar pack ZIP"),
                 "",
-                "Pack ZIP (*.zip);;Todos os arquivos (*)",
+                self._t("Pack ZIP (*.zip);;Todos os arquivos (*)"),
             )
         else:
-            selected = QFileDialog.getExistingDirectory(self, "Selecionar pasta do pack")
+            selected = QFileDialog.getExistingDirectory(self, self._t("Selecionar pasta do pack"))
         return Path(selected) if selected else None
 
     def _pack_source_format_dialog(self) -> tuple[QMessageBox, QPushButton, QPushButton, QPushButton]:
         dialog = QMessageBox(self)
-        dialog.setWindowTitle("Importar Pack")
+        dialog.setWindowTitle(self._t("Importar Pack"))
         dialog.setIcon(QMessageBox.Icon.Question)
-        dialog.setText("Qual é o formato do pack?")
+        dialog.setText(self._t("Qual é o formato do pack?"))
         dialog.setInformativeText(
-            "Escolha ZIP para selecionar um arquivo compactado ou Pasta para selecionar uma pasta de pack."
+            self._t("Escolha ZIP para selecionar um arquivo compactado ou Pasta para selecionar uma pasta de pack.")
         )
         zip_button = dialog.addButton("ZIP", QMessageBox.ButtonRole.ActionRole)
-        folder_button = dialog.addButton("PASTA", QMessageBox.ButtonRole.ActionRole)
-        cancel_button = dialog.addButton("CANCELAR", QMessageBox.ButtonRole.RejectRole)
+        folder_button = dialog.addButton(self._t("Pasta").upper(), QMessageBox.ButtonRole.ActionRole)
+        cancel_button = dialog.addButton(self._t("Cancelar").upper(), QMessageBox.ButtonRole.RejectRole)
         dialog.setDefaultButton(zip_button)
         dialog.setEscapeButton(cancel_button)
         return dialog, zip_button, folder_button, cancel_button
@@ -1557,35 +1869,37 @@ class MainWindow(QMainWindow):
     def _confirm_pack_import(self, path: Path, report) -> None:
         if report.has_executable_code:
             listed = "\n".join(f"  - {name}" for name in report.executable_files[:8])
-            more = "" if len(report.executable_files) <= 8 else f"\n  ... e mais {len(report.executable_files) - 8}"
+            more = "" if len(report.executable_files) <= 8 else self._t("\n  ... e mais {count}", count=len(report.executable_files) - 8)
             answer = QMessageBox.warning(
                 self,
-                "Importar Pack",
-                f"O pack \"{report.pack.name}\" contém código que será compilado e EXECUTADO "
-                "no seu computador durante a correção (fixtures/references):\n\n"
-                f"{listed}{more}\n\n"
-                "Não há sandbox: esse código roda com as permissões do seu usuário. "
-                "Importe apenas packs de fontes em que você confia.\n\nImportar mesmo assim?",
+                self._t("Importar Pack"),
+                self._t(
+                    "O pack \"{pack}\" contém código que será compilado e EXECUTADO no seu computador durante a correção (fixtures/references):\n\n{listed}{more}\n\nNão há sandbox: esse código roda com as permissões do seu usuário. Importe apenas packs de fontes em que você confia.\n\nImportar mesmo assim?",
+                    pack=report.pack.name,
+                    listed=listed,
+                    more=more,
+                ),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 QMessageBox.StandardButton.No,
             )
             if answer != QMessageBox.StandardButton.Yes:
                 return
-        self._packs_summary.setText("importando pack...")
+        self._packs_summary.setText(self._t("importando pack..."))
         self._run_task(
             "import",
             lambda: self._coordinator.import_pack(path),
             self._on_pack_imported,
-            "Importar Pack",
+            self._t("Importar Pack"),
             on_finally=self._refresh_packs,
         )
 
     def _on_pack_imported(self, pack) -> None:
-        QMessageBox.information(self, "Importar Pack", f"Pack importado: {pack.name}")
+        QMessageBox.information(self, self._t("Importar Pack"), self._t("Pack importado: {pack}", pack=pack.name))
         self._resume_pending_if_ready()
 
     def _show_settings(self, section: str | None = None) -> None:
-        self._set_title_label(self._settings_title, "CONFIGURAÇÕES" if section is None else f"CONFIGURAÇÕES > {section.upper()}")
+        title = self._t("Configurações").upper() if section is None else f"{self._t('Configurações').upper()} > {self._t(section).upper()}"
+        self._set_title_label(self._settings_title, title)
         self._settings_workspace.setText(str(self._coordinator.workspace_root))
         self._settings_editor.setText(self._coordinator.editor_command())
         for language in self._runtime_labels:
@@ -1599,7 +1913,7 @@ class MainWindow(QMainWindow):
     def _open_full_documentation(self) -> None:
         document = self._documentation_path()
         if document is None:
-            QMessageBox.warning(self, "Documentação", "Documentação não encontrada nesta instalação.")
+            QMessageBox.warning(self, self._t("Documentação"), self._t("Documentação não encontrada nesta instalação."))
             return
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(document)))
 
@@ -1638,11 +1952,11 @@ class MainWindow(QMainWindow):
         try:
             contract = pack_contract_text()
         except OSError:
-            contract = "Documentação do contrato não encontrada nesta instalação."
+            contract = tr("Documentação do contrato não encontrada nesta instalação.")
         return active + contract
 
     def _change_workspace(self) -> None:
-        selected = QFileDialog.getExistingDirectory(self, "Selecionar nova workspace")
+        selected = QFileDialog.getExistingDirectory(self, self._t("Selecionar nova workspace"))
         if not selected:
             return
         try:
@@ -1650,7 +1964,7 @@ class MainWindow(QMainWindow):
             self._workspace_path = Path(selected)
             self._workspace_label.setText(self._workspace_prompt())
             self._settings_workspace.setText(str(self._workspace_path))
-            QMessageBox.information(self, "Workspace", "Workspace atualizada.")
+            QMessageBox.information(self, "Workspace", self._t("Workspace atualizada."))
             self._resume_pending_if_ready()
         except Exception as error:
             QMessageBox.warning(self, "Workspace", str(error))
@@ -1658,7 +1972,7 @@ class MainWindow(QMainWindow):
     def _save_editor_setting(self) -> None:
         try:
             self._coordinator.save_editor_command(self._settings_editor.text())
-            QMessageBox.information(self, "Editor", "Editor atualizado.")
+            QMessageBox.information(self, "Editor", self._t("Editor atualizado."))
             self._resume_pending_if_ready()
         except Exception as error:
             QMessageBox.warning(self, "Editor", str(error))
@@ -1684,10 +1998,10 @@ class MainWindow(QMainWindow):
             label.setText(f"● {'' if cached else 'OK   '}{tool}")
             ui.set_status(label, "pass")
         elif cached:
-            label.setText("● não verificado — use [ DETECTAR NOVAMENTE ]")
+            label.setText(f"● {self._t('não verificado — use [ DETECTAR NOVAMENTE ]')}")
             ui.set_status(label, "pending")
         else:
-            label.setText("● não encontrado — selecione o executável manualmente")
+            label.setText(f"● {self._t('não encontrado — selecione o executável manualmente')}")
             ui.set_status(label, "fail")
 
     def _show_runtime_cached(self, language: str) -> None:
@@ -1695,7 +2009,7 @@ class MainWindow(QMainWindow):
 
     def _redetect_runtime(self, language: str) -> None:
         label = self._runtime_labels[language]
-        label.setText("● detectando...")
+        label.setText(f"● {self._t('detectando...')}")
         ui.set_status(label, "pending")
         self._run_task(
             "runtime",
@@ -1706,16 +2020,16 @@ class MainWindow(QMainWindow):
 
     def _choose_manual_runtime(self, language: str) -> None:
         display_name = self._coordinator.runtime_display_name(language)
-        filter_text = "Executáveis (*.exe);;Todos os arquivos (*)" if sys.platform == "win32" else "Todos os arquivos (*)"
-        selected, _ = QFileDialog.getOpenFileName(self, f"Selecionar {display_name}", "", filter_text)
+        filter_text = self._t("Executáveis (*.exe);;Todos os arquivos (*)") if sys.platform == "win32" else self._t("Todos os arquivos (*)")
+        selected, _ = QFileDialog.getOpenFileName(self, self._t("Selecionar {display_name}", display_name=display_name), "", filter_text)
         if not selected:
             return
         path = Path(selected)
-        self._runtime_labels[language].setText("● validando...")
+        self._runtime_labels[language].setText(f"● {self._t('validando...')}")
 
         def done(tool: object) -> None:
             self._show_runtime_result(language, self._coordinator.runtime_current_tool(language))
-            QMessageBox.information(self, display_name, f"{display_name} atualizado.")
+            QMessageBox.information(self, display_name, self._t("{display_name} atualizado.", display_name=display_name))
             self._resume_pending_if_ready()
 
         self._run_task(
@@ -1726,7 +2040,8 @@ class MainWindow(QMainWindow):
             on_finally=lambda: self._show_runtime_cached(language),
         )
 
-    def _editor_preset_changed(self, label: str) -> None:
+    def _editor_preset_changed(self, _index: int) -> None:
+        label = str(self._editor_combo.currentData() or self._editor_combo.currentText())
         if label == "Outro...":
             self._browse_editor()
             return
@@ -1735,8 +2050,8 @@ class MainWindow(QMainWindow):
             self._settings_editor.setText(resolved)
 
     def _browse_editor(self) -> None:
-        filter_text = "Executáveis (*.exe);;Todos os arquivos (*)" if sys.platform == "win32" else "Todos os arquivos (*)"
-        selected, _ = QFileDialog.getOpenFileName(self, "Selecionar executável do editor", "", filter_text)
+        filter_text = self._t("Executáveis (*.exe);;Todos os arquivos (*)") if sys.platform == "win32" else self._t("Todos os arquivos (*)")
+        selected, _ = QFileDialog.getOpenFileName(self, self._t("Selecionar executável do editor"), "", filter_text)
         if selected:
             self._settings_editor.setText(str(Path(selected)))
 

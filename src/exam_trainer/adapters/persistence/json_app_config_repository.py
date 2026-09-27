@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
 
+DEFAULT_UI_LOCALE = "pt-BR"
+SUPPORTED_UI_LOCALES = {"pt-BR", "en", "es"}
+
 
 class JsonAppConfigRepository:
     def __init__(self, config_file_path: Path) -> None:
@@ -78,6 +81,14 @@ class JsonAppConfigRepository:
         data["theme"] = theme_key
         self._save_data(data)
 
+    def load_ui_locale(self) -> str:
+        return self._normalize_ui_locale(self._read_string(self._load_data(), "ui_locale"))
+
+    def save_ui_locale(self, locale: str) -> None:
+        data = self._load_data()
+        data["ui_locale"] = self._normalize_ui_locale(locale)
+        self._save_data(data)
+
     def _load_data(self) -> dict[str, Any]:
         if not self._config_file_path.exists():
             return {}
@@ -126,3 +137,9 @@ class JsonAppConfigRepository:
                 path = path[1:]
             return str(Path(path))
         return stripped
+
+    @staticmethod
+    def _normalize_ui_locale(value: str | None) -> str:
+        if value in SUPPORTED_UI_LOCALES:
+            return str(value)
+        return DEFAULT_UI_LOCALE
