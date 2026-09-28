@@ -43,6 +43,7 @@ from exam_trainer.application.study_intent import StudyIntent
 from exam_trainer.resources import PACK_CONTRACT, pack_contract_text, resource_path
 from exam_trainer.application.mvp_models import (
     ActiveExercise,
+    ActivityProgress,
     CorrectionOutcome,
     ExerciseRef,
 )
@@ -54,6 +55,11 @@ from exam_trainer.application.use_cases.mvp_coordinator import (
 )
 
 MENU_WIDTH = 460
+ACTIVITY_PROGRESS_LABELS: dict[ActivityProgress, str] = {
+    ActivityProgress.COMPLETED: "Concluído",
+    ActivityProgress.ATTEMPTED: "Tentado",
+    ActivityProgress.NOT_STARTED: "Não feito",
+}
 EXAM_STATUS_KEYS = {
     "completed": ("completed_exam", "success"),
     "timeout": ("timeout_exam", "fail"),
@@ -1600,8 +1606,8 @@ class MainWindow(QMainWindow):
         for key, button in self._history_view_buttons.items():
             button.setChecked(key == self._history_view)
         rows = self._filtered_exercise_rows()
-        completed = sum(1 for row in rows if row["status"] == "concluído")
-        attempted = sum(1 for row in rows if row["status"] == "tentado")
+        completed = sum(1 for row in rows if row["status"] == ActivityProgress.COMPLETED)
+        attempted = sum(1 for row in rows if row["status"] == ActivityProgress.ATTEMPTED)
         pending = max(0, len(rows) - completed - attempted)
         bar_width = 20
         filled = 0 if not rows else round((completed / len(rows)) * bar_width)
@@ -1650,8 +1656,10 @@ class MainWindow(QMainWindow):
     def _populate_history_overview(self, rows: list[dict[str, object]]) -> None:
         sessions = self._filtered_exam_rows()
         timeline = self._coordinator.history_timeline(self._history_query())
-        completed = sum(1 for row in rows if row["status"] == "concluído")
-        attempted = sum(1 for row in rows if row["status"] in {"concluído", "tentado"})
+        completed = sum(1 for row in rows if row["status"] == ActivityProgress.COMPLETED)
+        attempted = sum(
+            1 for row in rows if row["status"] in {ActivityProgress.COMPLETED, ActivityProgress.ATTEMPTED}
+        )
         packs = len({str(row.get("pack_id")) for row in rows})
         last = "-" if not timeline else f"{timeline[0].policy} · {timeline[0].identity.activity_id} · {timeline[0].status}"
         data = (
@@ -1676,7 +1684,9 @@ class MainWindow(QMainWindow):
                 {"pack": row.get("pack"), "activities": 0, "completed": 0, "attempts": 0, "latest": "-"},
             )
             group["activities"] = int(group["activities"]) + 1
-            group["completed"] = int(group["completed"]) + (1 if row["status"] == "concluído" else 0)
+            group["completed"] = int(group["completed"]) + (
+                1 if row["status"] == ActivityProgress.COMPLETED else 0
+            )
             group["attempts"] = int(group["attempts"]) + int(row["attempts"])
             if row.get("last_attempt_at"):
                 group["latest"] = self._format_date(row["last_attempt_at"])
@@ -1728,14 +1738,14 @@ class MainWindow(QMainWindow):
             level = group_of(row)
             seen[level] = seen.get(level, 0) + 1
             branch = "└──" if seen[level] == totals[level] else "├──"
-            status = str(row["status"])
+            status = row["status"]
             latest = str(row["latest_result"])
             attempts = int(row["attempts"])
-            if status == "concluído":
+            if status == ActivityProgress.COMPLETED:
                 marker, status_color = "[✓]", "success"
-            elif status == "tentado" and latest == "FAIL":
+            elif status == ActivityProgress.ATTEMPTED and latest == "FAIL":
                 marker, status_color = "[✗]", "fail"
-            elif status == "tentado":
+            elif status == ActivityProgress.ATTEMPTED:
                 marker, status_color = "[…]", "warning"
             else:
                 marker, status_color = "[ ]", "text_secondary"
@@ -1827,8 +1837,8 @@ class MainWindow(QMainWindow):
             return str(value)[:16]
 
     def _display_history_status(self, status: str) -> str:
-        if status in {"concluído", "tentado"}:
-            return self._t(status)
+        if isinstance(status, ActivityProgress):
+            return self._t(ACTIVITY_PROGRESS_LABELS[status])
         return status
 
     # ---------------------------------------------------------------- settings

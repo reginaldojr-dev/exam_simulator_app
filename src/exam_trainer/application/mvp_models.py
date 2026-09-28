@@ -6,12 +6,13 @@ from pathlib import Path
 from exam_trainer.domain.exercise_definition import ExerciseDefinition
 from exam_trainer.domain.grading import GradingResult
 from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
-from exam_trainer.domain.progress import ProgressEntry
+from exam_trainer.domain.progress import ActivityProgress, ProgressEntry
 
 __all__ = [
     "DEFAULT_LANGUAGE",
     "ExerciseRef",
     "ProgressEntry",
+    "ActivityProgress",
     "ActiveExercise",
     "CorrectionOutcome",
 ]
@@ -25,8 +26,9 @@ class ExerciseRef:
     content_path: Path
 
 
-# `ProgressEntry` is a pure rule (domain/progress.py); re-exported here to avoid
-# breaking existing imports from `application.mvp_models` (ADR 0007).
+# `ProgressEntry` and `ActivityProgress` are pure rules (domain/progress.py);
+# re-exported here so adapters (e.g. UI) only import `application`, never
+# `domain` directly (ADR 0007 / architecture boundary test).
 
 
 @dataclass(frozen=True)

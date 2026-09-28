@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from exam_trainer.domain.activity_identity import ActivityIdentity
 from exam_trainer.domain.attempt_modes import LEGACY_PACK_ID
+from exam_trainer.domain.progress import ActivityProgress
 from exam_trainer.ports.progress_repository import TrainerProgressRepository
 
 
@@ -56,9 +57,9 @@ class HistoryService:
 
         def row(pack_name: str, level: str, name: str, key: tuple[str, str]) -> dict[str, object]:
             entry = progress.get(key)
-            status = "não feito"
+            status = ActivityProgress.NOT_STARTED
             if entry is not None:
-                status = "concluído" if entry.best_passed else "tentado"
+                status = ActivityProgress.COMPLETED if entry.best_passed else ActivityProgress.ATTEMPTED
             return {
                 "pack": pack_name,
                 "pack_id": key[0],

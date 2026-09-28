@@ -25,6 +25,7 @@ from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
 from exam_trainer.domain.grading import GradingResult, TraceData
+from exam_trainer.domain.progress import ActivityProgress
 from exam_trainer.ports.compiler_port import CompilationResult
 from exam_trainer.ports.grader_port import GradingRequest
 
@@ -485,6 +486,56 @@ class MainWindowTest(unittest.TestCase):
             )
             self.assertEqual(window._history_table.item(matching_row, 3).text(), "1")
             self.assertEqual(window._history_table.item(matching_row, 4).text(), "FAIL")
+            self.assertEqual(window._history_table.item(matching_row, 2).text(), "[\u2717] Tentado")
+
+            coordinator_row = next(
+                row
+                for row in window._coordinator.exercise_history_rows()
+                if row["exercise_id"] == "steady_echo"
+            )
+            self.assertEqual(coordinator_row["status"], ActivityProgress.ATTEMPTED)
+
+    def test_activity_progress_status_is_stable_internally_and_translated_in_ui(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=True)
+            ref = next(
+                ref
+                for ref in window._coordinator._pack_catalog.list_exercises("sample_rank")
+                if ref.definition.id == "steady_echo"
+            )
+            window._load_exercise(ref, mode="training", overwrite=True)
+            window._submit_current()
+            self.assertTrue(window._tasks.wait())
+
+            # Internal state never depends on translated text: the coordinator/history
+            # layer always returns the stable ActivityProgress value, regardless of locale.
+            coordinator_row = next(
+                row
+                for row in window._coordinator.exercise_history_rows()
+                if row["exercise_id"] == "steady_echo"
+            )
+            self.assertEqual(coordinator_row["status"], ActivityProgress.COMPLETED)
+            self.assertNotEqual(coordinator_row["status"], "concluído")
+
+            window._show_history()
+            window._set_history_view("activities")
+            row_index = next(
+                row
+                for row in range(window._history_table.rowCount())
+                if "steady_echo" in window._history_table.item(row, 1).text()
+            )
+            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Concluído")
+
+            window._locale.set_locale("en")
+            window._render_history()
+            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Completed")
+
+            window._locale.set_locale("es")
+            window._render_history()
+            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Completado")
+
+            # Counts derived from ActivityProgress stay correct regardless of locale.
+            self.assertIn("1/", window._history_summary.text())
 
     def test_history_exposes_overview_pack_session_and_timeline_views(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
