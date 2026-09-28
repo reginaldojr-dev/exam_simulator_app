@@ -23,6 +23,7 @@ from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
 from exam_trainer.domain.attempt_modes import LEGACY_PACK_ID
+from exam_trainer.domain.progress import ActivityProgress
 
 from test_exam_rules import FakeClock, SwitchGrader, build_pack
 
@@ -160,7 +161,7 @@ class ProgressByPackTest(unittest.TestCase):
             row for row in coordinator.exercise_history_rows()
             if row["pack_id"] == "beta" and row["exercise_id"] == state.exercise_id
         )
-        self.assertEqual(row["status"], "não feito")
+        self.assertEqual(row["status"], ActivityProgress.NOT_STARTED)
         self.assertEqual(row["modes"], "exam")
         self.assertEqual(row["latest_result"], "PASS")
 
