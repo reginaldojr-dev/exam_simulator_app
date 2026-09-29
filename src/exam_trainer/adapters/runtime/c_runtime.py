@@ -61,7 +61,7 @@ class CRuntime:
         sources = [*([spec.harness] if spec.harness is not None else []), spec.main_source, *spec.extra_sources]
         build_dir.mkdir(parents=True, exist_ok=True)
         executable = build_dir / (f"{name}.exe" if sys.platform == "win32" else name)
-        compilation = self._compiler.compile(sources, executable)
+        compilation = self._compiler.compile(sources, executable, include_dirs=spec.include_dirs)
         if not compilation.success or compilation.executable_path is None:
             return PreparedProgram(success=False, build=compilation)
         return PreparedProgram(success=True, build=compilation, argv=(str(compilation.executable_path),))

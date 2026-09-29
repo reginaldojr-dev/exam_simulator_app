@@ -67,7 +67,13 @@ class AvailableCompiler:
     def set_manual_compiler(self, compiler_path) -> None:
         pass
 
-    def compile(self, source_files: list[Path], output_path: Path) -> CompilationResult:
+    def compile(
+        self,
+        source_files: list[Path],
+        output_path: Path,
+        *,
+        include_dirs: tuple[Path, ...] = (),
+    ) -> CompilationResult:
         return CompilationResult(success=True, executable_path=output_path)
 
 

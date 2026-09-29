@@ -62,7 +62,13 @@ class SystemNativeCompiler:
             return False
         return is_file and self._is_compatible_compiler(path)
 
-    def compile(self, source_files: list[Path], output_path: Path) -> CompilationResult:
+    def compile(
+        self,
+        source_files: list[Path],
+        output_path: Path,
+        *,
+        include_dirs: tuple[Path, ...] = (),
+    ) -> CompilationResult:
         compiler = self.find_compiler()
         if compiler is None:
             return CompilationResult(
@@ -72,6 +78,7 @@ class SystemNativeCompiler:
         command = (
             compiler,
             *self._flags,
+            *self._include_args(include_dirs),
             *(str(source_file) for source_file in source_files),
             "-o",
             str(output_path),
@@ -84,6 +91,13 @@ class SystemNativeCompiler:
             command=command,
             executable_path=output_path if completed.returncode == 0 else None,
         )
+
+    @staticmethod
+    def _include_args(include_dirs: tuple[Path, ...]) -> tuple[str, ...]:
+        args: list[str] = []
+        for include_dir in include_dirs:
+            args.extend(("-I", str(include_dir)))
+        return tuple(args)
 
     def _candidate_paths(self) -> list[Path]:
         candidates: list[Path] = []

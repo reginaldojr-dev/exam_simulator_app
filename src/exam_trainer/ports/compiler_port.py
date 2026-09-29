@@ -21,6 +21,8 @@ class CompilerPort(Protocol):
         self,
         source_files: list[Path],
         output_path: Path,
+        *,
+        include_dirs: tuple[Path, ...] = (),
     ) -> CompilationResult:
         raise NotImplementedError
 

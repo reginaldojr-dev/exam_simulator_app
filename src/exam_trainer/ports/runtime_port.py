@@ -27,6 +27,7 @@ class ProgramSpec:
     entry: str | None = None  # function called by the app harness (Python)
     args_format: str | None = None
     extra_sources: tuple[Path, ...] = ()
+    include_dirs: tuple[Path, ...] = ()
 
 
 @dataclass(frozen=True)
