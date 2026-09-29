@@ -20,10 +20,27 @@ class ExecutionPlanError(ValueError):
 
 
 def pack_file(exercise_path: Path, relative: PurePath, label: str) -> Path:
-    path = exercise_path / relative
+    try:
+        root = exercise_path.resolve()
+        path = (exercise_path / relative).resolve()
+    except OSError as error:
+        raise ExecutionPlanError(f"Could not resolve {label}: {error}") from error
+    if path != root and root not in path.parents:
+        raise ExecutionPlanError(f"Required {label} escapes exercise root: {relative}")
     if not path.is_file():
         raise ExecutionPlanError(f"Required {label} not found: {path}")
     return path
+
+
+def support_include_dirs(definition: ExerciseDefinition, exercise_path: Path) -> tuple[Path, ...]:
+    include_dirs: list[Path] = []
+    seen: set[Path] = set()
+    for support_file in definition.support_files:
+        include_dir = pack_file(exercise_path, support_file, "support file").parent
+        if include_dir not in seen:
+            include_dirs.append(include_dir)
+            seen.add(include_dir)
+    return tuple(include_dirs)
 
 
 class ExecutionStrategy(Protocol):
@@ -44,6 +61,7 @@ class ProgramOutputStrategy:
             harness=None if harness is None else pack_file(exercise_path, harness, "harness"),
             entry=definition.execution.entry,
             extra_sources=tuple(source.parent / extra for extra in definition.submission.extra_files),
+            include_dirs=support_include_dirs(definition, exercise_path),
         )
 
 
@@ -61,6 +79,7 @@ class FunctionCallStrategy:
             entry=execution.entry,
             args_format=execution.args_format,
             extra_sources=tuple(source.parent / extra for extra in definition.submission.extra_files),
+            include_dirs=support_include_dirs(definition, exercise_path),
         )
 
 
@@ -74,6 +93,7 @@ def reference_spec(definition: ExerciseDefinition, exercise_path: Path) -> Progr
         entry=definition.execution.entry,
         args_format=definition.execution.args_format,
         extra_sources=tuple(pack_file(exercise_path, extra, "reference extra source") for extra in reference.extra_files),
+        include_dirs=support_include_dirs(definition, exercise_path),
     )
 
 

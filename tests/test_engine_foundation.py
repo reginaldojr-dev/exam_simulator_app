@@ -42,6 +42,8 @@ class FailingCompiler:
         self,
         source_files: list[Path],
         output_path: Path,
+        *,
+        include_dirs: tuple[Path, ...] = (),
     ) -> CompilationResult:
         return CompilationResult(
             success=False,
