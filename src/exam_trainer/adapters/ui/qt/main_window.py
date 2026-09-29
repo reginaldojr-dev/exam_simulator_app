@@ -57,6 +57,10 @@ from exam_trainer.application.use_cases.mvp_coordinator import (
 )
 
 MENU_WIDTH = 460
+# Single source of truth for the editor presets offered in Settings > Editor/IDE.
+# Reused both to populate the preset combo and to drive automatic detection, so
+# the list of known editors is never duplicated.
+KNOWN_EDITOR_PRESETS: tuple[str, ...] = ("VS Code", "Zed", "Cursor")
 ACTIVITY_PROGRESS_LABELS: dict[ActivityProgress, str] = {
     ActivityProgress.COMPLETED: "Concluído",
     ActivityProgress.ATTEMPTED: "Tentado",
@@ -323,7 +327,7 @@ class MainWindow(QMainWindow):
         current = self._editor_combo.currentData() or self._editor_combo.currentText()
         self._editor_combo.blockSignals(True)
         self._editor_combo.clear()
-        for label in ("VS Code", "Zed", "Cursor", "Outro..."):
+        for label in (*KNOWN_EDITOR_PRESETS, "Outro..."):
             self._editor_combo.addItem(self._t(label), label)
         index = self._editor_combo.findData(current)
         if index < 0:
@@ -816,7 +820,11 @@ class MainWindow(QMainWindow):
             self._settings_card(
                 "EDITOR/IDE",
                 [self._editor_combo, self._settings_editor],
-                [("[ SELECIONAR EXECUTÁVEL ]", self._browse_editor), ("[ SALVAR EDITOR ]", self._save_editor_setting)],
+                [
+                    ("[ DETECTAR AUTOMATICAMENTE ]", self._detect_editor_automatically),
+                    ("[ SELECIONAR EXECUTÁVEL ]", self._browse_editor),
+                    ("[ SALVAR EDITOR ]", self._save_editor_setting),
+                ],
             )
         )
 
@@ -919,6 +927,7 @@ class MainWindow(QMainWindow):
             normalized = normalized[2:-2]
         action_map = {
             "ALTERAR WORKSPACE": "Alterar workspace",
+            "DETECTAR AUTOMATICAMENTE": "Detectar automaticamente",
             "SELECIONAR EXECUTÁVEL": "Selecionar executável",
             "SALVAR EDITOR": "Salvar editor",
             "DETECTAR NOVAMENTE": "Detectar novamente",
@@ -2187,6 +2196,38 @@ class MainWindow(QMainWindow):
         selected, _ = QFileDialog.getOpenFileName(self, self._t("Selecionar executável do editor"), "", filter_text)
         if selected:
             self._settings_editor.setText(str(Path(selected)))
+
+    def _detect_editor_automatically(self) -> None:
+        # Explicit "Detectar automaticamente" action: re-run the same known-editor
+        # resolution already used by the preset combo (`resolve_known_editor`),
+        # without requiring the person to touch the preset selector.
+        #
+        # If the currently selected preset is a known one, try it first -- this is
+        # the direct redetection case. Otherwise (or if that preset is no longer
+        # found), fall back to trying every known editor and filling in the first
+        # one that resolves, keeping the preset combo in sync with the result.
+        current = str(self._editor_combo.currentData() or self._editor_combo.currentText())
+        ordered_labels = list(KNOWN_EDITOR_PRESETS)
+        if current in ordered_labels:
+            ordered_labels.remove(current)
+            ordered_labels.insert(0, current)
+
+        for label in ordered_labels:
+            resolved = self._coordinator.resolve_known_editor(label)
+            if resolved is None:
+                continue
+            index = self._editor_combo.findData(label)
+            if index >= 0:
+                self._editor_combo.blockSignals(True)
+                self._editor_combo.setCurrentIndex(index)
+                self._editor_combo.blockSignals(False)
+            self._settings_editor.setText(resolved)
+            QMessageBox.information(
+                self, "Editor", self._t("{editor} detectado automaticamente.", editor=self._t(label))
+            )
+            return
+
+        QMessageBox.warning(self, "Editor", self._t("Nenhum editor conhecido foi encontrado automaticamente."))
 
     def _choose_manual_compiler(self) -> None:
         language = self._first_runtime_language()

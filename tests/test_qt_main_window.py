@@ -19,6 +19,7 @@ from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteP
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.adapters.runtime.c_runtime import CRuntime
 from exam_trainer.adapters.ui.qt.i18n import LocaleService
+from exam_trainer.adapters.ui.qt import main_window as main_window_module
 from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
@@ -832,9 +833,9 @@ class MainWindowTest(unittest.TestCase):
 
     def test_settings_editor_buttons_follow_locale(self) -> None:
         expectations = {
-            "pt-BR": {"[ SELECIONAR EXECUTÁVEL ]", "[ SALVAR EDITOR ]"},
-            "en": {"[ SELECT EXECUTABLE ]", "[ SAVE EDITOR ]"},
-            "es": {"[ SELECCIONAR EJECUTABLE ]", "[ GUARDAR EDITOR ]"},
+            "pt-BR": {"[ DETECTAR AUTOMATICAMENTE ]", "[ SELECIONAR EXECUTÁVEL ]", "[ SALVAR EDITOR ]"},
+            "en": {"[ DETECT AUTOMATICALLY ]", "[ SELECT EXECUTABLE ]", "[ SAVE EDITOR ]"},
+            "es": {"[ DETECTAR AUTOMÁTICAMENTE ]", "[ SELECCIONAR EJECUTABLE ]", "[ GUARDAR EDITOR ]"},
         }
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
@@ -843,6 +844,81 @@ class MainWindowTest(unittest.TestCase):
                 window._show_settings()
                 labels = {button.property("baseText") for button in window._settings_page.findChildren(QPushButton)}
                 self.assertTrue(expected.issubset(labels))
+
+    def test_detect_editor_automatically_button_exists_and_reuses_resolution_flow(self) -> None:
+        # The explicit "Detectar automaticamente" action must call the very same
+        # known-editor resolution already used by the preset combo -- never a
+        # second, independent lookup.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            button = self._runtime_action_button(window, "[ DETECTAR AUTOMATICAMENTE ]")
+            self.assertTrue(button.isEnabled())
+
+            calls: list[str] = []
+            original = window._coordinator.resolve_known_editor
+
+            def recording_resolve(label: str) -> str | None:
+                calls.append(label)
+                return "/usr/bin/code" if label == "VS Code" else None
+
+            window._coordinator.resolve_known_editor = recording_resolve
+            try:
+                window._detect_editor_automatically()
+            finally:
+                window._coordinator.resolve_known_editor = original
+
+            # Every candidate it tried came from the single shared preset list,
+            # never a locally invented VS Code/Zed/Cursor list.
+            self.assertTrue(set(calls).issubset(set(main_window_module.KNOWN_EDITOR_PRESETS)))
+            self.assertEqual(window._settings_editor.text(), "/usr/bin/code")
+            self.assertEqual(window._editor_combo.currentData(), "VS Code")
+
+    def test_detect_editor_automatically_prefers_current_preset_direct_redetection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            index = window._editor_combo.findData("Zed")
+            window._editor_combo.setCurrentIndex(index)
+
+            resolved = {"VS Code": "/usr/bin/code", "Zed": "/usr/bin/zed", "Cursor": "/usr/bin/cursor"}
+            window._coordinator.resolve_known_editor = lambda label: resolved.get(label)
+
+            window._detect_editor_automatically()
+
+            # The currently selected preset (Zed) is redetected directly, without
+            # switching to a different known editor.
+            self.assertEqual(window._editor_combo.currentData(), "Zed")
+            self.assertEqual(window._settings_editor.text(), "/usr/bin/zed")
+
+    def test_detect_editor_automatically_falls_back_to_first_known_editor_found(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            index = window._editor_combo.findData("Outro...")
+            window._editor_combo.setCurrentIndex(index)
+
+            # Current preset ("Outro...") never resolves; the flow falls back to
+            # scanning known editors and fills in the first one that is found.
+            window._coordinator.resolve_known_editor = lambda label: "/opt/cursor" if label == "Cursor" else None
+
+            window._detect_editor_automatically()
+
+            self.assertEqual(window._editor_combo.currentData(), "Cursor")
+            self.assertEqual(window._settings_editor.text(), "/opt/cursor")
+
+    def test_detect_editor_automatically_warns_when_nothing_is_found(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            window._coordinator.resolve_known_editor = lambda label: None
+            before_text = window._settings_editor.text()
+            self._dialogs.clear()
+
+            window._detect_editor_automatically()
+
+            self.assertEqual(window._settings_editor.text(), before_text)
+            self.assertTrue(any(name == "warning" for name, _text in self._dialogs))
 
     def test_runtime_settings_status_and_actions_follow_locale(self) -> None:
         expectations = {
