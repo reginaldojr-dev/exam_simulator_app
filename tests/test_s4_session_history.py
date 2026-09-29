@@ -16,7 +16,7 @@ from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.history_service import HistoryQuery
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
-from exam_trainer.domain.grading import GradingPolicy, GradingResult, TraceData
+from exam_trainer.domain.grading import GradingOutcome, GradingPolicy, GradingResult, TraceData
 from exam_trainer.domain.session_policy import ExamPolicy, SessionPolicyRegistry, TrainingPolicy
 from exam_trainer.ports.compiler_port import CompilationResult
 from exam_trainer.ports.grader_port import GradingRequest
@@ -27,7 +27,10 @@ class StaticGrader:
         self.passed = passed
 
     def grade(self, request: GradingRequest) -> GradingResult:
-        return GradingResult(passed=self.passed, trace_data=TraceData(("trace",)))
+        return GradingResult(
+            outcome=GradingOutcome.PASSED if self.passed else GradingOutcome.USER_FAILED,
+            trace_data=TraceData(("trace",)),
+        )
 
 
 class AvailableCompiler:

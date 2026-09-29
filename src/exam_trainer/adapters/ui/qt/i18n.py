@@ -252,6 +252,9 @@ TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
         "Concluído": "Completed",
         "Tentado": "Attempted",
         "Não feito": "Not done",
+        "CONTEÚDO INVÁLIDO": "INVALID CONTENT",
+        "Este exercício tem um erro de conteúdo do pack — não é um erro seu. Não conta como tentativa.":
+            "This exercise has a pack content error — it's not your fault. It doesn't count as an attempt.",
         "{completed}/{total} concluídos": "{completed}/{total} completed",
         "completed_exam": "[✓] passed",
         "timeout_exam": "[✗] timed out",
@@ -474,6 +477,9 @@ TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
         "Concluído": "Completado",
         "Tentado": "Intentado",
         "Não feito": "No hecho",
+        "CONTEÚDO INVÁLIDO": "CONTENIDO INVÁLIDO",
+        "Este exercício tem um erro de conteúdo do pack — não é um erro seu. Não conta como tentativa.":
+            "Este ejercicio tiene un error de contenido del pack — no es un error suyo. No cuenta como intento.",
         "{completed}/{total} concluídos": "{completed}/{total} completados",
         "completed_exam": "[✓] aprobado",
         "timeout_exam": "[✗] tiempo agotado",

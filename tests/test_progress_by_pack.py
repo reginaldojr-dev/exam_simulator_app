@@ -167,10 +167,12 @@ class ProgressByPackTest(unittest.TestCase):
 
     def test_repository_rejects_unknown_mode(self) -> None:
         repo = SQLiteProgressRepository(SQLiteStore(self.database))
-        from exam_trainer.domain.grading import GradingResult, TraceData
+        from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
 
         with self.assertRaises(ValueError):
-            repo.save_grading_result("alpha", "ex_0_0", GradingResult(passed=True, trace_data=TraceData(())), "practice")
+            repo.save_grading_result(
+                "alpha", "ex_0_0", GradingResult(outcome=GradingOutcome.PASSED, trace_data=TraceData(())), "practice"
+            )
 
     # ----------------------------------------------------------- v0 migration
     def _legacy_database(self) -> None:

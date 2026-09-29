@@ -24,7 +24,7 @@ from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerci
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
-from exam_trainer.domain.grading import GradingResult, TraceData
+from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
 from exam_trainer.domain.progress import ActivityProgress
 from exam_trainer.ports.compiler_port import CompilationResult
 from exam_trainer.ports.grader_port import GradingRequest
@@ -36,7 +36,7 @@ class StaticGrader:
 
     def grade(self, request: GradingRequest) -> GradingResult:
         return GradingResult(
-            passed=self.passed,
+            outcome=GradingOutcome.PASSED if self.passed else GradingOutcome.USER_FAILED,
             trace_data=TraceData(("trace",)),
         )
 
@@ -86,7 +86,10 @@ class BlockingGrader:
         self.thread_ids.append(threading.get_ident())
         self.started.set()
         self.release.wait(10)
-        return GradingResult(passed=self.passed, trace_data=TraceData(("trace",)))
+        return GradingResult(
+            outcome=GradingOutcome.PASSED if self.passed else GradingOutcome.USER_FAILED,
+            trace_data=TraceData(("trace",)),
+        )
 
 
 class FailingGrader:

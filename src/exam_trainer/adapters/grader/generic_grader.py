@@ -21,9 +21,19 @@ from exam_trainer.application.engine.generators import TestCaseGeneratorRegistry
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry, UnsupportedLanguageError
 from exam_trainer.application.engine.test_case_service import TestCaseService
 from exam_trainer.application.engine.trace_builder import TraceBuilder
-from exam_trainer.domain.grading import GradingResult, TestCase, TestResult
+from exam_trainer.domain.grading import GradingOutcome, GradingResult, TestCase, TestResult
 from exam_trainer.ports.grader_port import GradingRequest
 from exam_trainer.ports.runtime_port import LanguageRuntime, PreparedProgram
+
+
+class ReferenceExecutionError(Exception):
+    """The reference could not produce a trustworthy expected output.
+
+    Raised when the reference program itself times out or exits non-zero
+    while generating a test case's expected output. This is always a
+    content problem (broken reference/harness/generated input), never
+    something the submission did -- see `GenericGrader._content_error`.
+    """
 
 
 class GenericGrader:
@@ -50,7 +60,7 @@ class GenericGrader:
         source_file = request.workspace_path / definition.submission.filename
         trace.add_collected_file(source_file)
         if not source_file.is_file():
-            return self._failed_result(trace, seed, f"Expected submission file not found: {source_file}")
+            return self._content_error(trace, seed, f"Expected submission file not found: {source_file}")
 
         try:
             runtime = self._runtimes.get(definition.language)
@@ -60,14 +70,22 @@ class GenericGrader:
             submission_spec = strategy.submission(definition, request.exercise_path, source_file)
             reference = None if definition.reference is None else reference_spec(definition, request.exercise_path)
         except (UnsupportedLanguageError, ExecutionPlanError) as error:
-            return self._failed_result(trace, seed, str(error))
+            # The pack's own execution plan is unusable (unknown strategy,
+            # missing harness declaration, ...): a content problem, never
+            # something the user's submission did.
+            return self._content_error(trace, seed, str(error))
 
         build_dir = request.workspace_path / ".build"
         program = runtime.prepare(submission_spec, build_dir, definition.id)
         trace.add_compilation(program.build)
         if not program.success:
+            # The submission itself failed to prepare (compile error, syntax
+            # error, ...). Runtime/toolchain availability is checked by
+            # preflight before grading is ever reached (see
+            # `main_window._runtime_checked`), so reaching this point means
+            # the problem is in the user's own code.
             return GradingResult(
-                passed=False,
+                outcome=GradingOutcome.USER_FAILED,
                 compile_output=program.build.output,
                 seed=seed,
                 trace_data=trace.build(),
@@ -79,12 +97,20 @@ class GenericGrader:
             reference_program = runtime.prepare(reference, build_dir, f"{definition.id}_reference")
             trace.add_compilation(reference_program.build)
             if not reference_program.success:
-                return self._failed_result(
+                return self._content_error(
                     trace, seed, f"Reference failed to compile:\n{reference_program.build.output}"
                 )
-            test_cases = [
-                self._case_with_reference_output(runtime, reference_program, case, timeout) for case in test_cases
-            ]
+            try:
+                test_cases = [
+                    self._case_with_reference_output(runtime, reference_program, case, timeout)
+                    for case in test_cases
+                ]
+            except ReferenceExecutionError as error:
+                # The reference compiled but couldn't be trusted to produce
+                # `expected` for at least one generated case (crashed, exited
+                # non-zero, or timed out). Never let the user's submission be
+                # judged against an expected value we don't actually trust.
+                return self._content_error(trace, seed, str(error))
 
         test_results: list[TestResult] = []
         for index, test_case in enumerate(test_cases, start=1):
@@ -94,9 +120,9 @@ class GenericGrader:
             if request.policy.fail_fast and not test_result.passed:
                 break
 
-        passed = all(result.passed for result in test_results) and bool(test_results)
+        all_passed = all(result.passed for result in test_results) and bool(test_results)
         grading_result = GradingResult(
-            passed=passed,
+            outcome=GradingOutcome.PASSED if all_passed else GradingOutcome.USER_FAILED,
             compile_output=program.build.output,
             test_results=tuple(test_results),
             stderr="\n".join(result.stderr for result in test_results if result.stderr),
@@ -139,12 +165,24 @@ class GenericGrader:
         timeout_seconds: int,
     ) -> TestCase:
         result = cls._run_test_case(runtime, reference, replace(test_case, expected=""), timeout_seconds)
+        if result.timed_out:
+            raise ReferenceExecutionError("Reference execution timed out while generating expected output.")
+        if result.exit_code != 0:
+            raise ReferenceExecutionError(
+                f"Reference exited with code {result.exit_code} while generating expected output:\n"
+                f"{result.stdout}{result.stderr}"
+            )
         expected = result.stdout
         if result.stderr:
             expected += result.stderr
         return replace(test_case, expected=expected)
 
     @staticmethod
-    def _failed_result(trace: TraceBuilder, seed: int, message: str) -> GradingResult:
+    def _content_error(trace: TraceBuilder, seed: int, message: str) -> GradingResult:
         trace.add_content_error(message)
-        return GradingResult(passed=False, compile_output=message, seed=seed, trace_data=trace.build())
+        return GradingResult(
+            outcome=GradingOutcome.CONTENT_ERROR,
+            compile_output=message,
+            seed=seed,
+            trace_data=trace.build(),
+        )

@@ -20,19 +20,26 @@ from exam_trainer.application.use_cases.mvp_coordinator import (
     MVPTrainerCoordinator,
     TrainingOptions,
 )
-from exam_trainer.domain.grading import GradingResult, TraceData
+from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
 from exam_trainer.ports.grader_port import GradingRequest
 
 
 class StaticGrader:
     def __init__(self, passed: bool) -> None:
         self.passed = passed
+        # When set, overrides the passed/failed dichotomy entirely -- used by
+        # tests that need to simulate a CONTENT_ERROR outcome (a pack/content
+        # problem, distinct from both PASSED and USER_FAILED).
+        self.outcome_override: GradingOutcome | None = None
 
     def grade(self, request: GradingRequest) -> GradingResult:
+        outcome = self.outcome_override
+        if outcome is None:
+            outcome = GradingOutcome.PASSED if self.passed else GradingOutcome.USER_FAILED
         return GradingResult(
-            passed=self.passed,
+            outcome=outcome,
             seed=request.seed,
-            trace_data=TraceData((f"Result: {self.passed}",)),
+            trace_data=TraceData((f"Result: {outcome.value}",)),
         )
 
 
@@ -130,6 +137,114 @@ class MVPTrainerCoordinatorTest(unittest.TestCase):
 
             self.assertIsNotNone(next_state)
             self.assertEqual(next_state.level_index, 1)
+
+    # ----------------------------------------------------- CONTENT_ERROR safety
+    def test_exam_content_error_does_not_increment_attempts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=True)
+            coordinator._grader.outcome_override = GradingOutcome.CONTENT_ERROR
+            state = coordinator.start_exam("sample_rank", duration_seconds=60)
+            active = coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state)
+
+            outcome, _next_state = coordinator.submit_exam(state, active)
+
+            self.assertEqual(outcome.attempts_count, 0)
+
+    def test_exam_content_error_does_not_record_level_result(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=True)
+            coordinator._grader.outcome_override = GradingOutcome.CONTENT_ERROR
+            state = coordinator.start_exam("sample_rank", duration_seconds=60)
+            active = coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state)
+
+            coordinator.submit_exam(state, active)
+
+            repo = SQLiteProgressRepository(SQLiteStore(Path(temp_dir) / "trainer.sqlite3"))
+            self.assertEqual(repo.list_exam_level_results(state.id), [])
+
+    def test_exam_content_error_does_not_fail_or_advance_session(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=True)
+            coordinator._grader.outcome_override = GradingOutcome.CONTENT_ERROR
+            state = coordinator.start_exam("sample_rank", duration_seconds=60)
+            active = coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state)
+
+            outcome, next_state = coordinator.submit_exam(state, active)
+
+            self.assertIs(outcome.result.outcome, GradingOutcome.CONTENT_ERROR)
+            self.assertFalse(outcome.result.passed)
+            self.assertIsNotNone(next_state)
+            # Stays on the same exercise/level; score is untouched.
+            self.assertEqual(next_state.exercise_id, state.exercise_id)
+            self.assertEqual(next_state.level_index, state.level_index)
+            self.assertEqual(next_state.score, state.score)
+
+    def test_exam_user_failed_still_increments_attempts_and_records_level_result(self) -> None:
+        # Control: USER_FAILED must keep behaving exactly as before this phase.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=False)
+            state = coordinator.start_exam("sample_rank", duration_seconds=60)
+            active = coordinator.prepare_exam_exercise(coordinator.exam_ref(state), state)
+
+            outcome, next_state = coordinator.submit_exam(state, active)
+
+            self.assertIs(outcome.result.outcome, GradingOutcome.USER_FAILED)
+            self.assertEqual(outcome.attempts_count, 1)
+            self.assertIsNotNone(next_state)
+            self.assertEqual(next_state.exercise_id, state.exercise_id)
+
+            repo = SQLiteProgressRepository(SQLiteStore(Path(temp_dir) / "trainer.sqlite3"))
+            level_results = repo.list_exam_level_results(state.id)
+            self.assertEqual(len(level_results), 1)
+            self.assertFalse(level_results[0]["passed"])
+
+    def test_training_content_error_does_not_persist_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=True)
+            coordinator._grader.outcome_override = GradingOutcome.CONTENT_ERROR
+            ref = coordinator.choose_training_exercise(
+                TrainingOptions(pack_id="sample_rank", level_ids=("level0",))
+            )
+            active = coordinator.prepare_exercise(ref)
+
+            outcome = coordinator.submit_training(active)
+
+            self.assertIs(outcome.result.outcome, GradingOutcome.CONTENT_ERROR)
+            self.assertFalse(outcome.result.passed)
+            self.assertEqual(outcome.attempts_count, 0)
+
+    def test_training_content_error_does_not_mark_progress_as_attempted(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=True)
+            coordinator._grader.outcome_override = GradingOutcome.CONTENT_ERROR
+            ref = coordinator.choose_training_exercise(
+                TrainingOptions(pack_id="sample_rank", level_ids=("level0",))
+            )
+            active = coordinator.prepare_exercise(ref)
+
+            coordinator.submit_training(active)
+
+            repo = SQLiteProgressRepository(SQLiteStore(Path(temp_dir) / "trainer.sqlite3"))
+            progress = repo.progress_by_exercise("sample_rank")
+            self.assertNotIn(active.ref.definition.id, progress)
+
+    def test_training_user_failed_still_persists_attempt(self) -> None:
+        # Control: USER_FAILED must keep behaving exactly as before this phase.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(temp_dir, passed=False)
+            ref = coordinator.choose_training_exercise(
+                TrainingOptions(pack_id="sample_rank", level_ids=("level0",))
+            )
+            active = coordinator.prepare_exercise(ref)
+
+            outcome = coordinator.submit_training(active)
+
+            self.assertIs(outcome.result.outcome, GradingOutcome.USER_FAILED)
+            self.assertEqual(outcome.attempts_count, 1)
+
+            repo = SQLiteProgressRepository(SQLiteStore(Path(temp_dir) / "trainer.sqlite3"))
+            progress = repo.progress_by_exercise("sample_rank")
+            self.assertIn(active.ref.definition.id, progress)
 
     def test_exam_timeout_finishes_active_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
