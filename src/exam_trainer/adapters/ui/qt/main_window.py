@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
         self._locale.locale_changed.connect(self._on_locale_changed)
         self._cursor = CursorController(self)
 
-        self.setWindowTitle("Exam Trainer")
+        self.setWindowTitle("RankedDojo")
         self.setMinimumSize(760, 560)
 
         self._stack = QStackedWidget()
@@ -208,7 +208,7 @@ class MainWindow(QMainWindow):
             self._locale.set_locale(locale)
 
     def _retranslate_static_ui(self) -> None:
-        self._set_title_label(self._title_home, "EXAM TRAINER")
+        self._set_title_label(self._title_home, "RankedDojo")
         menu_labels = (
             self._t("Quero estudar algo novo"),
             self._t("Treinar"),
@@ -392,7 +392,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ home
     def _build_home_page(self) -> QWidget:
         page, layout = self._page(margins=28)
-        self._title_home = self._title("EXAM TRAINER")
+        self._title_home = self._title("RankedDojo")
         self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
         layout.addWidget(self._title_home)
         layout.addWidget(self._workspace_label)
@@ -997,7 +997,7 @@ class MainWindow(QMainWindow):
         compact = f"~/{parent}/{name}" if parent else f"~/{name}"
         if len(compact) > 54:
             compact = f"~/.../{name}"
-        return f"user@42:{compact}$"
+        return f"dojo@RankedDojo:{compact}$"
 
     def _set_title_label(self, label: QLabel, text: str) -> None:
         self._cursor.set_title(label, text)
@@ -2244,4 +2244,3 @@ class MainWindow(QMainWindow):
 
     def _back_from_exercise(self) -> None:
         self._go(self._exam_page if self._mode == "exam" else self._training_page)
-

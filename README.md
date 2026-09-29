@@ -1,6 +1,6 @@
-# Exam Trainer
+# RankedDojo
 
-Exam Trainer is a local-first desktop app for programming practice and exam simulation.
+RankedDojo is a local-first desktop app for programming practice and exam simulation.
 It manages study packs, workspaces, runtime/toolchain checks, correction traces,
 training progress, exam sessions and history in a compact PySide6 UI.
 
@@ -19,7 +19,7 @@ private/original exam packs or proprietary study material.
 - Workspace separation for training and exams.
 - Home flow for `QUERO ESTUDAR ALGO NOVO`: create a vendor-neutral prompt for generating
   compatible packs, then import them.
-- PyInstaller build flow for `Exam Trainer.exe` with safe replacement and SHA-256 checksum.
+- PyInstaller build flow for `RankedDojo.exe` with safe replacement and SHA-256 checksum.
 
 ## Requirements
 
@@ -91,7 +91,8 @@ does not provide a full sandbox.
 
 ## Workspace And Data
 
-On Windows, app configuration and the local SQLite database use:
+On Windows, app configuration and the local SQLite database still use the legacy data
+directory for compatibility:
 
 ```text
 %APPDATA%\exam-trainer\
@@ -125,11 +126,11 @@ python build.py --run      # build if needed, then open the executable
 Output:
 
 ```text
-_local/dist/Exam Trainer.exe
-_local/dist/Exam Trainer.exe.sha256
+_local/dist/RankedDojo.exe
+_local/dist/RankedDojo.exe.sha256
 ```
 
-On Linux/macOS the executable name is `Exam Trainer`.
+On Linux/macOS the executable name is `RankedDojo`.
 
 Build behavior:
 
@@ -164,4 +165,4 @@ No remote release is created by the build script.
 
 ## License
 
-Exam Trainer is released under the [MIT License](LICENSE).
+RankedDojo is released under the [MIT License](LICENSE).

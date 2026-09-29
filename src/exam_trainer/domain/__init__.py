@@ -1,2 +1,2 @@
-"""Domain model for Exam Trainer."""
+"""Domain model for RankedDojo."""
 

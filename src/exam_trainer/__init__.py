@@ -1,2 +1,2 @@
-"""Exam Trainer application package."""
+"""RankedDojo application package."""
 

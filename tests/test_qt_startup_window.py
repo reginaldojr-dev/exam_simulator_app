@@ -47,6 +47,20 @@ class StartupWindowTest(unittest.TestCase):
         self.assertEqual(captured, [Path(temp_dir) / "exam-trainer"])
         self.assertFalse(window.isVisible())
 
+    def test_public_brand_changed_but_default_workspace_folder_stays_legacy(self) -> None:
+        service = StubInitializeApplication()
+        window = StartupWindow(service)
+
+        self.assertEqual(window._title.text(), "RankedDojo")
+
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch(
+            "exam_trainer.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
+            return_value=temp_dir,
+        ):
+            window._choose_workspace()
+
+        self.assertEqual(service.configured, Path(temp_dir) / "exam-trainer")
+
     def test_cancel_keeps_startup_window_open(self) -> None:
         service = StubInitializeApplication()
         window = StartupWindow(service)

@@ -14,7 +14,7 @@ class TraceBuilder:
     def add_environment(self, definition: ExerciseDefinition, workspace_path: Path) -> None:
         self._lines.extend(
             (
-                "=== Exam Trainer Trace ===",
+                "=== RankedDojo Trace ===",
                 f"Exercise: {definition.name} ({definition.id})",
                 f"Execution: {definition.execution.type}"
                 + (

@@ -16,7 +16,7 @@
 - Focados S6: `137 passed, 4 skipped, 40 subtests passed`.
 - Build real: `python build.py --force` OK.
 - Build cache/run: `python build.py --run` pulou rebuild e abriu o executável.
-- Smoke do executável: `_local/dist/Exam Trainer.exe` abriu com `%APPDATA%` isolado e foi encerrado após 6s.
+- Smoke do executável validado na S6 antes do rename público; novo build deve gerar `_local/dist/RankedDojo.exe`.
 - Smoke Qt responsivo: 760x520, 1024x720, 1440x900 e 1920x1080.
 - Skips conhecidos: compilador C/C++ ausente em testes dependentes de toolchain; symlink no Windows exige privilégio.
 - Warnings pytest conhecidos: nenhum na suíte final da S6.
@@ -59,7 +59,7 @@
 - SQLite é a autoridade local da V1.
 - Schema atual: v3.
 - Migration v3 adiciona identidade neutra e policy preservando colunas/dados antigos.
-- Path principal no Windows: `%APPDATA%\exam-trainer\`.
+- Path principal no Windows: `%APPDATA%\exam-trainer\` permanece legado por compatibilidade de dados.
 - Packs públicos em `examples/packs`; packs locais privados em `_local/packs`.
 - DB readonly investigado na S4: causa provável é ACL/sandbox, não schema corrompido.
 
@@ -73,7 +73,7 @@
 
 ## UI
 
-- Produto público: `Exam Trainer`.
+- Produto público: `RankedDojo`.
 - Home inclui `QUERO ESTUDAR ALGO NOVO`, geração/cópia de prompt e importação de pack.
 - Training, Exam, Histórico, Configurações e ajuda de pack existem em Qt.
 - Histórico oferece visão geral, por pack, activities, sessões e linha do tempo, com filtros simples por pack/session.
@@ -86,9 +86,9 @@
 
 - Versão V1: `1.0.0`.
 - Build helper: `build.py`.
-- Spec: `Exam Trainer.spec`.
-- Executável Windows: `_local/dist/Exam Trainer.exe`.
-- Checksum: `_local/dist/Exam Trainer.exe.sha256`.
+- Spec: `RankedDojo.spec`.
+- Executável Windows: `_local/dist/RankedDojo.exe`.
+- Checksum: `_local/dist/RankedDojo.exe.sha256`.
 - SHA-256 validado na S6: `fc4f5a9509be544db639d5e370b8242e7cb128ff9baa00f1679220be00e8a739`.
 - Build usa staging em `_local/build/_staging`, substitui o exe só após sucesso e mantém o exe anterior em falha.
 - Signing/trusted certificate é pendência externa; nenhum certificado fica no repo.

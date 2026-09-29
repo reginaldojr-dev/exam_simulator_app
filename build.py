@@ -1,4 +1,4 @@
-"""Build helper do Exam Trainer (PyInstaller).
+"""Build helper do RankedDojo (PyInstaller).
 
 Uso (com a .venv do projeto ativa):
     python build.py            gera o executável (pula se nada mudou)
@@ -30,8 +30,8 @@ LOCAL_DIR = ROOT / "_local"
 BUILD_DIR = LOCAL_DIR / "build"
 DIST_DIR = LOCAL_DIR / "dist"
 STAGING_DIR = BUILD_DIR / "_staging"
-SPEC_FILE = ROOT / "Exam Trainer.spec"
-APP_NAME = "Exam Trainer"
+SPEC_FILE = ROOT / "RankedDojo.spec"
+APP_NAME = "RankedDojo"
 EXE_NAME = f"{APP_NAME}.exe" if sys.platform == "win32" else APP_NAME
 EXE_PATH = DIST_DIR / EXE_NAME
 CHECKSUM_PATH = DIST_DIR / f"{EXE_NAME}.sha256"
@@ -201,7 +201,7 @@ def run_build(source_hash: str | None = None) -> int:
         "--workpath",
         str(staging_work),
     ]
-    print("=== Exam Trainer Build ===")
+    print("=== RankedDojo Build ===")
     print("Gerando executável (o executável atual só é trocado se o build der certo)...")
     result = subprocess.run(command, cwd=ROOT)
     if result.returncode != 0:
@@ -307,7 +307,7 @@ def check_environment() -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build helper do Exam Trainer")
+    parser = argparse.ArgumentParser(description="Build helper do RankedDojo")
     parser.add_argument(
         "-r",
         "--run",

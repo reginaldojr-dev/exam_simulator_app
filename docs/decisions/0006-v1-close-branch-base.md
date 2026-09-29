@@ -7,7 +7,7 @@
 - A série do roadmap anterior (11 commits) nunca foi aplicada no repositório local: não existia `roadmap/execution`.
 - Nesse meio tempo foi criada a branch `v1/packs` a partir de `visual-redesign`, com:
   - as regras de `.gitignore` para packs privados;
-  - o commit do branding da Home ("EXAM TRAINER").
+  - o commit inicial de branding da Home.
 - A branch foi enviada ao remoto.
 - O repositório guarda os arquivos com LF (conversão automática de fim de linha no Windows). A série anterior tinha sido preparada sobre um espelho com CRLF no `.spec` e no `rank02-practice`, e a conferência do manifesto do script antigo recusaria a aplicação.
 

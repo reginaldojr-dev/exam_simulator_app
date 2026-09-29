@@ -45,7 +45,7 @@ class PackPromptBuilder:
 
         return "\n".join(
             (
-                "Crie um pack para o Exam Trainer.",
+                "Crie um pack para o RankedDojo.",
                 "",
                 "Intencao de estudo:",
                 f"- Topico: {topic}",
@@ -56,10 +56,10 @@ class PackPromptBuilder:
                 f"- Idioma dos subjects/conteudo: {intent.content_language}",
                 f"- Tamanho: {intent.size}",
                 "",
-                "Use apenas as capabilities suportadas por esta versao do Exam Trainer.",
+                "Use apenas as capabilities suportadas por esta versao do RankedDojo.",
                 "Nao invente campos fora do contrato. Nao inclua scripts arbitrarios.",
                 "Gere subjects em Markdown, arquivos de atividade, validation plans, casos de teste e referencias apenas quando algum validator realmente exigir.",
-                "Explique ao final como validar/importar o pack no Exam Trainer.",
+                "Explique ao final como validar/importar o pack no RankedDojo.",
                 "",
                 "Capabilities disponiveis:",
                 f"- Linguagens do contrato: {languages}",

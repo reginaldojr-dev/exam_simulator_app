@@ -1,2 +1,2 @@
-"""Infrastructure composition for Exam Trainer."""
+"""Infrastructure composition for RankedDojo."""
 

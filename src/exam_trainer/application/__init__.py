@@ -1,2 +1,2 @@
-"""Application use cases for Exam Trainer."""
+"""Application use cases for RankedDojo."""
 

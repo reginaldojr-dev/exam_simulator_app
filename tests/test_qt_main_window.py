@@ -392,7 +392,7 @@ class MainWindowTest(unittest.TestCase):
 
             self.assertIs(window._stack.currentWidget(), window._pack_help_page)
             content = window._pack_help_text.toPlainText()
-            self.assertIn("Contrato de Pack — Exam Trainer", content)
+            self.assertIn("Contrato de Pack — RankedDojo", content)
             self.assertIn("pack.json", content)
             self.assertIn("exercise.json", content)
             self.assertIn("subject.md", content)
@@ -731,12 +731,15 @@ class MainWindowTest(unittest.TestCase):
             self.assertNotIn(first.value, window._selected_levels())
 
 
-    def test_home_shows_exam_trainer_brand_and_keeps_technical_window_title(self) -> None:
+    def test_home_shows_rankeddojo_brand_and_window_title(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
 
-            self.assertEqual(window._cursor._titles[window._title_home], "EXAM TRAINER")
-            self.assertEqual(window.windowTitle(), "Exam Trainer")
+            self.assertEqual(window._cursor._titles[window._title_home], "RankedDojo")
+            self.assertEqual(window.windowTitle(), "RankedDojo")
+            self.assertIn("dojo@RankedDojo:", window._workspace_label.text())
+            self.assertNotIn("EXAM TRAINER", window._cursor._titles[window._title_home])
+            self.assertNotIn("user@42", window._workspace_label.text())
 
     def test_home_is_pt_br_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1155,4 +1158,3 @@ class MainWindowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

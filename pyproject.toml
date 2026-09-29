@@ -1,7 +1,7 @@
 [project]
-name = "exam-trainer"
+name = "rankeddojo"
 version = "1.0.0"
-description = "Local-first desktop trainer for programming practice and exam simulation."
+description = "Local-first desktop app for programming practice and exam simulation."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -15,7 +15,7 @@ build = [
 ]
 
 [project.scripts]
-exam-trainer = "exam_trainer.main:main"
+rankeddojo = "exam_trainer.main:main"
 
 [build-system]
 requires = ["setuptools>=70"]

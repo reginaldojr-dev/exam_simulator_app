@@ -1,4 +1,4 @@
-# Contrato de Pack — Exam Trainer
+# Contrato de Pack — RankedDojo
 
 Fonte única do contrato suportado por esta versão do app.
 

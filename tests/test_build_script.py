@@ -66,7 +66,7 @@ class BuildScriptInputsTest(unittest.TestCase):
             "LICENSE",
             "CHANGELOG.md",
             "pyproject.toml",
-            "Exam Trainer.spec",
+            "RankedDojo.spec",
         ):
             path = self.root / relative
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -78,13 +78,13 @@ class BuildScriptInputsTest(unittest.TestCase):
             "BUILD_DIR": self.root / "build",
             "DIST_DIR": dist,
             "STAGING_DIR": self.root / "build" / "_staging",
-            "SPEC_FILE": self.root / "Exam Trainer.spec",
+            "SPEC_FILE": self.root / "RankedDojo.spec",
             "EXE_PATH": dist / build.EXE_NAME,
             "STATE_FILE": dist / ".build_state.json",
             "SOURCE_DIRS": (self.root / "src", self.root / "examples"),
             "CHECKSUM_PATH": dist / f"{build.EXE_NAME}.sha256",
             "SOURCE_FILES": (
-                self.root / "Exam Trainer.spec",
+                self.root / "RankedDojo.spec",
                 self.root / "pyproject.toml",
                 self.root / "README.md",
                 self.root / "LICENSE",
@@ -178,8 +178,14 @@ class BuildScriptInputsTest(unittest.TestCase):
         self.assertIn("Feche o app", out.getvalue())
         self.assertFalse(self.build.STATE_FILE.exists())
 
+    def test_public_build_identity_is_rankeddojo(self) -> None:
+        self.assertEqual(self.build.APP_NAME, "RankedDojo")
+        self.assertEqual(self.build.EXE_NAME, "RankedDojo.exe" if self.build.sys.platform == "win32" else "RankedDojo")
+        self.assertEqual(self.build.SPEC_FILE.name, "RankedDojo.spec")
+
     def test_spec_bundles_docs_and_never_the_local_folder(self) -> None:
-        spec = (ROOT / "Exam Trainer.spec").read_text(encoding="utf-8")
+        spec = (ROOT / "RankedDojo.spec").read_text(encoding="utf-8")
+        self.assertIn("name='RankedDojo'", spec)
         self.assertIn("('README.md', '.')", spec)
         self.assertIn("('LICENSE', '.')", spec)
         self.assertIn("('CHANGELOG.md', '.')", spec)

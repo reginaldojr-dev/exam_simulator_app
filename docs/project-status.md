@@ -96,7 +96,7 @@ src/exam_trainer/
 
 - **Série anterior:** não tinha sido aplicada no computador (não existia `roadmap/execution`).
 - **Estado encontrado:**
-  - HEAD em `v1/packs` (0a7b28c), criada a partir de `visual-redesign` com dois commits: `chore(git): ignore private pack folders` e `ui: título da Home como EXAM TRAINER`. A branch já estava no remoto;
+  - HEAD em `v1/packs` (0a7b28c), criada a partir de `visual-redesign` com dois commits: `chore(git): ignore private pack folders` e branding inicial da Home. A branch já estava no remoto;
   - pastas privadas `rank02..06-original`, `_private_backup` e `_private_notes` presentes e ignoradas pelo Git.
 - **Base de `v1/close`:** `v1/packs` (0a7b28c). A entrega da S0 inclui a série anterior refeita sobre essa base, mais os commits da S0 (ADR 0006).
 - **Testes:** 189 → 201 (+12 de arquitetura; 6 `expectedFailure` com a sessão que resolve cada um).
@@ -220,22 +220,29 @@ src/exam_trainer/
 
 ### S6 — Fechamento V1, build e release readiness
 
-- **Objetivo:** fechar a V1 como produto coerente: identidade pública `Exam Trainer`, build/distribuição, licença, checksum, README curto, documentação operacional e validação final.
+- **Objetivo:** fechar a V1 como produto coerente: identidade pública então vigente, build/distribuição, licença, checksum, README curto, documentação operacional e validação final.
 - **Mudanças principais:**
-  1. Produto e build finalizados como `Exam Trainer`; o executável Windows é `_local/dist/Exam Trainer.exe`.
+  1. Produto e build finalizados para a identidade pública vigente na S6.
   2. `pyproject.toml` define a versão `1.0.0`.
   3. `LICENSE` MIT e `CHANGELOG.md` foram adicionados.
   4. `README.md` foi consolidado para V1, com links para contrato de packs, decisões e snapshot operacional.
-  5. `build.py` gera `_local/dist/Exam Trainer.exe.sha256` após build bem-sucedido e inclui README, LICENSE, CHANGELOG, spec, pyproject, `src/` e `examples/` no hash relevante.
-  6. `Exam Trainer.spec` empacota README, LICENSE, CHANGELOG, contrato de pack e packs públicos de exemplo; `_local/` permanece fora do executável.
+  5. `build.py` gera checksum SHA-256 após build bem-sucedido e inclui README, LICENSE, CHANGELOG, spec, pyproject, `src/` e `examples/` no hash relevante.
+  6. A spec PyInstaller empacota README, LICENSE, CHANGELOG, contrato de pack e packs públicos de exemplo; `_local/` permanece fora do executável.
   7. Restos públicos do nome antigo foram removidos das superfícies versionadas revisadas.
   8. Warnings de coleta do pytest foram eliminados configurando classes de teste como `*Test`.
 - **Build e checksum:** `python build.py --force` OK; checksum SHA-256 `fc4f5a9509be544db639d5e370b8242e7cb128ff9baa00f1679220be00e8a739`.
-- **Smoke do executável:** `_local/dist/Exam Trainer.exe` abriu com `%APPDATA%` isolado; `python build.py --run` pulou rebuild e abriu o executável.
+- **Smoke do executável:** o executável da S6 abriu com `%APPDATA%` isolado; `python build.py --run` pulou rebuild e abriu o executável.
 - **Resultados locais:** focados S6 `137 passed, 4 skipped, 40 subtests passed`; suíte completa `234 passed, 5 skipped, 40 subtests passed`.
 - **Estado:** V1 fechada tecnicamente. Não foi feito push, merge em `main` nem release remoto.
 - **Pendências externas reais:** trusted code signing para release Windows; toolchains C/C++/Python/Java dependem da máquina do usuário; publicação de release remoto fica manual.
 - **Próximos passos pós-V1 não implementados:** Project/Milestone, Quiz, validação local API/socket, LearningPath, `PackGenerationPort` funcional, histórico avançado, sync/cloud futuro.
+
+
+### Pós-V1 — Fase 2: rename público para RankedDojo
+
+- **Objetivo:** renomear a identidade pública do produto para `RankedDojo` sem alterar o namespace interno `exam_trainer` nem o diretório persistente legado `%APPDATA%\exam-trainer`.
+- **Mudanças:** UI, prompts públicos, documentação, metadata de distribuição, script público `rankeddojo`, `build.py` e spec passam a usar `RankedDojo`.
+- **Compatibilidade preservada:** package/import path `exam_trainer`, módulo `exam_trainer.main`, schema/banco, packs, IDs internos e `APP_DIR_NAME = "exam-trainer"`.
 
 
 ### Pós-V1 — Fase D/E: contratos declarativos de teste e reuse da IDE
