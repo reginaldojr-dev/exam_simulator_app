@@ -40,6 +40,7 @@ from exam_trainer.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from exam_trainer.application.capabilities import default_exercise_capabilities
 from exam_trainer.application.history_service import HistoryQuery
 from exam_trainer.application.study_intent import StudyIntent
+from exam_trainer.application.engine.activity_preflight import ActivityPreflightStatus
 from exam_trainer.resources import PACK_CONTRACT, pack_contract_text, resource_path
 from exam_trainer.application.mvp_models import (
     ActiveExercise,
@@ -1111,8 +1112,27 @@ class MainWindow(QMainWindow):
         )
         return False
 
+    def _exercise_preflight_checked(self, active: ActiveExercise, then: Callable[[], None]) -> bool:
+        if self._coordinator.runtime_ready(active.ref.definition.language):
+            preflight = self._coordinator.preflight_exercise(active.ref)
+            return self._handle_preflight(preflight, then)
+        if self._tasks.is_busy("preflight"):
+            return False
+        self._home_status.setText(self._t("verificando exercício..."))
+        self._run_task(
+            "preflight",
+            lambda: self._coordinator.preflight_exercise(active.ref),
+            lambda preflight: self._finish_exercise_preflight(preflight, active, then),
+            self._t("Exercício"),
+            on_finally=self._refresh_home_status,
+        )
+        return False
+
     def _exam_preflight_checked(self, then: Callable[[], None]) -> bool:
         pack_id = self._selected_exam_pack_id()
+        if getattr(self, "_exam_preflight_ready_pack", None) == pack_id:
+            self._exam_preflight_ready_pack = None
+            return True
         if self._coordinator.pack_runtimes_ready(pack_id):
             preflight = self._coordinator.preflight_exam(pack_id)
             return self._handle_preflight(preflight, then)
@@ -1122,15 +1142,30 @@ class MainWindow(QMainWindow):
         self._run_task(
             "runtime",
             lambda: self._coordinator.preflight_exam(pack_id),
-            lambda preflight: then() if preflight.ok else self._handle_preflight(preflight, then),
+            lambda preflight: self._finish_exam_preflight(preflight, then, pack_id),
             self._t("Ambiente de execução"),
             on_finally=self._refresh_home_status,
         )
         return False
 
+    def _finish_exam_preflight(
+        self,
+        preflight: PreflightResult,
+        then: Callable[[], None],
+        pack_id: str | None,
+    ) -> None:
+        if preflight.ok:
+            self._exam_preflight_ready_pack = pack_id
+            then()
+            return
+        self._handle_preflight(preflight, then)
+
     def _handle_preflight(self, preflight: PreflightResult, resume: Callable[[], None]) -> bool:
         if preflight.ok:
             return True
+        if preflight.status is ActivityPreflightStatus.CONTENT_INVALID:
+            QMessageBox.warning(self, self._t("Conteúdo do pack inválido"), self._preflight_user_message(preflight))
+            return False
         self._pending_action = resume
         QMessageBox.information(self, self._t("Configuração necessária"), self._preflight_user_message(preflight))
         self._show_settings(preflight.missing)
@@ -1323,9 +1358,11 @@ class MainWindow(QMainWindow):
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):
             return
-        if not self._runtime_checked(self._active.ref.definition.language, self._submit_current):
-            return
         active = self._active
+        if getattr(self, "_submit_preflight_ready_for", None) == id(active):
+            self._submit_preflight_ready_for = None
+        elif not self._exercise_preflight_checked(active, self._submit_current):
+            return
         if self._mode == "exam":
             if self._exam_state is None:
                 return
@@ -1340,6 +1377,18 @@ class MainWindow(QMainWindow):
             on_done = lambda outcome: self._on_training_graded(active, outcome)  # noqa: E731
         self._set_grading(True)
         self._run_task("submit", work, on_done, self._t("Correção"), on_finally=lambda: self._set_grading(False))
+
+    def _finish_exercise_preflight(
+        self,
+        preflight: PreflightResult,
+        active: ActiveExercise,
+        then: Callable[[], None],
+    ) -> None:
+        if preflight.ok:
+            self._submit_preflight_ready_for = id(active)
+            then()
+            return
+        self._handle_preflight(preflight, then)
 
     def _set_grading(self, busy: bool) -> None:
         self._correct_button.setEnabled(not busy)
