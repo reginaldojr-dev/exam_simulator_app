@@ -5,6 +5,7 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
+from exam_trainer.adapters.ui.qt.components.combo_wheel_guard import install_combo_box_wheel_guard
 from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.ui.qt.startup_window import StartupWindow
 from exam_trainer.adapters.ui.qt.i18n import LocaleService
@@ -15,6 +16,7 @@ from exam_trainer.infrastructure.app_factory import AppFactory
 class DesktopApp:
     def __init__(self) -> None:
         self._qt_app = QApplication(sys.argv)
+        self._combo_wheel_guard = install_combo_box_wheel_guard(self._qt_app)
         factory = AppFactory()
         self._config_repository = factory.create_config_repository()
         self._workspace_service = factory.create_workspace_service()

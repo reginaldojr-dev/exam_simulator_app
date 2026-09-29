@@ -48,6 +48,7 @@ QPushButton {{
     background: {t.background}; color: {t.text_primary};
     border: 2px solid {t.border}; border-bottom: {bw}px solid {t.bevel}; border-radius: {r}px;
     padding: 7px 12px; text-align: left; font-weight: 700;
+    outline: none;
 }}
 QPushButton:hover, QPushButton:focus {{ background: {t.hover_background}; color: {t.text_bright}; border-color: {t.border_strong}; border-bottom-color: {t.bevel}; }}
 QPushButton:pressed {{ background: {t.pressed_background}; color: {t.text_bright}; border-top-width: {bw}px; border-bottom-width: 2px; }}
@@ -91,7 +92,7 @@ QPushButton[variant="small"] {{ padding: 4px 10px; border-bottom-width: 2px; fon
 QComboBox, QLineEdit {{ background: {t.surface}; color: {t.text_primary}; border: 1px solid {t.border}; border-radius: {r}px; padding: 6px 8px; }}
 QComboBox:hover, QComboBox:focus, QLineEdit:hover, QLineEdit:focus {{ background: {t.hover_background}; color: {t.text_bright}; border: 1px solid {t.border_strong}; }}
 QComboBox QAbstractItemView {{ background: {t.surface}; color: {t.text_primary}; border: 1px solid {t.border_strong}; selection-background-color: {t.selected_background}; selection-color: {t.text_bright}; outline: 0; }}
-QCheckBox, QRadioButton {{ background: transparent; color: {t.text_primary}; spacing: 8px; padding: 4px; }}
+QCheckBox, QRadioButton {{ background: transparent; color: {t.text_primary}; spacing: 8px; padding: 4px; outline: none; }}
 QCheckBox:hover, QRadioButton:hover, QCheckBox:focus, QRadioButton:focus {{ color: {t.text_bright}; }}
 QCheckBox::indicator, QRadioButton::indicator {{ width: 12px; height: 12px; border: 1px solid {t.border_strong}; background: {t.surface}; }}
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {t.selected_background}; border: 2px solid {t.border_strong}; }}

@@ -835,8 +835,8 @@ class MainWindow(QMainWindow):
                     f"runtime:{language}",
                     [label],
                     [
-                        (f"detect-runtime:{language}", lambda lang=language: self._redetect_runtime(lang)),
-                        (f"select-runtime:{language}", lambda lang=language: self._choose_manual_runtime(lang)),
+                        (f"detect-runtime:{language}", lambda checked=False, lang=language: self._redetect_runtime(lang)),
+                        (f"select-runtime:{language}", lambda checked=False, lang=language: self._choose_manual_runtime(lang)),
                     ],
                 )
             )

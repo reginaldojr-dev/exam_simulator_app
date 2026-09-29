@@ -193,6 +193,13 @@ class MainWindowTest(unittest.TestCase):
             combo.setCurrentIndex(combo.findData("sample_rank"))
         return window
 
+    @staticmethod
+    def _runtime_action_button(window: MainWindow, source: str) -> QPushButton:
+        for button in window._settings_page.findChildren(QPushButton):
+            if button.property("sourceText") == source:
+                return button
+        raise AssertionError(f"No settings button found for source={source!r}")
+
     def test_open_editor_first_time_targets_current_exercise_without_reuse(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             editor = RecordingEditor()
@@ -980,6 +987,58 @@ class MainWindowTest(unittest.TestCase):
                 QMessageBox.warning = original
             self.assertEqual(shown, ["compiler disappeared"])
             self.assertTrue(window._correct_button.isEnabled())
+
+    def test_redetect_runtime_button_sends_language_id_not_clicked_bool(self) -> None:
+        # Regression guard for the QPushButton.clicked(bool checked) signal
+        # overwriting the lambda's captured language default.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            received: list[object] = []
+            window._redetect_runtime = received.append
+            button = self._runtime_action_button(window, "detect-runtime:c")
+
+            button.click()
+
+            self.assertEqual(received, ["c"])
+
+    def test_select_manual_runtime_button_sends_language_id_not_clicked_bool(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            received: list[object] = []
+            window._choose_manual_runtime = received.append
+            button = self._runtime_action_button(window, "select-runtime:c")
+
+            button.click()
+
+            self.assertEqual(received, ["c"])
+
+    def test_redetect_runtime_button_click_does_not_raise_keyerror(self) -> None:
+        # End-to-end: clicking the real button (not a monkeypatched handler)
+        # must not crash with `KeyError: False` when Qt passes the
+        # `clicked(bool)` argument through the callback chain.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+            button = self._runtime_action_button(window, "detect-runtime:c")
+
+            button.click()
+            self.assertTrue(window._tasks.wait())
+
+            self.assertEqual(self._compiler.redetect_calls, 1)
+            self.assertIn("gcc", window._runtime_labels["c"].text())
+
+    def test_select_manual_runtime_button_click_does_not_raise(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             mock.patch.object(QFileDialog, "getOpenFileName", return_value=("", "")) as open_file:
+            window = self._window(temp_dir)
+            window._show_settings()
+            button = self._runtime_action_button(window, "select-runtime:c")
+
+            button.click()
+
+            open_file.assert_called_once()
 
     def test_compiler_redetection_runs_in_background(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

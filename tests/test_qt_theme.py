@@ -16,9 +16,14 @@ from exam_trainer.adapters.ui.qt.theme import THEMES, ThemeManager, build_styles
 from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
 
 RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 
 
 def _rules(qss: str) -> list[tuple[str, str]]:
+    # Strip QSS comments first so a comment immediately preceding a
+    # selector (e.g. "/* ---- buttons ---- */\nQPushButton {...}") never
+    # gets swallowed into the parsed selector text.
+    qss = COMMENT.sub("", qss)
     return [(selector.strip(), body) for selector, body in RULE.findall(qss)]
 
 
@@ -36,6 +41,27 @@ class ThemeTokensTest(unittest.TestCase):
                 if "QPushButton" in selector or "QHeaderView" in selector or "::item" in selector or "QFrame" in selector:
                     self.assertNotIn(f"background: {theme.accent.lower()}", body.lower(), f"{theme.key}: {selector}")
                     self.assertNotIn(f"background-color: {theme.accent.lower()}", body.lower(), f"{theme.key}: {selector}")
+
+    def test_focusable_base_rules_suppress_native_outline(self) -> None:
+        # Qt draws its own native focus rectangle over QSS unless `outline`
+        # is explicitly suppressed. QComboBox's dropdown view and the table
+        # views already do this; QPushButton/QCheckBox/QRadioButton need it
+        # too so keyboard focus never shows the OS-native box instead of the
+        # theme's own border-color feedback.
+        for theme in THEMES.values():
+            rules = {selector.strip(): body for selector, body in _rules(build_stylesheet(theme))}
+            self.assertIn("QPushButton", rules)
+            self.assertIn("outline: none", rules["QPushButton"])
+            self.assertIn("QCheckBox, QRadioButton", rules)
+            self.assertIn("outline: none", rules["QCheckBox, QRadioButton"])
+
+    def test_focus_still_has_visible_theme_feedback(self) -> None:
+        # Suppressing the native outline must not remove the theme's own
+        # focus feedback: QPushButton:focus keeps changing border-color.
+        for theme in THEMES.values():
+            rules = {selector.strip(): body for selector, body in _rules(build_stylesheet(theme))}
+            focus_rule = rules["QPushButton:hover, QPushButton:focus"]
+            self.assertIn("border-color", focus_rule)
 
     def test_terminal_is_default_and_unknown_key_falls_back(self) -> None:
         self.assertEqual(get_theme(None).key, "terminal")
