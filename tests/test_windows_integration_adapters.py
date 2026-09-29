@@ -77,6 +77,32 @@ class WindowsIntegrationAdaptersTest(unittest.TestCase):
             popen.assert_called_once()
             self.assertEqual(popen.call_args.args[0], [str(executable), str(workspace)])
 
+    def test_vs_code_reuse_window_adds_reuse_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            executable = Path(temp_dir) / "Code.exe"
+            workspace = Path(temp_dir) / "workspace with spaces"
+            executable.write_text("", encoding="utf-8")
+            workspace.mkdir()
+
+            with patch("exam_trainer.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
+                SubprocessEditor(str(executable), "VS Code").open_directory(workspace, reuse_window=True)
+
+            popen.assert_called_once()
+            self.assertEqual(popen.call_args.args[0], [str(executable), "--reuse-window", str(workspace)])
+
+    def test_generic_editor_does_not_receive_vs_code_reuse_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            executable = Path(temp_dir) / "OtherEditor.exe"
+            workspace = Path(temp_dir) / "workspace"
+            executable.write_text("", encoding="utf-8")
+            workspace.mkdir()
+
+            with patch("exam_trainer.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
+                SubprocessEditor(str(executable), "Other").open_directory(workspace, reuse_window=True)
+
+            popen.assert_called_once()
+            self.assertEqual(popen.call_args.args[0], [str(executable), str(workspace)])
+
 
 if __name__ == "__main__":
     unittest.main()

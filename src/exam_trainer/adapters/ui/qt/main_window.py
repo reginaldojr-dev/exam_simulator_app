@@ -90,6 +90,7 @@ class MainWindow(QMainWindow):
         self._mode = "training"
         self._training_kind = "level"
         self._pending_action: Callable[[], None] | None = None
+        self._editor_targets: dict[tuple[str, str], Path] = {}
         self._level_checks: list[ui.OptionButton] = []
         self._footer_buttons: list[tuple[QPushButton, str]] = []
 
@@ -1332,6 +1333,7 @@ class MainWindow(QMainWindow):
         self._next_button.setVisible(mode == "training")
         self._next_button.setEnabled(mode == "training")
         self._go(self._exercise_page)
+        self._sync_editor_target(active)
 
     def _open_editor(self) -> None:
         if self._active is None:
@@ -1339,9 +1341,29 @@ class MainWindow(QMainWindow):
         if not self._handle_preflight(self._coordinator.preflight_editor(), self._open_editor):
             return
         try:
-            self._coordinator.open_in_editor(self._active)
+            context = self._editor_context(self._active)
+            previous = self._editor_targets.get(context)
+            reuse_window = previous is not None and previous != self._active.exercise_workspace_path
+            self._coordinator.open_in_editor(self._active, reuse_window=reuse_window)
+            self._editor_targets[context] = self._active.exercise_workspace_path
         except Exception as error:
             QMessageBox.warning(self, "Editor", str(error))
+
+    def _sync_editor_target(self, active: ActiveExercise) -> None:
+        context = self._editor_context(active)
+        previous = self._editor_targets.get(context)
+        if previous is None or previous == active.exercise_workspace_path:
+            return
+        try:
+            self._coordinator.open_in_editor(active, reuse_window=True)
+            self._editor_targets[context] = active.exercise_workspace_path
+        except Exception as error:
+            QMessageBox.warning(self, "Editor", str(error))
+
+    def _editor_context(self, active: ActiveExercise) -> tuple[str, str]:
+        if self._mode == "exam" and self._exam_state is not None:
+            return ("exam", self._exam_state.id)
+        return ("training", active.ref.pack.id)
 
     def _refresh_exercise_frame(self) -> None:
         if self._active is None:
@@ -1416,6 +1438,7 @@ class MainWindow(QMainWindow):
         self._trace_button.setEnabled(True)
         if next_state is None:
             self._timer.stop()
+            self._clear_exam_editor_context()
             self._exam_state = None
             self._show_pass_feedback(self._t("Prova concluída — nota 100%."))
             self._show_resume_if_needed()
@@ -1570,6 +1593,7 @@ class MainWindow(QMainWindow):
             return
         self._coordinator.finish_exam(state, "abandoned", state.score)
         self._timer.stop()
+        self._clear_exam_editor_context(state.id)
         self._exam_state = None
         self._show_resume_if_needed()
         QMessageBox.information(self, self._t("Modo prova"), self._t("Prova encerrada."))
@@ -1586,6 +1610,7 @@ class MainWindow(QMainWindow):
         state = self._coordinator.tick_exam(self._exam_state)
         if state is None:
             self._timer.stop()
+            self._clear_exam_editor_context()
             self._exam_state = None
             self._exam_timer_label.setText(self._t("Tempo esgotado").upper())
             ui.set_status(self._exam_timer_label, "fail")
@@ -1593,6 +1618,12 @@ class MainWindow(QMainWindow):
             return
         self._exam_state = state
         self._render_exam_timer(state)
+
+    def _clear_exam_editor_context(self, session_id: str | None = None) -> None:
+        if session_id is None and self._exam_state is not None:
+            session_id = self._exam_state.id
+        if session_id is not None:
+            self._editor_targets.pop(("exam", session_id), None)
 
     def _render_exam_timer(self, state: ExamState) -> None:
         self._exam_timer_label.setText(f"⏱ {self._format_seconds(state.remaining_seconds)}   {self._t('Nota').upper()} {state.score:.0f}%")

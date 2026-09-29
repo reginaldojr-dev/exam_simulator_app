@@ -22,10 +22,14 @@ class SubprocessEditor:
         self._executable = executable
         self.display_name = display_name or executable
 
-    def open_directory(self, directory: Path) -> None:
+    def open_directory(self, directory: Path, *, reuse_window: bool = False) -> None:
+        command = [self._executable]
+        if reuse_window and _supports_reuse_window(self._executable, self.display_name):
+            command.append("--reuse-window")
+        command.append(str(directory))
         try:
             subprocess.Popen(
-                [self._executable, str(directory)],
+                command,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -44,6 +48,11 @@ def editor_display_name(executable: str) -> str:
     if "cursor" in lowered:
         return "Cursor"
     return Path(executable).stem or executable
+
+
+def _supports_reuse_window(executable: str, display_name: str) -> bool:
+    stem = Path(executable).stem.lower()
+    return display_name.lower() == "vs code" or stem in {"code", "code-insiders"}
 
 
 def resolve_known_editor(name: str) -> str | None:

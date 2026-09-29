@@ -3,15 +3,16 @@
 ## Git
 
 - Branch base: `main`.
-- Branch de trabalho atual: `v1/s6`.
-- HEAD base confirmado para iniciar S6: `9ffb62c710caccb8e5788dd69f56e71607591cc5`.
-- Última etapa concluída: S6 / V1 fechada tecnicamente.
+- Branch de trabalho atual: `feat/declarative-test-contracts-and-editor-reuse`.
+- HEAD base confirmado para iniciar Fase D/E: `474d852192344a459ca12cf57854e39dcff6f96`.
+- Última etapa concluída: Fase D/E pós-V1 em validação local.
 - Working tree esperado após conclusão/commit: limpo.
 - Roadmap oficial mais recente encontrado: `_local/agents_outputs/roadmap-fechamento-v1-final-v8.md`.
 
 ## Tests
 
-- Suíte completa validada após S6: `234 passed, 5 skipped, 40 subtests passed`.
+- Suíte completa validada após Fase D/E: `338 passed, 6 skipped, 43 subtests passed`.
+- Focados Fase D/E: contratos/loaders/generators/preflight/grader/runtime/editor/Qt/workspace verdes.
 - Focados S6: `137 passed, 4 skipped, 40 subtests passed`.
 - Build real: `python build.py --force` OK.
 - Build cache/run: `python build.py --run` pulou rebuild e abriu o executável.
@@ -32,6 +33,7 @@
 ## Core Contracts
 
 - ActivityDefinition: fronteira neutra exposta por ExerciseDefinition; inclui `programming_language`, `content_language`, `usage` e `validation_plan`.
+- TestContract: contrato declarativo opcional de inputs em `tests.contract`; generators respeitam args posicionais, string, integer, choice, sequência de inteiros e no-args.
 - ValidationPlan: contém steps declarativos derivados do contrato de pack.
 - ValidationStep: representa strategy/execution/testes necessários para validação atual.
 - RuntimeRegistry: autoridade para runtimes registrados, status, disponibilidade, descriptors e lookup por linguagem.
@@ -46,6 +48,7 @@
 - `programming_language`: linguagem/runtime efetiva da activity.
 - `content_language`: idioma humano do conteúdo; independente do runtime.
 - `usage`: restrições estruturadas declarativas/pedagógicas (`allowed`, `forbidden`, `constraints`, `style`, `behavior`, `notes`).
+- `tests.contract`: extensão aditiva v3 para declarar formato dos inputs gerados; ausência mantém comportamento legado.
 - `reference`/`solution`: opcionais; exigidas apenas quando expectation/validator declara necessidade, como `reference_output`.
 - Runtimes suportados no contrato/app: C, C++, Python e Java.
 - Packs públicos versionados: `c-basics`, `cpp-basics`, `python-basics`, `java-basics`, `sample_rank`.
@@ -77,6 +80,7 @@
 - Configurações > Packs mostra resumo de contrato/capabilities e abre a documentação completa de packs.
 - Subjects `subject.md` continuam Markdown e são renderizados com suporte nativo do Qt.
 - UI não deve acessar SQL nem decidir regras de session/policy.
+- A IDE abre a pasta da activity atual. Após o usuário abrir a IDE em um contexto, trocas de exercise reutilizam a mesma janela quando o adapter suporta isso; VS Code usa `--reuse-window`.
 
 ## Build
 
@@ -94,6 +98,7 @@
 - `MVPTrainerCoordinator` ainda é grande e concentra fluxos de treino/prova.
 - Colunas legadas `exercise_id`/`mode` permanecem por compatibilidade.
 - Restrições de `usage` ainda não são verificadas automaticamente.
+- `tests.contract` valida formato de inputs gerados, mas não prova correção semântica da solução.
 - C/C++/Python/Java dependem de toolchains externos instalados/configurados.
 - Release público Windows ainda precisa assinatura confiável para reduzir bloqueios de App Control.
 
@@ -111,6 +116,7 @@
 - StudyIntent mantém `programming_language` separado de `content_language`.
 - Reference só é obrigatória quando validator/expectation exige.
 - Pack não pode declarar comandos shell arbitrários.
+- Test contracts são dados puros; sem scripts, comandos, shell, `eval` ou `exec`.
 - Domain não depende de Qt/SQLite/filesystem concreto.
 - Application não deve importar adapter concreto.
 - UI não deve conter regra de negócio nem SQL.

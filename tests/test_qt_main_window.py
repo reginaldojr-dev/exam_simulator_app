@@ -23,7 +23,7 @@ from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, PreflightResult
 from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
 from exam_trainer.domain.progress import ActivityProgress
 from exam_trainer.ports.compiler_port import CompilationResult
@@ -103,6 +103,14 @@ class FailingGrader:
         raise RuntimeError("compiler disappeared")
 
 
+class RecordingEditor:
+    def __init__(self) -> None:
+        self.calls: list[tuple[Path, bool]] = []
+
+    def open_directory(self, directory: Path, *, reuse_window: bool = False) -> None:
+        self.calls.append((directory, reuse_window))
+
+
 class SlowProbeCompiler(AvailableCompiler):
     """Mimic SystemCCompiler: only knows whether a compiler exists after a probe."""
 
@@ -150,7 +158,15 @@ class MainWindowTest(unittest.TestCase):
         for name, original in cls._original_dialogs.items():
             setattr(QMessageBox, name, original)
 
-    def _window(self, temp_dir: str, passed: bool = True, grader=None, compiler=None, locale_service=None) -> MainWindow:
+    def _window(
+        self,
+        temp_dir: str,
+        passed: bool = True,
+        grader=None,
+        compiler=None,
+        locale_service=None,
+        editor=None,
+    ) -> MainWindow:
         root = Path(temp_dir)
         workspace = root / "workspace"
         workspace.mkdir()
@@ -164,7 +180,7 @@ class MainWindowTest(unittest.TestCase):
             progress_repository=SQLiteProgressRepository(SQLiteStore(root / "trainer.sqlite3")),
             workspace=LocalExerciseWorkspace(),
             grader=grader or StaticGrader(passed),
-            editor=SubprocessEditor("definitely-not-used"),
+            editor=editor or SubprocessEditor("definitely-not-used"),
             pack_importer=LocalPackImporter(root / "managed"),
             runtimes=RuntimeRegistry([CRuntime(compiler, manager=compiler)]),
             workspace_root=workspace,
@@ -176,6 +192,84 @@ class MainWindowTest(unittest.TestCase):
         for combo in (window._training_pack_combo, window._exam_pack_combo):
             combo.setCurrentIndex(combo.findData("sample_rank"))
         return window
+
+    def test_open_editor_first_time_targets_current_exercise_without_reuse(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            editor = RecordingEditor()
+            window = self._window(temp_dir, editor=editor)
+            window._coordinator.preflight_editor = lambda: PreflightResult.passed()
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+
+            window._open_editor()
+
+            self.assertEqual(editor.calls, [(window._active.exercise_workspace_path, False)])
+
+    def test_training_reuses_editor_window_when_switching_exercises_after_open(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            editor = RecordingEditor()
+            window = self._window(temp_dir, editor=editor)
+            window._coordinator.preflight_editor = lambda: PreflightResult.passed()
+            refs = window._coordinator._pack_catalog.list_exercises("sample_rank")[:2]
+            window._load_exercise(refs[0], mode="training", overwrite=True)
+            first_path = window._active.exercise_workspace_path
+            window._open_editor()
+
+            window._load_exercise(refs[1], mode="training", overwrite=True)
+
+            self.assertEqual(editor.calls[0], (first_path, False))
+            self.assertEqual(editor.calls[1], (window._active.exercise_workspace_path, True))
+            self.assertTrue(first_path.exists())
+            self.assertTrue(window._active.exercise_workspace_path.exists())
+
+    def test_switching_exercise_does_not_open_editor_if_user_never_opened_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            editor = RecordingEditor()
+            window = self._window(temp_dir, editor=editor)
+            window._coordinator.preflight_editor = lambda: PreflightResult.passed()
+            refs = window._coordinator._pack_catalog.list_exercises("sample_rank")[:2]
+
+            window._load_exercise(refs[0], mode="training", overwrite=True)
+            window._load_exercise(refs[1], mode="training", overwrite=True)
+
+            self.assertEqual(editor.calls, [])
+
+    def test_exam_pass_reuses_editor_window_for_next_exercise_and_preserves_previous_folder(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            editor = RecordingEditor()
+            window = self._window(temp_dir, editor=editor)
+            window._coordinator.preflight_editor = lambda: PreflightResult.passed()
+            state = window._coordinator.start_exam("sample_rank", 60)
+            window._exam_state = state
+            window._load_exercise(window._coordinator.exam_ref(state), mode="exam", overwrite=True)
+            first_active = window._active
+            first_path = first_active.exercise_workspace_path
+            window._open_editor()
+
+            result = window._coordinator.submit_exam(state, first_active)
+            window._on_exam_graded(first_active, result)
+
+            self.assertTrue(first_path.exists())
+            self.assertIsNotNone(window._active)
+            self.assertNotEqual(window._active.exercise_workspace_path, first_path)
+            self.assertEqual(editor.calls[0], (first_path, False))
+            self.assertEqual(editor.calls[1], (window._active.exercise_workspace_path, True))
+
+    def test_exam_fail_does_not_reopen_editor_for_same_exercise(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            editor = RecordingEditor()
+            window = self._window(temp_dir, passed=False, editor=editor)
+            window._coordinator.preflight_editor = lambda: PreflightResult.passed()
+            state = window._coordinator.start_exam("sample_rank", 60)
+            window._exam_state = state
+            window._load_exercise(window._coordinator.exam_ref(state), mode="exam", overwrite=True)
+            active = window._active
+            window._open_editor()
+
+            result = window._coordinator.submit_exam(state, active)
+            window._on_exam_graded(active, result)
+
+            self.assertEqual(len(editor.calls), 1)
 
     def test_home_navigates_to_training_exam_history_and_settings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

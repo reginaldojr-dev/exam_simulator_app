@@ -28,6 +28,7 @@ from exam_trainer.domain.exercise_definition import (
 )
 from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
 from exam_trainer.domain.pack_definition import PackDefinition, PackLevelDefinition
+from exam_trainer.domain.test_contract import ArgumentContract, ArgumentKind, TestContract
 from exam_trainer.ports.compiler_port import CompilationResult
 from exam_trainer.ports.grader_port import GradingRequest
 from exam_trainer.ports.runtime_port import PreparedProgram, ProcessOutcome, ProgramSpec
@@ -211,6 +212,30 @@ class ActivityContentPreflightTest(unittest.TestCase):
 
             self.assertIs(result.status, ActivityPreflightStatus.CONTENT_INVALID)
             self.assertIn("reference", result.technical_detail)
+
+    def test_generator_contract_incompatibility_is_content_invalid(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            activity = write_activity(Path(temp_dir), "bad_generator")
+
+            result = ActivityContentPreflight(RuntimeRegistry([ScriptedRuntime()])).check(
+                definition(
+                    "bad_generator",
+                    tests=TestDefinition(
+                        generator="random_integer",
+                        expectation="literal",
+                        contract=TestContract(
+                            args=(
+                                ArgumentContract(ArgumentKind.INTEGER),
+                                ArgumentContract(ArgumentKind.INTEGER),
+                            )
+                        ),
+                    ),
+                ),
+                activity,
+            )
+
+            self.assertIs(result.status, ActivityPreflightStatus.CONTENT_INVALID)
+            self.assertIn("random_integer", result.technical_detail)
 
     def test_reference_preflight_preserves_support_include_dirs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

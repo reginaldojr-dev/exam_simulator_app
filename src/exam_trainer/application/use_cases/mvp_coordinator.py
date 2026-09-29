@@ -481,9 +481,9 @@ class MVPTrainerCoordinator:
             had_existing_submission=prepared.had_existing_submission,
         )
 
-    def open_in_editor(self, active: ActiveExercise) -> None:
+    def open_in_editor(self, active: ActiveExercise, *, reuse_window: bool = False) -> None:
         try:
-            self._editor.open_directory(active.exercise_workspace_path)
+            self._editor.open_directory(active.exercise_workspace_path, reuse_window=reuse_window)
         except EditorLaunchError:
             raise
 

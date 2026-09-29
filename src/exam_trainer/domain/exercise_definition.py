@@ -16,6 +16,7 @@ from exam_trainer.domain.activity_definition import (
     ValidationPlan,
     ValidationStep,
 )
+from exam_trainer.domain.test_contract import TestContract
 
 # Neutral execution types: what the runtime must do with the submission.
 PROGRAM_OUTPUT = "program_output"
@@ -81,6 +82,7 @@ class TestDefinition:
     generator: str
     expectation: str
     cases: tuple[TestCaseDefinition, ...] = ()
+    contract: TestContract | None = None
 
 
 @dataclass(frozen=True)
