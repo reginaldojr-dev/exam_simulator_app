@@ -10,11 +10,11 @@ from __future__ import annotations
 import random
 from dataclasses import replace
 
+from exam_trainer.application.engine.activity_preflight import prepare_reference_program
 from exam_trainer.application.engine.execution import (
     ExecutionPlanError,
     ExecutionStrategy,
     default_execution_strategies,
-    reference_spec,
 )
 from exam_trainer.application.engine.expectations import ExpectationRegistry, default_expectation_registry
 from exam_trainer.application.engine.generators import TestCaseGeneratorRegistry, default_generator_registry
@@ -68,7 +68,7 @@ class GenericGrader:
             if strategy is None:
                 raise ExecutionPlanError(f"Unsupported execution type for grader: {definition.execution.type}")
             submission_spec = strategy.submission(definition, request.exercise_path, source_file)
-            reference = None if definition.reference is None else reference_spec(definition, request.exercise_path)
+            reference = definition.reference
         except (UnsupportedLanguageError, ExecutionPlanError) as error:
             # The pack's own execution plan is unusable (unknown strategy,
             # missing harness declaration, ...): a content problem, never
@@ -94,7 +94,16 @@ class GenericGrader:
         test_cases = self._test_case_service.build_cases(definition, seed)
         timeout = definition.limits.timeout_seconds
         if reference is not None:
-            reference_program = runtime.prepare(reference, build_dir, f"{definition.id}_reference")
+            try:
+                reference_program = prepare_reference_program(
+                    definition,
+                    request.exercise_path,
+                    runtime,
+                    build_dir,
+                    f"{definition.id}_reference",
+                )
+            except ExecutionPlanError as error:
+                return self._content_error(trace, seed, str(error))
             trace.add_compilation(reference_program.build)
             if not reference_program.success:
                 return self._content_error(

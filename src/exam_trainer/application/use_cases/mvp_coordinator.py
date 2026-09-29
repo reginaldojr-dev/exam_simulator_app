@@ -16,8 +16,12 @@ from exam_trainer.application.mvp_models import (
     ProgressEntry,
 )
 from exam_trainer.application.study_intent import PackPromptBuilder, StudyIntent
+from exam_trainer.application.engine.activity_preflight import (
+    ActivityContentPreflight,
+    ActivityPreflightStatus,
+)
 from exam_trainer.domain.attempt_modes import EXAM_MODE, TRAINING_MODE
-from exam_trainer.domain.grading import GradingOutcome, GradingPolicy, GradingResult
+from exam_trainer.domain.grading import GradingOutcome, GradingPolicy, GradingResult, TraceData
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.domain.pack_definition import PackDefinition
 from exam_trainer.domain.session_policy import EXAM_POLICY_ID, TRAINING_POLICY_ID, SessionPolicy, SessionPolicyRegistry
@@ -57,14 +61,31 @@ class PreflightResult:
     ok: bool
     missing: str | None = None
     message: str = ""
+    status: ActivityPreflightStatus = ActivityPreflightStatus.READY
+    issue_code: str = ""
+    technical_detail: str = ""
 
     @classmethod
     def passed(cls) -> "PreflightResult":
         return cls(ok=True)
 
     @classmethod
-    def failed(cls, missing: str, message: str) -> "PreflightResult":
-        return cls(ok=False, missing=missing, message=message)
+    def failed(
+        cls,
+        missing: str,
+        message: str,
+        status: ActivityPreflightStatus = ActivityPreflightStatus.CONFIG_REQUIRED,
+        technical_detail: str = "",
+        issue_code: str = "",
+    ) -> "PreflightResult":
+        return cls(
+            ok=False,
+            missing=missing,
+            message=message,
+            status=status,
+            issue_code=issue_code,
+            technical_detail=technical_detail,
+        )
 
 
 class MVPTrainerCoordinator:
@@ -106,6 +127,7 @@ class MVPTrainerCoordinator:
         self._random = rng or random.Random()
         self._session_policies = session_policies or SessionPolicyRegistry()
         self._history = HistoryService(progress_repository)
+        self._activity_preflight = ActivityContentPreflight(runtimes)
         self._expired_exam: ExamState | None = None
         self.adopt_legacy_progress()
 
@@ -300,14 +322,19 @@ class MVPTrainerCoordinator:
         languages = self.pack_languages(pack_id)
         if not languages:
             return PreflightResult.failed("packs", "Pack selecionado sem exercícios disponíveis.")
-        return self._preflight_languages(languages)
+        runtimes = self._preflight_languages(languages)
+        if not runtimes.ok:
+            return runtimes
+        if pack_id is None:
+            return PreflightResult.passed()
+        return self._preflight_exam_content(pack_id)
 
     def preflight_runtime(self, language: str) -> PreflightResult:
         """Is the pack language runtime ready? May run the probe."""
         return self._preflight_languages((language,))
 
     def preflight_exercise(self, ref: ExerciseRef) -> PreflightResult:
-        return self.preflight_runtime(ref.definition.language)
+        return self._coordinator_preflight(ref, probe_runtime=True)
 
     def pack_runtimes_ready(self, pack_id: str | None) -> bool:
         languages = self.pack_languages(pack_id)
@@ -327,16 +354,19 @@ class MVPTrainerCoordinator:
                 return PreflightResult.failed(
                     "Runtimes",
                     f"Este app não executa exercícios em '{failure.language}'. Atualize o app ou use outro pack.",
+                    status=ActivityPreflightStatus.RUNTIME_UNAVAILABLE,
                 )
             return PreflightResult.failed(
                 "Runtimes",
                 f"{failure.display_name} não encontrado.\n"
                 "Instale ou configure um runtime compatível para corrigir este exercício.",
+                status=ActivityPreflightStatus.RUNTIME_UNAVAILABLE,
             )
         missing = ", ".join(f"{failure.display_name} ({failure.language})" for failure in failures)
         return PreflightResult.failed(
             "Runtimes",
             f"Runtimes/toolchains indisponíveis para este pack: {missing}.",
+            status=ActivityPreflightStatus.RUNTIME_UNAVAILABLE,
         )
 
     def preflight_editor(self) -> PreflightResult:
@@ -458,6 +488,9 @@ class MVPTrainerCoordinator:
             raise
 
     def submit_training(self, active: ActiveExercise) -> CorrectionOutcome:
+        preflight = self._coordinator_preflight(active.ref, probe_runtime=True)
+        if preflight.status is ActivityPreflightStatus.CONTENT_INVALID:
+            return self._blocked_by_content(active, preflight, TRAINING_MODE)
         policy = self._policy(TRAINING_POLICY_ID)
         result = self._grade(active, policy.grading_policy())
         return self._persist_outcome(active, result, TRAINING_MODE)
@@ -468,7 +501,7 @@ class MVPTrainerCoordinator:
         if not levels:
             raise ValueError("No exercises available for exam.")
         duration = duration_seconds or pack.exam_duration_seconds_or_default
-        first = self._random.choice(levels[0][1])
+        first = self._select_exam_ref(levels[0][1])
         session_id = str(uuid4())
         now = self._clock()
         state = ExamState(
@@ -533,6 +566,11 @@ class MVPTrainerCoordinator:
 
     def submit_exam(self, state: ExamState, active: ActiveExercise) -> tuple[CorrectionOutcome, ExamState | None]:
         policy = self._policy(EXAM_POLICY_ID)
+        preflight = self._coordinator_preflight(active.ref, probe_runtime=True)
+        if preflight.status is ActivityPreflightStatus.CONTENT_INVALID:
+            outcome = self._blocked_by_content(active, preflight, EXAM_MODE, session_id=state.id)
+            self._save_exam_state(state, "active")
+            return outcome, state
         result = self._grade(active, policy.grading_policy(), seed=state.seed)
         outcome = self._persist_outcome(active, result, EXAM_MODE, session_id=state.id)
         if result.outcome is GradingOutcome.CONTENT_ERROR:
@@ -567,7 +605,7 @@ class MVPTrainerCoordinator:
             return outcome, None
 
         score = (next_index / len(levels)) * 100
-        next_ref = self._random.choice(levels[next_index][1])
+        next_ref = self._select_exam_ref(levels[next_index][1])
         next_state = replace(
             state,
             level_index=next_index,
@@ -671,6 +709,65 @@ class MVPTrainerCoordinator:
                 pack_id, exercise_id, mode, session_id=session_id
             ),
         )
+
+    def _coordinator_preflight(self, ref: ExerciseRef, *, probe_runtime: bool) -> PreflightResult:
+        result = self._activity_preflight.check(
+            ref.definition,
+            ref.content_path,
+            probe_runtime=probe_runtime,
+        )
+        return PreflightResult(
+            ok=result.ok,
+            missing=result.missing,
+            message=result.message,
+            status=result.status,
+            issue_code=result.issue_code,
+            technical_detail=result.technical_detail,
+        )
+
+    def _preflight_exam_content(self, pack_id: str) -> PreflightResult:
+        pack = self._pack(pack_id)
+        for level_id, refs in self._exam_levels(pack):
+            usable = [ref for ref in refs if self._coordinator_preflight(ref, probe_runtime=True).ok]
+            if not usable:
+                details = [
+                    self._coordinator_preflight(ref, probe_runtime=True).technical_detail
+                    for ref in refs
+                ]
+                return PreflightResult.failed(
+                    "content",
+                    f"O pack não possui exercício válido para o nível '{level_id}'.",
+                    status=ActivityPreflightStatus.CONTENT_INVALID,
+                    technical_detail="\n".join(detail for detail in details if detail),
+                )
+        return PreflightResult.passed()
+
+    def _select_exam_ref(self, refs: list[ExerciseRef]) -> ExerciseRef:
+        candidates = list(refs)
+        while candidates:
+            selected = self._random.choice(candidates)
+            preflight = self._coordinator_preflight(selected, probe_runtime=True)
+            if preflight.ok or preflight.status is ActivityPreflightStatus.RUNTIME_UNAVAILABLE:
+                return selected
+            candidates.remove(selected)
+        raise ValueError("No valid exercises available for exam.")
+
+    def _blocked_by_content(
+        self,
+        active: ActiveExercise,
+        preflight: PreflightResult,
+        mode: str,
+        session_id: str | None = None,
+    ) -> CorrectionOutcome:
+        message = preflight.message
+        if preflight.technical_detail:
+            message = f"{message}\n{preflight.technical_detail}"
+        result = GradingResult(
+            outcome=GradingOutcome.CONTENT_ERROR,
+            compile_output=message,
+            trace_data=TraceData(("Content preflight failed.", message)),
+        )
+        return self._persist_outcome(active, result, mode, session_id=session_id)
 
     def _save_exam_state(self, state: ExamState, status: str) -> None:
         self._progress_repository.save_active_exam(
