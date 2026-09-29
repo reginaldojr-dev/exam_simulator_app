@@ -9,7 +9,7 @@ class EditorLaunchError(RuntimeError):
 
 
 class EditorPort(Protocol):
-    def open_directory(self, directory: Path) -> None:
+    def open_directory(self, directory: Path, *, reuse_window: bool = False) -> None:
         raise NotImplementedError
 
 

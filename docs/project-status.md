@@ -236,3 +236,21 @@ src/exam_trainer/
 - **Estado:** V1 fechada tecnicamente. Não foi feito push, merge em `main` nem release remoto.
 - **Pendências externas reais:** trusted code signing para release Windows; toolchains C/C++/Python/Java dependem da máquina do usuário; publicação de release remoto fica manual.
 - **Próximos passos pós-V1 não implementados:** Project/Milestone, Quiz, validação local API/socket, LearningPath, `PackGenerationPort` funcional, histórico avançado, sync/cloud futuro.
+
+
+### Pós-V1 — Fase D/E: contratos declarativos de teste e reuse da IDE
+
+- **Objetivo:** corrigir geração de casos para respeitar o contrato declarado da activity e reutilizar a mesma janela da IDE ao trocar de exercício.
+- **Fase D:**
+  1. `tests.contract` foi adicionado ao contrato v3 de forma aditiva e opcional.
+  2. O modelo interno `TestContract`/`ArgumentContract` cobre `string`, `integer`, `choice`, `integer_sequence` e `args=[]`.
+  3. Generators recebem o contract via `TestCaseService`; sem contract, mantêm comportamento legado.
+  4. `random_arguments` passa a gerar inputs posicionais válidos quando há contract; `random_int_array` aceita sequência de inteiros declarativa.
+  5. Loader valida `choice.values`, bounds e configuração de sequência.
+  6. Preflight da Fase C constrói casos para detectar generator/contract incompatível como `CONTENT_INVALID`.
+- **Subfase E:**
+  1. `EditorPort.open_directory(..., reuse_window=False)` permite reuse sem acoplar a UI ao subprocess.
+  2. `SubprocessEditor` usa `--reuse-window` somente para VS Code.
+  3. A UI guarda estado em memória por contexto (`training/<pack>` ou `exam/<session>`) e só redireciona a IDE se o usuário já abriu a IDE naquele contexto.
+  4. Trocar exercise preserva pastas anteriores; prova continua limpando session root apenas no encerramento definitivo.
+- **Pendências:** outros editores além de VS Code continuam com comportamento genérico; contracts ainda não substituem validação semântica/cobertura profunda dos exercícios.

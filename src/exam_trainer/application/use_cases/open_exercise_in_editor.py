@@ -9,5 +9,5 @@ class OpenExerciseInEditor:
     def __init__(self, editor: EditorPort) -> None:
         self._editor = editor
 
-    def execute(self, exercise_directory: Path) -> None:
-        self._editor.open_directory(exercise_directory)
+    def execute(self, exercise_directory: Path, *, reuse_window: bool = False) -> None:
+        self._editor.open_directory(exercise_directory, reuse_window=reuse_window)

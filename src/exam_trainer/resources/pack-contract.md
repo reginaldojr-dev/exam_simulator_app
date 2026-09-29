@@ -195,6 +195,60 @@ Para packs novos, prefira `literal` quando bons casos determinísticos forem suf
 Use `reference_output` somente quando a saída esperada depender de uma referência real.
 Expectations embutidas são mantidas para regressão e exemplos simples.
 
+#### tests.contract
+
+`tests.contract` é opcional. Quando ausente, os generators mantêm o comportamento
+legado. Quando presente, ele declara o formato dos inputs que o generator deve
+produzir, sem código, scripts, shell ou expressões executáveis.
+
+Exemplo para uma atividade estilo `do_op`:
+
+```json
+{
+  "generator": "random_arguments",
+  "expectation": "reference_output",
+  "contract": {
+    "args": [
+      { "kind": "integer", "min": -100, "max": 100 },
+      { "kind": "choice", "values": ["+", "-", "*", "/", "%"] },
+      { "kind": "integer", "min": 1, "max": 100 }
+    ]
+  }
+}
+```
+
+Kinds suportados:
+
+- `string`: gera uma string simples;
+- `integer`: gera representação decimal válida entre `min` e `max`;
+- `choice`: escolhe um valor de `values`;
+- `integer_sequence`: gera uma sequência de inteiros.
+
+Exemplo de sequência com tamanho no primeiro argumento:
+
+```json
+{
+  "kind": "integer_sequence",
+  "min": -50,
+  "max": 50,
+  "min_items": 1,
+  "max_items": 8,
+  "include_length_arg": true
+}
+```
+
+Com `include_length_arg: true`, os argumentos gerados seguem o formato:
+
+```text
+<quantidade> <valor1> <valor2> ...
+```
+
+`contract.args: []` declara atividade sem argumentos; nesse caso os casos gerados
+usam `args = []`.
+
+Se um generator não suportar o contrato declarado, o app reporta conteúdo inválido
+no preflight/import/validação em vez de cair silenciosamente no comportamento legado.
+
 ## Linguagens
 
 | programming_language | Runtime/toolchain | Observação |

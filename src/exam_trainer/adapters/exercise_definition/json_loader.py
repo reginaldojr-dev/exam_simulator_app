@@ -34,6 +34,7 @@ from exam_trainer.domain.exercise_definition import (
     TestCaseDefinition,
     TestDefinition,
 )
+from exam_trainer.domain.test_contract import ArgumentContract, ArgumentKind, TestContract
 from exam_trainer.adapters.contract_fields import read_schema_version, read_topics
 from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE
 
@@ -372,6 +373,9 @@ class JsonExerciseDefinitionLoader:
         return tuple(item.strip() for item in raw)
 
     def _read_tests(self, data: dict[str, Any]) -> TestDefinition:
+        unknown = sorted(set(data) - {"generator", "expectation", "cases", "contract"})
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in tests: {', '.join(unknown)}.")
         generator = self._require_identifier(data, "generator")
         if not self._capabilities.generators.supports(generator):
             raise ExerciseDefinitionError(f"Unknown test generator: {generator}.")
@@ -383,8 +387,97 @@ class JsonExerciseDefinitionLoader:
         cases = self._read_cases(data.get("cases", []))
         if generator == "fixed_cases" and not cases:
             raise ExerciseDefinitionError("tests.cases is required for fixed_cases.")
+        contract = self._read_test_contract(data["contract"]) if "contract" in data else None
 
-        return TestDefinition(generator=generator, expectation=expectation, cases=cases)
+        return TestDefinition(generator=generator, expectation=expectation, cases=cases, contract=contract)
+
+    def _read_test_contract(self, raw: Any) -> TestContract:
+        data = self._require_object(raw, "tests.contract")
+        unknown = sorted(set(data) - {"args"})
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in tests.contract: {', '.join(unknown)}.")
+        raw_args = data.get("args", [])
+        if not isinstance(raw_args, list):
+            raise ExerciseDefinitionError("tests.contract.args must be a list.")
+        return TestContract(
+            args=tuple(
+                self._read_argument_contract(value, f"tests.contract.args[{index}]")
+                for index, value in enumerate(raw_args)
+            )
+        )
+
+    def _read_argument_contract(self, raw: Any, field_name: str) -> ArgumentContract:
+        data = self._require_object(raw, field_name)
+        unknown = sorted(
+            set(data)
+            - {
+                "kind",
+                "values",
+                "min",
+                "max",
+                "min_items",
+                "max_items",
+                "include_length_arg",
+            }
+        )
+        if unknown:
+            raise ExerciseDefinitionError(f"Unknown field(s) in {field_name}: {', '.join(unknown)}.")
+        kind_text = self._require_identifier(data, "kind")
+        try:
+            kind = ArgumentKind(kind_text)
+        except ValueError as error:
+            raise ExerciseDefinitionError(f"Unknown tests.contract argument kind: {kind_text}.") from error
+        min_value = self._read_int(data.get("min", -1000), f"{field_name}.min")
+        max_value = self._read_int(data.get("max", 1000), f"{field_name}.max")
+        if min_value > max_value:
+            raise ExerciseDefinitionError(f"{field_name}.min must be less than or equal to max.")
+        values: tuple[str, ...] = ()
+        if kind is ArgumentKind.CHOICE:
+            values = self._read_string_list(data.get("values", []), f"{field_name}.values")
+            if not values:
+                raise ExerciseDefinitionError(f"{field_name}.values must not be empty for choice.")
+        elif "values" in data:
+            raise ExerciseDefinitionError(f"{field_name}.values is only valid for choice.")
+
+        min_items = self._read_int(data.get("min_items", 1), f"{field_name}.min_items")
+        max_items = self._read_int(data.get("max_items", 8), f"{field_name}.max_items")
+        if min_items < 0:
+            raise ExerciseDefinitionError(f"{field_name}.min_items must be zero or greater.")
+        if min_items > max_items:
+            raise ExerciseDefinitionError(f"{field_name}.min_items must be less than or equal to max_items.")
+        include_length_arg = self._read_bool(
+            data.get("include_length_arg", False),
+            f"{field_name}.include_length_arg",
+        )
+        if kind is not ArgumentKind.INTEGER_SEQUENCE:
+            if "min_items" in data or "max_items" in data or "include_length_arg" in data:
+                raise ExerciseDefinitionError(
+                    f"{field_name}.min_items/max_items/include_length_arg are only valid for integer_sequence."
+                )
+            min_items = 1
+            max_items = 1
+            include_length_arg = False
+        return ArgumentContract(
+            kind=kind,
+            values=values,
+            min_value=min_value,
+            max_value=max_value,
+            min_items=min_items,
+            max_items=max_items,
+            include_length_arg=include_length_arg,
+        )
+
+    @staticmethod
+    def _read_int(raw: Any, field_name: str) -> int:
+        if not isinstance(raw, int) or isinstance(raw, bool):
+            raise ExerciseDefinitionError(f"{field_name} must be an integer.")
+        return raw
+
+    @staticmethod
+    def _read_bool(raw: Any, field_name: str) -> bool:
+        if not isinstance(raw, bool):
+            raise ExerciseDefinitionError(f"{field_name} must be a boolean.")
+        return raw
 
     def _read_cases(self, raw_cases: Any) -> tuple[TestCaseDefinition, ...]:
         if not isinstance(raw_cases, list):

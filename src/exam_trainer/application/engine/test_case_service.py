@@ -29,9 +29,50 @@ class TestCaseService:
             )
             for index, case in enumerate(definition.tests.cases)
         ]
-        generated_cases = [] if definition.tests.generator == "fixed_cases" else generator(seed)
+        if definition.tests.contract is not None:
+            for test_case in fixed_cases:
+                self._validate_contract(test_case, definition.tests.contract)
+        generated_cases = [] if definition.tests.generator == "fixed_cases" else generator(
+            seed,
+            definition.tests.contract,
+        )
         all_cases = [*fixed_cases, *generated_cases]
         return [
             replace(test_case, expected=expectation(test_case))
             for test_case in all_cases
         ]
+
+    @staticmethod
+    def _validate_contract(test_case: TestCase, contract) -> None:
+        from exam_trainer.domain.test_contract import ArgumentKind
+
+        index = 0
+        for spec in contract.args:
+            if spec.kind in (ArgumentKind.STRING, ArgumentKind.INTEGER, ArgumentKind.CHOICE):
+                if index >= len(test_case.args):
+                    raise ValueError("Fixed test case has fewer args than tests.contract requires.")
+                value = test_case.args[index]
+                if spec.kind is ArgumentKind.INTEGER:
+                    int(value)
+                elif spec.kind is ArgumentKind.CHOICE and value not in spec.values:
+                    raise ValueError(f"Fixed test case value {value!r} is not allowed by tests.contract.")
+                index += 1
+                continue
+            if spec.kind is ArgumentKind.INTEGER_SEQUENCE:
+                remaining = test_case.args[index:]
+                if spec.include_length_arg:
+                    if not remaining:
+                        raise ValueError("Fixed test case is missing integer sequence length arg.")
+                    count = int(remaining[0])
+                    values = remaining[1:]
+                    if count != len(values):
+                        raise ValueError("Fixed test case integer sequence length arg does not match values.")
+                else:
+                    values = remaining
+                if not spec.min_items <= len(values) <= spec.max_items:
+                    raise ValueError("Fixed test case integer sequence size is outside tests.contract bounds.")
+                for value in values:
+                    int(value)
+                index = len(test_case.args)
+        if index != len(test_case.args):
+            raise ValueError("Fixed test case has more args than tests.contract allows.")

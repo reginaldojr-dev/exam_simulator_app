@@ -19,7 +19,10 @@ from exam_trainer.application.engine.execution import (
     default_execution_strategies,
     reference_spec,
 )
+from exam_trainer.application.engine.expectations import ExpectationRegistry, default_expectation_registry
+from exam_trainer.application.engine.generators import TestCaseGeneratorRegistry, default_generator_registry
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry, UnsupportedLanguageError
+from exam_trainer.application.engine.test_case_service import TestCaseService
 from exam_trainer.domain.exercise_definition import ExerciseDefinition
 from exam_trainer.ports.runtime_port import LanguageRuntime, PreparedProgram
 
@@ -81,9 +84,15 @@ class ActivityContentPreflight:
         self,
         runtimes: RuntimeRegistry,
         strategies: dict[str, ExecutionStrategy] | None = None,
+        generator_registry: TestCaseGeneratorRegistry | None = None,
+        expectation_registry: ExpectationRegistry | None = None,
     ) -> None:
         self._runtimes = runtimes
         self._strategies = strategies or default_execution_strategies()
+        self._test_case_service = TestCaseService(
+            generator_registry or default_generator_registry(),
+            expectation_registry or default_expectation_registry(),
+        )
 
     def check(
         self,
@@ -103,6 +112,7 @@ class ActivityContentPreflight:
                 raise ExecutionPlanError(
                     f"Unsupported execution type for activity preflight: {definition.execution.type}"
                 )
+            self._test_case_service.build_cases(definition, seed=1)
             source = exercise_path / definition.submission.filename
             strategy.submission(definition, exercise_path, source)
             if definition.reference is not None:
@@ -120,7 +130,7 @@ class ActivityContentPreflight:
                         "A referência deste exercício não pôde ser preparada.",
                         reference_program.build.output,
                     )
-        except (UnsupportedLanguageError, ExecutionPlanError, OSError) as error:
+        except (UnsupportedLanguageError, ExecutionPlanError, OSError, KeyError, ValueError) as error:
             return ActivityPreflightResult.content_invalid(
                 "O conteúdo deste exercício está inválido.",
                 str(error),
