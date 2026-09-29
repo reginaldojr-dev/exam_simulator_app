@@ -17,7 +17,7 @@ from exam_trainer.application.mvp_models import (
 )
 from exam_trainer.application.study_intent import PackPromptBuilder, StudyIntent
 from exam_trainer.domain.attempt_modes import EXAM_MODE, TRAINING_MODE
-from exam_trainer.domain.grading import GradingPolicy, GradingResult
+from exam_trainer.domain.grading import GradingOutcome, GradingPolicy, GradingResult
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.domain.pack_definition import PackDefinition
 from exam_trainer.domain.session_policy import EXAM_POLICY_ID, TRAINING_POLICY_ID, SessionPolicy, SessionPolicyRegistry
@@ -535,6 +535,20 @@ class MVPTrainerCoordinator:
         policy = self._policy(EXAM_POLICY_ID)
         result = self._grade(active, policy.grading_policy(), seed=state.seed)
         outcome = self._persist_outcome(active, result, EXAM_MODE, session_id=state.id)
+        if result.outcome is GradingOutcome.CONTENT_ERROR:
+            # Pack/content failure: never the user's fault. No attempt was
+            # persisted (see `_persist_outcome`), no level result is recorded
+            # here, the exam isn't failed or advanced, and the deadline/score
+            # are left untouched. The user stays on the same exercise and
+            # sees the content-error feedback; resubmitting simply re-grades.
+            #
+            # Known limitation (deferred, see report): the exam clock keeps
+            # running while this happens -- there is no timer pause/refund
+            # mechanism yet. Not penalizing attempts/score/progression is the
+            # guarantee this phase makes; not penalizing wall-clock time is
+            # future work.
+            self._save_exam_state(state, "active")
+            return outcome, state
         self._progress_repository.record_exam_level_result(
             state.id,
             state.level_index,
@@ -633,14 +647,20 @@ class MVPTrainerCoordinator:
     ) -> CorrectionOutcome:
         pack_id = active.ref.pack.id
         exercise_id = active.ref.definition.id
-        self._progress_repository.save_grading_result(
-            pack_id,
-            exercise_id,
-            result,
-            mode,
-            datetime.now(),
-            session_id=session_id,
-        )
+        # A content error is a pack/system failure, not a user attempt: it
+        # must never be persisted as one (no attempts-table row), so it can
+        # never count toward attempts_count, best_passed, or ActivityProgress.
+        # The trace is still written below for diagnosis -- that's technical
+        # output, not progress/history.
+        if result.outcome is not GradingOutcome.CONTENT_ERROR:
+            self._progress_repository.save_grading_result(
+                pack_id,
+                exercise_id,
+                result,
+                mode,
+                datetime.now(),
+                session_id=session_id,
+            )
         trace_path = active.exercise_workspace_path / "trace.txt"
         trace_path.write_text(result.trace_data.as_text(), encoding="utf-8")
         return CorrectionOutcome(

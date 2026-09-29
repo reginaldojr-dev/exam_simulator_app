@@ -46,6 +46,7 @@ from exam_trainer.application.mvp_models import (
     ActivityProgress,
     CorrectionOutcome,
     ExerciseRef,
+    GradingOutcome,
 )
 from exam_trainer.application.use_cases.mvp_coordinator import (
     ExamState,
@@ -1353,7 +1354,9 @@ class MainWindow(QMainWindow):
             return  # the user left the exercise; the attempt was already saved
         self._last_outcome = outcome
         self._trace_button.setEnabled(True)
-        if outcome.result.passed:
+        if outcome.result.outcome is GradingOutcome.CONTENT_ERROR:
+            self._show_content_error_feedback()
+        elif outcome.result.passed:
             self._show_training_pass_feedback()
         else:
             self._show_training_fail_feedback()
@@ -1372,6 +1375,14 @@ class MainWindow(QMainWindow):
         # If the deadline expired while grading, finish now with the already updated score.
         self._tick_exam()
         if self._exam_state is None:
+            return
+        if outcome.result.outcome is GradingOutcome.CONTENT_ERROR:
+            # Never shown as FAIL: this isn't the user's submission being
+            # wrong, it's the exercise's own content/reference. The exam
+            # stays on the same exercise (see `submit_exam`); no attempt or
+            # level result was recorded.
+            if self._active is active:
+                self._show_content_error_feedback()
             return
         if outcome.result.passed:
             try:
@@ -1398,6 +1409,17 @@ class MainWindow(QMainWindow):
             ui.button(self._action("Voltar para corrigir"), self._feedback.clear, "small"),
         ]
         self._feedback.show_result("fail", "[✗] FAIL", message, actions, animate=self._theme.tokens.animations)
+
+    def _show_content_error_feedback(self) -> None:
+        """Content/pack error, distinct from a normal user FAIL (never uses the 'fail' status)."""
+        actions = [ui.button(self._action("Ver trace"), self._show_trace, "small")]
+        self._feedback.show_result(
+            "pending",
+            "[!] " + self._t("CONTEÚDO INVÁLIDO"),
+            self._t("Este exercício tem um erro de conteúdo do pack — não é um erro seu. Não conta como tentativa."),
+            actions,
+            animate=self._theme.tokens.animations,
+        )
 
     def _show_pass_feedback(self, message: str, with_next: bool = False) -> None:
         actions: list[QPushButton] = []

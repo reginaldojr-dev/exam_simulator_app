@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from exam_trainer.domain.exercise_definition import ExerciseDefinition
-from exam_trainer.domain.grading import GradingResult
+from exam_trainer.domain.grading import GradingOutcome, GradingResult
 from exam_trainer.domain.pack_definition import DEFAULT_LANGUAGE, PackDefinition
 from exam_trainer.domain.progress import ActivityProgress, ProgressEntry
 
@@ -13,6 +13,7 @@ __all__ = [
     "ExerciseRef",
     "ProgressEntry",
     "ActivityProgress",
+    "GradingOutcome",
     "ActiveExercise",
     "CorrectionOutcome",
 ]
@@ -26,9 +27,10 @@ class ExerciseRef:
     content_path: Path
 
 
-# `ProgressEntry` and `ActivityProgress` are pure rules (domain/progress.py);
-# re-exported here so adapters (e.g. UI) only import `application`, never
-# `domain` directly (ADR 0007 / architecture boundary test).
+# `ProgressEntry`/`ActivityProgress` (domain/progress.py) and `GradingOutcome`
+# (domain/grading.py) are pure rules; re-exported here so adapters (e.g. UI)
+# only import `application`, never `domain` directly (ADR 0007 / architecture
+# boundary test).
 
 
 @dataclass(frozen=True)

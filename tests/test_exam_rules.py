@@ -19,7 +19,7 @@ from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerci
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
 from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
 from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
-from exam_trainer.domain.grading import GradingResult, TraceData
+from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
 from exam_trainer.ports.grader_port import GradingRequest
 
 
@@ -39,7 +39,11 @@ class SwitchGrader:
         self.passed = True
 
     def grade(self, request: GradingRequest) -> GradingResult:
-        return GradingResult(passed=self.passed, seed=request.seed, trace_data=TraceData(("x",)))
+        return GradingResult(
+            outcome=GradingOutcome.PASSED if self.passed else GradingOutcome.USER_FAILED,
+            seed=request.seed,
+            trace_data=TraceData(("x",)),
+        )
 
 
 def build_pack(root: Path, pack_id: str, levels: int, per_level: int = 1, duration_minutes: int | None = None) -> None:
