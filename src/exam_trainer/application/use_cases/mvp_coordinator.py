@@ -191,6 +191,9 @@ class MVPTrainerCoordinator:
     def resolve_known_editor(self, label: str) -> str | None:
         return self._editor_factory.resolve_known(label)
 
+    def known_editor_labels(self) -> tuple[str, ...]:
+        return self._editor_factory.known_labels()
+
     def save_editor_command(self, command: str) -> None:
         executable = self._editor_factory.validate(command)
         if self._config_repository is not None:

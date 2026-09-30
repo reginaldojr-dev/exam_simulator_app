@@ -216,6 +216,46 @@ class DependencyBoundariesTest(unittest.TestCase):
     def test_app_does_not_depend_on_http_clients_or_web_frameworks(self) -> None:
         self.assertNoViolations(violations(files_in(), HTTP_MODULES))
 
+    # ---------------------------------------------------------------- registries
+    def test_no_parallel_editor_preset_list_outside_editor_registry(self) -> None:
+        """Only editor_registry.py may enumerate the known editor presets as a
+        literal collection; everywhere else must read them from EditorRegistry,
+        so the list is never duplicated (Fase 4)."""
+        self.assertNoViolations(
+            _literal_collection_violations(files_in(), {"VS Code", "Zed", "Cursor"})
+        )
+
+    def test_no_parallel_theme_key_list_outside_theme_registry(self) -> None:
+        """No module besides theme/themes.py may enumerate the legacy theme
+        keys as a literal collection; everywhere else must read them from
+        ThemeRegistry/THEME_REGISTRY (Fase 4)."""
+        allowed = {"adapters/ui/qt/theme/themes.py"}
+        found = _literal_collection_violations(
+            [p for p in files_in() if p.relative_to(SRC).as_posix() not in allowed],
+            {"terminal", "amber", "gameboy", "neon", "minimal", "paper"},
+        )
+        self.assertNoViolations(found)
+
+
+
+def _literal_collection_violations(paths: list[Path], forbidden_together: set[str]) -> list[str]:
+    """Flag any tuple/list/set literal in `paths` that contains every string in
+    `forbidden_together` -- the signature of a hand-duplicated registry list."""
+    found = []
+    for path in paths:
+        rel = path.relative_to(SRC).as_posix()
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+                continue
+            values = {
+                element.value
+                for element in node.elts
+                if isinstance(element, ast.Constant) and isinstance(element.value, str)
+            }
+            if forbidden_together.issubset(values):
+                found.append(f"{rel}:{node.lineno} hardcodes {sorted(forbidden_together)}")
+    return found
 
 def _is_specific_language_value(node: ast.AST) -> bool:
     """String literal, uppercase constant, or literal collection of strings.

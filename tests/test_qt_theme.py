@@ -13,6 +13,8 @@ from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
 from exam_trainer.adapters.ui.qt.components import widgets as ui
 from exam_trainer.adapters.ui.qt.components.cursor import CursorController
 from exam_trainer.adapters.ui.qt.theme import THEMES, ThemeManager, build_stylesheet, get_theme
+from exam_trainer.adapters.ui.qt.theme.registry import DuplicateThemeError, ThemeRegistry
+from exam_trainer.adapters.ui.qt.theme.themes import DEFAULT_THEME_KEY, THEME_REGISTRY
 from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
 
 RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
@@ -184,6 +186,56 @@ class ThemeTokensTest(unittest.TestCase):
         self.assertEqual(terminal.fail, "#ff5555")
         self.assertEqual(terminal.warning, "#f1fa8c")
         self.assertEqual(terminal.hover_background, "#102010")
+
+
+class ThemeRegistryTest(unittest.TestCase):
+    """Fase 4: ThemeRegistry is the single source of truth THEMES/get_theme/
+    ThemeManager are all derived from -- covered independently of the QSS/token
+    tests above."""
+
+    def test_registers_all_internal_themes(self) -> None:
+        self.assertEqual(set(THEME_REGISTRY.keys()), set(THEMES.keys()))
+        legacy = {"terminal", "amber", "gameboy", "neon", "minimal", "paper"}
+        rankeddojo = {"default", "gamified", "retro"}
+        self.assertTrue(legacy.issubset(THEME_REGISTRY.keys()))
+        self.assertTrue(rankeddojo.issubset(THEME_REGISTRY.keys()))
+
+    def test_lookup_by_id_returns_the_correct_theme(self) -> None:
+        for key in THEME_REGISTRY.keys():
+            theme = THEME_REGISTRY.get(key)
+            self.assertIsNotNone(theme)
+            self.assertEqual(theme.key, key)
+            # THEMES stays a faithful, derived view of the same objects.
+            self.assertIs(theme, THEMES[key])
+
+    def test_lookup_of_unknown_id_returns_none(self) -> None:
+        self.assertIsNone(THEME_REGISTRY.get("does-not-exist"))
+        self.assertFalse(THEME_REGISTRY.has("does-not-exist"))
+        self.assertTrue(THEME_REGISTRY.has("terminal"))
+
+    def test_listing_is_deterministic(self) -> None:
+        first = THEME_REGISTRY.keys()
+        second = THEME_REGISTRY.keys()
+        self.assertEqual(first, second)
+        self.assertEqual(tuple(theme.key for theme in THEME_REGISTRY.themes()), first)
+
+    def test_duplicate_id_is_rejected(self) -> None:
+        registry = ThemeRegistry((THEMES["terminal"],))
+        with self.assertRaises(DuplicateThemeError):
+            registry.register(THEMES["terminal"])
+        # The failed registration did not corrupt the existing entry.
+        self.assertIs(registry.get("terminal"), THEMES["terminal"])
+
+    def test_default_theme_still_exists_and_fallback_still_works(self) -> None:
+        self.assertTrue(THEME_REGISTRY.has(DEFAULT_THEME_KEY))
+        self.assertEqual(THEME_REGISTRY.resolve(None, DEFAULT_THEME_KEY).key, DEFAULT_THEME_KEY)
+        self.assertEqual(THEME_REGISTRY.resolve("does-not-exist", DEFAULT_THEME_KEY).key, DEFAULT_THEME_KEY)
+        self.assertEqual(get_theme(None).key, DEFAULT_THEME_KEY)
+        self.assertEqual(get_theme("does-not-exist").key, DEFAULT_THEME_KEY)
+
+    def test_theme_manager_available_sees_every_registry_theme(self) -> None:
+        available_keys = {tokens.key for tokens in ThemeManager.available()}
+        self.assertEqual(available_keys, set(THEME_REGISTRY.keys()))
 
 
 class ThemePersistenceTest(unittest.TestCase):

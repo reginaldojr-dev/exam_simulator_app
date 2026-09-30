@@ -57,10 +57,6 @@ from exam_trainer.application.use_cases.mvp_coordinator import (
 )
 
 MENU_WIDTH = 460
-# Single source of truth for the editor presets offered in Settings > Editor/IDE.
-# Reused both to populate the preset combo and to drive automatic detection, so
-# the list of known editors is never duplicated.
-KNOWN_EDITOR_PRESETS: tuple[str, ...] = ("VS Code", "Zed", "Cursor")
 ACTIVITY_PROGRESS_LABELS: dict[ActivityProgress, str] = {
     ActivityProgress.COMPLETED: "Concluído",
     ActivityProgress.ATTEMPTED: "Tentado",
@@ -327,7 +323,7 @@ class MainWindow(QMainWindow):
         current = self._editor_combo.currentData() or self._editor_combo.currentText()
         self._editor_combo.blockSignals(True)
         self._editor_combo.clear()
-        for label in (*KNOWN_EDITOR_PRESETS, "Outro..."):
+        for label in (*self._coordinator.known_editor_labels(), "Outro..."):
             self._editor_combo.addItem(self._t(label), label)
         index = self._editor_combo.findData(current)
         if index < 0:
@@ -2213,7 +2209,7 @@ class MainWindow(QMainWindow):
         # found), fall back to trying every known editor and filling in the first
         # one that resolves, keeping the preset combo in sync with the result.
         current = str(self._editor_combo.currentData() or self._editor_combo.currentText())
-        ordered_labels = list(KNOWN_EDITOR_PRESETS)
+        ordered_labels = list(self._coordinator.known_editor_labels())
         if current in ordered_labels:
             ordered_labels.remove(current)
             ordered_labels.insert(0, current)

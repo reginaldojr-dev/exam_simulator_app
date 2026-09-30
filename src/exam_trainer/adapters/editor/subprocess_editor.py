@@ -5,6 +5,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from exam_trainer.adapters.editor.editor_registry import EDITOR_REGISTRY
 from exam_trainer.ports.editor_port import EditorLaunchError
 
 __all__ = [
@@ -56,31 +57,22 @@ def _supports_reuse_window(executable: str, display_name: str) -> bool:
 
 
 def resolve_known_editor(name: str) -> str | None:
-    key = name.lower()
-    commands = {
-        "vs code": ("code", "Code.exe"),
-        "zed": ("zed", "Zed.exe"),
-        "cursor": ("cursor", "Cursor.exe"),
-    }.get(key, (name,))
+    preset = EDITOR_REGISTRY.find(name)
+    commands = preset.candidates if preset is not None else (name,)
 
     for command in commands:
         resolved = shutil.which(command)
         if resolved and Path(resolved).is_file():
             return resolved
 
-    if sys.platform == "win32":
+    if sys.platform == "win32" and preset is not None and preset.windows_patterns:
         roots = [
             Path.home() / "AppData" / "Local" / "Programs",
             Path("C:/Program Files"),
             Path("C:/Program Files (x86)"),
         ]
-        patterns = {
-            "vs code": ("Microsoft VS Code/Code.exe", "VS Code/Code.exe"),
-            "zed": ("Zed/Zed.exe",),
-            "cursor": ("Cursor/Cursor.exe",),
-        }.get(key, ())
         for root in roots:
-            for pattern in patterns:
+            for pattern in preset.windows_patterns:
                 candidate = root / pattern
                 if candidate.is_file():
                     return str(candidate)
@@ -110,3 +102,6 @@ class SubprocessEditorFactory:
 
     def resolve_known(self, label: str) -> str | None:
         return resolve_known_editor(label)
+
+    def known_labels(self) -> tuple[str, ...]:
+        return EDITOR_REGISTRY.ids()

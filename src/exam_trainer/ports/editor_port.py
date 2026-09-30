@@ -34,3 +34,7 @@ class EditorFactory(Protocol):
     def resolve_known(self, label: str) -> str | None:
         """Resolve a known preset, such as "VS Code", to an installed path if available."""
         raise NotImplementedError
+
+    def known_labels(self) -> tuple[str, ...]:
+        """Stable, ordered labels of the known presets this factory can resolve."""
+        raise NotImplementedError

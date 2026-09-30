@@ -11,6 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
 
+from exam_trainer.adapters.editor.editor_registry import EDITOR_REGISTRY
 from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
 from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
 from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
@@ -19,7 +20,6 @@ from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteP
 from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
 from exam_trainer.adapters.runtime.c_runtime import CRuntime
 from exam_trainer.adapters.ui.qt.i18n import LocaleService
-from exam_trainer.adapters.ui.qt import main_window as main_window_module
 from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
@@ -893,6 +893,22 @@ class MainWindowTest(unittest.TestCase):
                 labels = {button.property("baseText") for button in window._settings_page.findChildren(QPushButton)}
                 self.assertTrue(expected.issubset(labels))
 
+    def test_editor_combo_and_auto_detection_share_the_same_registry_source(self) -> None:
+        # Fase 4: both the preset combo and automatic detection must read the
+        # known editors from the same EditorRegistry -- never two independent
+        # lists that could drift apart.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+
+            combo_presets = tuple(
+                window._editor_combo.itemData(index)
+                for index in range(window._editor_combo.count())
+                if window._editor_combo.itemData(index) != "Outro..."
+            )
+            self.assertEqual(combo_presets, EDITOR_REGISTRY.ids())
+            self.assertEqual(window._coordinator.known_editor_labels(), EDITOR_REGISTRY.ids())
+
     def test_detect_editor_automatically_button_exists_and_reuses_resolution_flow(self) -> None:
         # The explicit "Detectar automaticamente" action must call the very same
         # known-editor resolution already used by the preset combo -- never a
@@ -916,9 +932,9 @@ class MainWindowTest(unittest.TestCase):
             finally:
                 window._coordinator.resolve_known_editor = original
 
-            # Every candidate it tried came from the single shared preset list,
+            # Every candidate it tried came from the single shared EditorRegistry,
             # never a locally invented VS Code/Zed/Cursor list.
-            self.assertTrue(set(calls).issubset(set(main_window_module.KNOWN_EDITOR_PRESETS)))
+            self.assertTrue(set(calls).issubset(set(window._coordinator.known_editor_labels())))
             self.assertEqual(window._settings_editor.text(), "/usr/bin/code")
             self.assertEqual(window._editor_combo.currentData(), "VS Code")
 

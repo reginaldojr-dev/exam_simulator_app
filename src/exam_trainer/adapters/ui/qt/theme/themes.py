@@ -10,6 +10,7 @@ needs to change.
 
 from __future__ import annotations
 
+from exam_trainer.adapters.ui.qt.theme.registry import ThemeRegistry
 from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
 
 TERMINAL = ThemeTokens(
@@ -279,9 +280,11 @@ RANKEDDOJO_RETRO = ThemeTokens(
     blink_cursor=True,
 )
 
-THEMES: dict[str, ThemeTokens] = {
-    theme.key: theme
-    for theme in (
+# THEME_REGISTRY is the single source of truth for which themes exist. To add
+# a theme: define its ThemeTokens above and list it here -- nothing else needs
+# to change.
+THEME_REGISTRY = ThemeRegistry(
+    (
         TERMINAL,
         MINIMAL,
         AMBER,
@@ -292,7 +295,13 @@ THEMES: dict[str, ThemeTokens] = {
         RANKEDDOJO_GAMIFIED,
         RANKEDDOJO_RETRO,
     )
-}
+)
+
+# Kept for backward-compatible direct dict access (existing callers/tests).
+# Derived from THEME_REGISTRY, not a second source of truth: register new
+# themes in THEME_REGISTRY above, never by mutating this dict directly.
+THEMES: dict[str, ThemeTokens] = {key: THEME_REGISTRY.get(key) for key in THEME_REGISTRY.keys()}
+
 # Kept as "terminal" for backward compatibility: existing persisted configs
 # store this key, and get_theme() falls back to it for unknown/missing keys.
 # Making one of the new RankedDojo themes the default is a product decision
@@ -301,4 +310,4 @@ DEFAULT_THEME_KEY = TERMINAL.key
 
 
 def get_theme(key: str | None) -> ThemeTokens:
-    return THEMES.get(key or DEFAULT_THEME_KEY, THEMES[DEFAULT_THEME_KEY])
+    return THEME_REGISTRY.resolve(key, DEFAULT_THEME_KEY)

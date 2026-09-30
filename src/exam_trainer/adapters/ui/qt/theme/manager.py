@@ -5,7 +5,7 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QWidget
 
 from exam_trainer.adapters.ui.qt.theme.qss import build_stylesheet
-from exam_trainer.adapters.ui.qt.theme.themes import THEMES, get_theme
+from exam_trainer.adapters.ui.qt.theme.themes import THEME_REGISTRY, get_theme
 from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
 
 
@@ -29,7 +29,7 @@ class ThemeManager(QObject):
 
     @staticmethod
     def available() -> list[ThemeTokens]:
-        return list(THEMES.values())
+        return list(THEME_REGISTRY.themes())
 
     def stylesheet(self) -> str:
         return build_stylesheet(self._tokens)
