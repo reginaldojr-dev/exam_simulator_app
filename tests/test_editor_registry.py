@@ -7,14 +7,14 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from exam_trainer.adapters.editor.editor_registry import (
+from rankeddojo.adapters.editor.editor_registry import (
     EDITOR_REGISTRY,
     DuplicateEditorError,
     EditorPreset,
     EditorRegistry,
     default_editor_registry,
 )
-from exam_trainer.adapters.editor.subprocess_editor import (
+from rankeddojo.adapters.editor.subprocess_editor import (
     SubprocessEditorFactory,
     resolve_known_editor,
 )
@@ -74,28 +74,28 @@ class ResolveKnownEditorTest(unittest.TestCase):
             calls.append(command)
             return "/usr/bin/code" if command == "Code.exe" else None
 
-        with patch("exam_trainer.adapters.editor.subprocess_editor.shutil.which", side_effect=fake_which), \
-             patch("exam_trainer.adapters.editor.subprocess_editor.Path.is_file", return_value=True):
+        with patch("rankeddojo.adapters.editor.subprocess_editor.shutil.which", side_effect=fake_which), \
+             patch("rankeddojo.adapters.editor.subprocess_editor.Path.is_file", return_value=True):
             resolved = resolve_known_editor("VS Code")
 
         self.assertEqual(resolved, "/usr/bin/code")
         self.assertEqual(calls, ["code", "Code.exe"])
 
     def test_lookup_is_case_insensitive(self) -> None:
-        with patch("exam_trainer.adapters.editor.subprocess_editor.shutil.which", return_value="/usr/bin/zed"), \
-             patch("exam_trainer.adapters.editor.subprocess_editor.Path.is_file", return_value=True):
+        with patch("rankeddojo.adapters.editor.subprocess_editor.shutil.which", return_value="/usr/bin/zed"), \
+             patch("rankeddojo.adapters.editor.subprocess_editor.Path.is_file", return_value=True):
             self.assertEqual(resolve_known_editor("zed"), "/usr/bin/zed")
             self.assertEqual(resolve_known_editor("ZED"), "/usr/bin/zed")
 
     def test_unknown_label_falls_back_to_trying_the_label_itself_as_a_command(self) -> None:
         # Preserves the pre-registry fallback: an arbitrary label that is not a
         # known preset is still tried verbatim as a single candidate command.
-        with patch("exam_trainer.adapters.editor.subprocess_editor.shutil.which", return_value=None) as which:
+        with patch("rankeddojo.adapters.editor.subprocess_editor.shutil.which", return_value=None) as which:
             self.assertIsNone(resolve_known_editor("some-custom-editor"))
             which.assert_called_once_with("some-custom-editor")
 
     def test_returns_none_when_nothing_resolves(self) -> None:
-        with patch("exam_trainer.adapters.editor.subprocess_editor.shutil.which", return_value=None):
+        with patch("rankeddojo.adapters.editor.subprocess_editor.shutil.which", return_value=None):
             self.assertIsNone(resolve_known_editor("Cursor"))
 
 

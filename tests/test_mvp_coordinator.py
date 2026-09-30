@@ -5,23 +5,23 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-from exam_trainer.adapters.grader.generic_c_grader import GenericCGrader
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.use_cases.mvp_coordinator import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+from rankeddojo.adapters.grader.generic_c_grader import GenericCGrader
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.application.use_cases.mvp_coordinator import (
     MVPTrainerCoordinator,
     TrainingOptions,
 )
-from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
+from rankeddojo.ports.grader_port import GradingRequest
 
 
 class StaticGrader:

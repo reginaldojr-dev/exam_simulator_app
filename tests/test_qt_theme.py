@@ -10,13 +10,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
 
-from exam_trainer.adapters.ui.qt.components import widgets as ui
-from exam_trainer.adapters.ui.qt.components.cursor import CursorController
-from exam_trainer.adapters.ui.qt.theme import THEMES, ThemeManager, build_stylesheet, get_theme
-from exam_trainer.adapters.ui.qt.theme.registry import DuplicateThemeError, ThemeRegistry
-from exam_trainer.adapters.ui.qt.theme.themes import DEFAULT_THEME_KEY, THEME_REGISTRY
-from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
-from exam_trainer.adapters.theme.user_theme_loader import UserThemeLoader
+from rankeddojo.adapters.ui.qt.components import widgets as ui
+from rankeddojo.adapters.ui.qt.components.cursor import CursorController
+from rankeddojo.adapters.ui.qt.theme import THEMES, ThemeManager, build_stylesheet, get_theme
+from rankeddojo.adapters.ui.qt.theme.registry import DuplicateThemeError, ThemeRegistry
+from rankeddojo.adapters.ui.qt.theme.themes import DEFAULT_THEME_KEY, THEME_REGISTRY
+from rankeddojo.adapters.ui.qt.theme.tokens import ThemeTokens
+from rankeddojo.adapters.theme.user_theme_loader import UserThemeLoader
 
 RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
 COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
@@ -136,7 +136,7 @@ class ThemeTokensTest(unittest.TestCase):
         import inspect
         import textwrap
 
-        from exam_trainer.adapters.ui.qt.theme import qss as qss_module
+        from rankeddojo.adapters.ui.qt.theme import qss as qss_module
 
         source = textwrap.dedent(inspect.getsource(qss_module.build_stylesheet))
         tree = ast.parse(source)
@@ -243,7 +243,7 @@ class ThemePersistenceTest(unittest.TestCase):
     def test_config_repository_round_trips_theme(self) -> None:
         import tempfile
 
-        from exam_trainer.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
+        from rankeddojo.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repository = JsonAppConfigRepository(Path(temp_dir) / "config.json")
@@ -314,7 +314,7 @@ class ExternalThemeIntegrationTest(unittest.TestCase):
             self._write_theme(tmp_path, "my-ext-theme", "my-ext-theme")
             registry = self._isolated_registry_with(tmp_path)
 
-            with patch("exam_trainer.adapters.ui.qt.theme.manager.THEME_REGISTRY", registry):
+            with patch("rankeddojo.adapters.ui.qt.theme.manager.THEME_REGISTRY", registry):
                 available_keys = {tokens.key for tokens in ThemeManager.available()}
 
         self.assertIn("my-ext-theme", available_keys)
@@ -332,7 +332,7 @@ class ExternalThemeIntegrationTest(unittest.TestCase):
 
             # Simulates config.json having "theme": "restorable" from a
             # previous run, resolved the same way ThemeManager resolves it.
-            with patch("exam_trainer.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
+            with patch("rankeddojo.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
                 restored = get_theme("restorable")
 
         self.assertEqual(restored.key, "restorable")
@@ -347,7 +347,7 @@ class ExternalThemeIntegrationTest(unittest.TestCase):
             self._write_theme(tmp_path, "temporary", "temporary")
             registry = self._isolated_registry_with(tmp_path)
 
-            with patch("exam_trainer.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
+            with patch("rankeddojo.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
                 # "temporary" was never persisted; config.json still points at
                 # a theme id that simply does not exist in this registry
                 # (e.g. the user removed the folder, or it failed to load).

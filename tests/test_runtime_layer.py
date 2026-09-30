@@ -7,11 +7,11 @@ import tempfile
 import unittest
 from pathlib import Path, PurePath
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.grader.generic_grader import GenericGrader
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry, UnsupportedLanguageError
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.grader.generic_grader import GenericGrader
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry, UnsupportedLanguageError
+from rankeddojo.domain.exercise_definition import (
     ExecutionDefinition,
     ExerciseDefinition,
     LimitsDefinition,
@@ -20,10 +20,10 @@ from exam_trainer.domain.exercise_definition import (
     TestCaseDefinition,
     TestDefinition,
 )
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
-from exam_trainer.ports.runtime_port import LanguageRuntime, PreparedProgram, ProcessOutcome, ProgramSpec
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.grader_port import GradingRequest
+from rankeddojo.ports.runtime_port import LanguageRuntime, PreparedProgram, ProcessOutcome, ProgramSpec
 
 
 class ScriptedRuntime:
@@ -250,13 +250,13 @@ class CRuntimeTest(unittest.TestCase):
 class PreflightByLanguageTest(unittest.TestCase):
     def test_pack_language_without_runtime_is_blocked(self) -> None:
         from test_exam_rules import build_pack
-        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-        from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-        from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-        from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-        from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-        from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-        from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+        from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+        from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+        from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+        from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+        from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+        from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+        from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -280,13 +280,13 @@ class PreflightByLanguageTest(unittest.TestCase):
             self.assertTrue(coordinator.preflight_runtime("toy").ok)
 
     def test_exam_preflight_uses_exercise_languages_in_mixed_pack(self) -> None:
-        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-        from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-        from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-        from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-        from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-        from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-        from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+        from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+        from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+        from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+        from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+        from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+        from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+        from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
 
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

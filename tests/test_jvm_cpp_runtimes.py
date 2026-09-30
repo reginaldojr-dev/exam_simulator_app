@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.compiler.system_cpp_compiler import SystemCppCompiler
-from exam_trainer.adapters.runtime.cpp_runtime import CppRuntime
-from exam_trainer.adapters.runtime.java_runtime import JavaRuntime
-from exam_trainer.ports.runtime_port import LanguageRuntime, ProgramSpec
+from rankeddojo.adapters.compiler.system_cpp_compiler import SystemCppCompiler
+from rankeddojo.adapters.runtime.cpp_runtime import CppRuntime
+from rankeddojo.adapters.runtime.java_runtime import JavaRuntime
+from rankeddojo.ports.runtime_port import LanguageRuntime, ProgramSpec
 
 
 class CppRuntimeAvailabilityTest(unittest.TestCase):

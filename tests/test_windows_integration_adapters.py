@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.editor.subprocess_editor import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.editor.subprocess_editor import (
     EditorLaunchError,
     SubprocessEditor,
     validate_editor_executable,
@@ -71,7 +71,7 @@ class WindowsIntegrationAdaptersTest(unittest.TestCase):
             executable.write_text("", encoding="utf-8")
             workspace.mkdir()
 
-            with patch("exam_trainer.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
+            with patch("rankeddojo.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
                 SubprocessEditor(str(executable), "VS Code").open_directory(workspace)
 
             popen.assert_called_once()
@@ -84,7 +84,7 @@ class WindowsIntegrationAdaptersTest(unittest.TestCase):
             executable.write_text("", encoding="utf-8")
             workspace.mkdir()
 
-            with patch("exam_trainer.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
+            with patch("rankeddojo.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
                 SubprocessEditor(str(executable), "VS Code").open_directory(workspace, reuse_window=True)
 
             popen.assert_called_once()
@@ -97,7 +97,7 @@ class WindowsIntegrationAdaptersTest(unittest.TestCase):
             executable.write_text("", encoding="utf-8")
             workspace.mkdir()
 
-            with patch("exam_trainer.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
+            with patch("rankeddojo.adapters.editor.subprocess_editor.subprocess.Popen") as popen:
                 SubprocessEditor(str(executable), "Other").open_directory(workspace, reuse_window=True)
 
             popen.assert_called_once()

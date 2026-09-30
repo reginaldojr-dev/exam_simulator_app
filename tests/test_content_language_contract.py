@@ -6,12 +6,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.grader.generic_grader import GenericGrader
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.runtime.python_runtime import PythonRuntime
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.adapters.grader.generic_grader import GenericGrader
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.runtime.python_runtime import PythonRuntime
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.grader_port import GradingRequest
 
 REPO = Path(__file__).resolve().parent.parent
 C_BASICS = REPO / "examples" / "packs" / "c-basics"
@@ -85,7 +85,7 @@ class ContentLanguageContractTest(unittest.TestCase):
 
     @staticmethod
     def _refs(pack_root: Path, pack_id: str):
-        from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
+        from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
 
         catalog = LocalPackCatalog(Path("does-not-exist"), bundled_packs_dir=pack_root.parent)
         return {ref.definition.id: ref for ref in catalog.list_exercises(pack_id)}

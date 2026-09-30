@@ -1,0 +1,13 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from rankeddojo.ports.editor_port import EditorPort
+
+
+class OpenExerciseInEditor:
+    def __init__(self, editor: EditorPort) -> None:
+        self._editor = editor
+
+    def execute(self, exercise_directory: Path, *, reuse_window: bool = False) -> None:
+        self._editor.open_directory(exercise_directory, reuse_window=reuse_window)

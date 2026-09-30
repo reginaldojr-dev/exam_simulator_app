@@ -10,9 +10,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.theme.theme_contract import JsonThemeLoader, ThemeDefinitionError
-from exam_trainer.adapters.ui.qt.theme.themes import TERMINAL
-from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
+from rankeddojo.adapters.theme.theme_contract import JsonThemeLoader, ThemeDefinitionError
+from rankeddojo.adapters.ui.qt.theme.themes import TERMINAL
+from rankeddojo.adapters.ui.qt.theme.tokens import ThemeTokens
 
 
 def _write(tmp_dir: str, data: dict) -> Path:

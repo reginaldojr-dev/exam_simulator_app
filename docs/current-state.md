@@ -59,7 +59,7 @@
 - SQLite é a autoridade local da V1.
 - Schema atual: v3.
 - Migration v3 adiciona identidade neutra e policy preservando colunas/dados antigos.
-- Path principal no Windows: `%APPDATA%\exam-trainer\` permanece legado por compatibilidade de dados.
+- Path principal no Windows: `%APPDATA%\rankeddojo\` (renomeado de `%APPDATA%\exam-trainer\` na migração de namespace pós-Fase 2; dados antigos são migrados automaticamente uma única vez).
 - Packs públicos em `examples/packs`; packs locais privados em `_local/packs`.
 - DB readonly investigado na S4: causa provável é ACL/sandbox, não schema corrompido.
 

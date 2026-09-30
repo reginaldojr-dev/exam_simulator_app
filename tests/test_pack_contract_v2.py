@@ -8,18 +8,18 @@ import tempfile
 import unittest
 from pathlib import Path, PurePosixPath
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.exercise_definition.json_loader import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.exercise_definition.json_loader import (
     ExerciseDefinitionError,
     JsonExerciseDefinitionLoader,
 )
-from exam_trainer.adapters.grader.generic_c_grader import GenericCGrader
-from exam_trainer.adapters.pack.json_pack_loader import JsonPackLoader, PackDefinitionError
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter, PackImportError
-from exam_trainer.domain.exercise_definition import ReferenceDefinition
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.adapters.grader.generic_c_grader import GenericCGrader
+from rankeddojo.adapters.pack.json_pack_loader import JsonPackLoader, PackDefinitionError
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter, PackImportError
+from rankeddojo.domain.exercise_definition import ReferenceDefinition
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.grader_port import GradingRequest
 
 REPO = Path(__file__).resolve().parent.parent
 SAMPLE = REPO / "examples" / "packs" / "sample_rank"

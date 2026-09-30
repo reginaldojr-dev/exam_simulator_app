@@ -15,7 +15,7 @@ build = [
 ]
 
 [project.scripts]
-rankeddojo = "exam_trainer.main:main"
+rankeddojo = "rankeddojo.main:main"
 
 [build-system]
 requires = ["setuptools>=70"]
@@ -25,7 +25,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-exam_trainer = ["resources/*.md"]
+rankeddojo = ["resources/*.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from exam_trainer.adapters.ui.qt.task_runner import TaskRunner
+from rankeddojo.adapters.ui.qt.task_runner import TaskRunner
 
 
 class TaskRunnerTest(unittest.TestCase):

@@ -59,8 +59,8 @@ class BuildScriptInputsTest(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         for relative in (
-            "src/exam_trainer/main.py",
-            "src/exam_trainer/adapters/workspace/local.py",
+            "src/rankeddojo/main.py",
+            "src/rankeddojo/adapters/workspace/local.py",
             "examples/packs/demo/pack.json",
             "README.md",
             "LICENSE",
@@ -108,9 +108,9 @@ class BuildScriptInputsTest(unittest.TestCase):
 
     def test_local_folder_is_ignored_only_at_root(self) -> None:
         self.write("_local/workspace/training/x/x.c")
-        self.write("src/exam_trainer/__pycache__/main.cpython-313.pyc")
+        self.write("src/rankeddojo/__pycache__/main.cpython-313.pyc")
         inputs = self.inputs()
-        self.assertIn("src/exam_trainer/adapters/workspace/local.py", inputs)
+        self.assertIn("src/rankeddojo/adapters/workspace/local.py", inputs)
         self.assertFalse(any(item.startswith("_local/") for item in inputs))
         self.assertFalse(any("__pycache__" in item for item in inputs))
 
@@ -118,7 +118,7 @@ class BuildScriptInputsTest(unittest.TestCase):
         before = self.build.calculate_source_hash()
         self.write("_local/packs/rank02-original/level0/x/exercise.json", "private")
         self.assertEqual(before, self.build.calculate_source_hash())
-        self.write("src/exam_trainer/new_module.py")
+        self.write("src/rankeddojo/new_module.py")
         self.assertNotEqual(before, self.build.calculate_source_hash())
 
     def test_environment_versions_are_part_of_the_hash(self) -> None:
@@ -189,7 +189,7 @@ class BuildScriptInputsTest(unittest.TestCase):
         self.assertIn("('README.md', '.')", spec)
         self.assertIn("('LICENSE', '.')", spec)
         self.assertIn("('CHANGELOG.md', '.')", spec)
-        self.assertIn("exam_trainer/resources", spec)
+        self.assertIn("rankeddojo/resources", spec)
         self.assertNotIn("('_local'", spec)
 
 

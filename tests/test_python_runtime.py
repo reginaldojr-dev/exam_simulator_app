@@ -9,14 +9,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from exam_trainer.adapters.grader.generic_grader import GenericGrader
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.runtime.python_runtime import PythonRuntime
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.grader_port import GradingRequest
-from exam_trainer.ports.runtime_port import LanguageRuntime, ProgramSpec
+from rankeddojo.adapters.grader.generic_grader import GenericGrader
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.runtime.python_runtime import PythonRuntime
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.grader_port import GradingRequest
+from rankeddojo.ports.runtime_port import LanguageRuntime, ProgramSpec
 
 REPO = Path(__file__).resolve().parent.parent
 PYTHON_BASICS = REPO / "examples" / "packs" / "python-basics"
@@ -152,11 +152,11 @@ class PythonBasicsPackTest(unittest.TestCase):
         self.assertTrue(self.grade("count_args", code).passed)
 
     def test_coordinator_trains_python_pack_with_language_preflight(self) -> None:
-        from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-        from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-        from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-        from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-        from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+        from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+        from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+        from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+        from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+        from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
 
         (self.root / "workspace").mkdir()
         registry = RuntimeRegistry([self.runtime])

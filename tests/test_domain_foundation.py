@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 import unittest
 
-from exam_trainer.domain.entities import Attempt, ExamSession
-from exam_trainer.domain.services import ProgressionService
-from exam_trainer.domain.value_objects import Grade
+from rankeddojo.domain.entities import Attempt, ExamSession
+from rankeddojo.domain.services import ProgressionService
+from rankeddojo.domain.value_objects import Grade
 
 
 class DomainFoundationTest(unittest.TestCase):

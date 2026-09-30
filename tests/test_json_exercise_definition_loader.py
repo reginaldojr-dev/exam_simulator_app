@@ -4,19 +4,19 @@ import tempfile
 import unittest
 from pathlib import Path, PurePosixPath
 
-from exam_trainer.adapters.exercise_definition.json_loader import (
+from rankeddojo.adapters.exercise_definition.json_loader import (
     DEFAULT_TIMEOUT_SECONDS,
     ExerciseDefinitionError,
     JsonExerciseDefinitionLoader,
 )
-from exam_trainer.application.capabilities import (
+from rankeddojo.application.capabilities import (
     ExerciseCapabilities,
     ExecutionRegistry,
     ExpectationRegistry,
     GeneratorRegistry,
     C_LANGUAGE,
 )
-from exam_trainer.domain.exercise_definition import ExerciseDefinition, ReferenceDefinition
+from rankeddojo.domain.exercise_definition import ExerciseDefinition, ReferenceDefinition
 
 
 def valid_definition_data() -> dict[str, object]:

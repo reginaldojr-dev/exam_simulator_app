@@ -5,12 +5,12 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
-from exam_trainer.adapters.persistence.sqlite_progress_repository import (
+from rankeddojo.adapters.persistence.sqlite_progress_repository import (
     SQLiteProgressRepository,
 )
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.domain.entities import Attempt
-from exam_trainer.domain.value_objects import Grade
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.domain.entities import Attempt
+from rankeddojo.domain.value_objects import Grade
 
 
 class SQLiteProgressRepositoryTest(unittest.TestCase):

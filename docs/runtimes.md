@@ -2,7 +2,7 @@
 
 Este documento descreve o modelo atual de runtimes do RankedDojo. A fonte
 normativa do contrato de packs e activities fica em
-`src/exam_trainer/resources/pack-contract.md`.
+`src/rankeddojo/resources/pack-contract.md`.
 
 ## Modelo
 

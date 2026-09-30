@@ -6,7 +6,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter, PackImportError
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter, PackImportError
 
 
 def create_minimal_pack(root: Path) -> None:

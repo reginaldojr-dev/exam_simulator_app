@@ -84,12 +84,12 @@ Execução alternativa a partir do código-fonte (uso interno/dev, não é o com
 público do produto):
 
 ```bash
-python -m exam_trainer.main
+python -m rankeddojo.main
 ```
 
-Esse caminho existe porque `exam_trainer` é o namespace interno do pacote Python; ele
-não é o nome público do app e não deve ser usado como instrução de uso para o
-usuário final.
+Esse caminho roda o mesmo pacote a partir do código-fonte, sem passar pelo
+comando instalado; é útil em desenvolvimento, mas não deve ser usado como
+instrução de uso para o usuário final.
 
 Rodar os testes:
 
@@ -102,7 +102,7 @@ python -m pytest -q
 Packs podem ser importados de uma pasta ou ZIP em `Configuracoes > Packs`.
 O contrato completo suportado é a fonte única da verdade:
 
-- [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md)
+- [`src/rankeddojo/resources/pack-contract.md`](src/rankeddojo/resources/pack-contract.md)
 
 Packs de exemplo públicos ficam em [`examples/packs`](examples/packs):
 
@@ -122,15 +122,19 @@ symlinks/junctions e estratégias não suportadas, mas não oferece um sandbox c
 
 ## Workspace e dados
 
-No Windows, a configuração do app e o banco SQLite local ainda usam o diretório de
-dados legado por compatibilidade:
+No Windows, a configuração do app e o banco SQLite local ficam em:
 
 ```text
-%APPDATA%\exam-trainer\
+%APPDATA%\rankeddojo\
 ```
 
-Esse caminho é um detalhe técnico interno de compatibilidade de dados (não o nome
-público do produto) e não deve ser alterado nem usado como marca do app.
+(Linux/macOS seguem o mecanismo padrão do sistema, usando a mesma pasta `rankeddojo`.)
+
+Instalações antigas que ainda tinham dados em `%APPDATA%\exam-trainer\` são migradas
+automaticamente e uma única vez no primeiro startup após a atualização: config, banco,
+packs importados e temas são movidos para a nova pasta sem apagar nada. Se a pasta nova
+já existir com dados (por exemplo, instalação feita direto na versão atual), a pasta
+antiga não é tocada nem mesclada automaticamente.
 
 Arquivos de treino e de exame ficam separados:
 
@@ -198,7 +202,7 @@ Nenhuma release remota é criada pelo script de build.
 - Log de sessão/status: [`docs/project-status.md`](docs/project-status.md)
 - Decisões de arquitetura: [`docs/decisions`](docs/decisions)
 - Notas de runtime: [`docs/runtimes.md`](docs/runtimes.md)
-- Contrato de pack: [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md)
+- Contrato de pack: [`src/rankeddojo/resources/pack-contract.md`](src/rankeddojo/resources/pack-contract.md)
 
 ## Licença
 

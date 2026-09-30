@@ -30,7 +30,7 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parent.parent / "src" / "exam_trainer"
+SRC = Path(__file__).resolve().parent.parent / "src" / "rankeddojo"
 
 # test -> roadmap session that removes the violation
 KNOWN_VIOLATIONS: dict[str, str] = {}
@@ -121,10 +121,10 @@ class DependencyBoundariesTest(unittest.TestCase):
             *HTTP_MODULES,
             "shutil",
             "os",
-            "exam_trainer.adapters",
-            "exam_trainer.application",
-            "exam_trainer.infrastructure",
-            "exam_trainer.ports",
+            "rankeddojo.adapters",
+            "rankeddojo.application",
+            "rankeddojo.infrastructure",
+            "rankeddojo.ports",
         )
         self.assertNoViolations(violations(files_in("domain"), forbidden))
 
@@ -142,8 +142,8 @@ class DependencyBoundariesTest(unittest.TestCase):
         forbidden = (
             *PROCESS_AND_DB,
             *HTTP_MODULES,
-            "exam_trainer.adapters",
-            "exam_trainer.infrastructure",
+            "rankeddojo.adapters",
+            "rankeddojo.infrastructure",
         )
         self.assertNoViolations(violations(files_in("application"), forbidden))
 
@@ -156,19 +156,19 @@ class DependencyBoundariesTest(unittest.TestCase):
         forbidden = (
             *PROCESS_AND_DB,
             *HTTP_MODULES,
-            "exam_trainer.adapters",
-            "exam_trainer.application",
-            "exam_trainer.infrastructure",
+            "rankeddojo.adapters",
+            "rankeddojo.application",
+            "rankeddojo.infrastructure",
         )
         self.assertNoViolations(violations(files_in("ports"), forbidden))
 
     # ---------------------------------------------------------------------- UI
     def test_ui_only_imports_application(self) -> None:
-        allowed = ("exam_trainer.application", "exam_trainer.adapters.ui", "exam_trainer.resources")
+        allowed = ("rankeddojo.application", "rankeddojo.adapters.ui", "rankeddojo.resources")
         found = []
         for path in files_in("adapters", "ui"):
             for ref in imports_of(path):
-                if ref.module.startswith("exam_trainer") and not _matches(ref.module, allowed):
+                if ref.module.startswith("rankeddojo") and not _matches(ref.module, allowed):
                     found.append(f"{ref.file}:{ref.line} imports {ref.module}")
         self.assertNoViolations(found)
 
@@ -183,7 +183,7 @@ class DependencyBoundariesTest(unittest.TestCase):
             p for p in files_in() if "class GenericGrader" in p.read_text(encoding="utf-8")
         ]
         self.assertEqual(len(grader_files), 1, grader_files)
-        forbidden = ("exam_trainer.adapters.runtime", "exam_trainer.adapters.compiler", "subprocess")
+        forbidden = ("rankeddojo.adapters.runtime", "rankeddojo.adapters.compiler", "subprocess")
         self.assertNoViolations(violations(grader_files, forbidden))
 
     # --------------------------------------------------------------- language

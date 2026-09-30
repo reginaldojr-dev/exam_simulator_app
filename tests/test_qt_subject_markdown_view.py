@@ -7,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from exam_trainer.adapters.ui.qt.components.widgets import SubjectMarkdownView
+from rankeddojo.adapters.ui.qt.components.widgets import SubjectMarkdownView
 
 
 class SubjectMarkdownViewTest(unittest.TestCase):

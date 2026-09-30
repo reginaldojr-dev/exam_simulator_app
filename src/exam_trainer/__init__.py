@@ -1,2 +1,0 @@
-"""RankedDojo application package."""
-

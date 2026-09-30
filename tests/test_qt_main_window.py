@@ -11,24 +11,24 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
 
-from exam_trainer.adapters.editor.editor_registry import EDITOR_REGISTRY
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
-from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.adapters.ui.qt.i18n import LocaleService
-from exam_trainer.adapters.ui.qt.main_window import MainWindow
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, PreflightResult
-from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
-from exam_trainer.domain.progress import ActivityProgress
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.adapters.editor.editor_registry import EDITOR_REGISTRY
+from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
+from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.adapters.ui.qt.i18n import LocaleService
+from rankeddojo.adapters.ui.qt.main_window import MainWindow
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, PreflightResult
+from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
+from rankeddojo.domain.progress import ActivityProgress
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.grader_port import GradingRequest
 
 
 class StaticGrader:
@@ -403,7 +403,7 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("random_arguments", content)
             self.assertIn("reference_output", content)
             # single source: help shows the same contract file referenced by README
-            from exam_trainer.resources import pack_contract_text
+            from rankeddojo.resources import pack_contract_text
 
             self.assertIn(pack_contract_text().strip(), content)
 

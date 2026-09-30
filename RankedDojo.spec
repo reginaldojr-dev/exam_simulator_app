@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['src/exam_trainer/main.py'],
+    ['src/rankeddojo/main.py'],
     pathex=['src'],
     binaries=[],
     # Só conteúdo público: packs de exemplo, README e o contrato de pack.
@@ -12,7 +12,7 @@ a = Analysis(
         ('README.md', '.'),
         ('LICENSE', '.'),
         ('CHANGELOG.md', '.'),
-        ('src/exam_trainer/resources/*.md', 'exam_trainer/resources'),
+        ('src/rankeddojo/resources/*.md', 'rankeddojo/resources'),
     ],
     hiddenimports=[],
     hookspath=[],
