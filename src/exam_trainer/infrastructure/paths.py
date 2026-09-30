@@ -32,6 +32,10 @@ def managed_packs_dir() -> Path:
     return user_config_dir() / "packs"
 
 
+def user_themes_dir() -> Path:
+    return user_config_dir() / "themes"
+
+
 def bundled_sample_packs_dir() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / "examples" / "packs"

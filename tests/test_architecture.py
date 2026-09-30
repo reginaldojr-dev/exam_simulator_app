@@ -236,6 +236,28 @@ class DependencyBoundariesTest(unittest.TestCase):
         )
         self.assertNoViolations(found)
 
+    # ----------------------------------------------------------- declarative themes
+    def test_theme_loader_never_executes_code(self) -> None:
+        """Fase 5: theme.json is purely declarative. Neither the contract
+        parser nor the folder loader may contain any code-execution
+        primitive -- they only read JSON and build a ThemeTokens value."""
+        forbidden_names = {"eval", "exec", "compile", "__import__"}
+        forbidden_modules = ("subprocess", "importlib", "os.system", "pty", "ctypes")
+        paths = [
+            SRC / "adapters" / "theme" / "theme_contract.py",
+            SRC / "adapters" / "theme" / "user_theme_loader.py",
+        ]
+        found = []
+        for path in paths:
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in forbidden_names:
+                    found.append(f"{path.relative_to(SRC).as_posix()}:{node.lineno} calls {node.func.id}()")
+                if isinstance(node, ast.Name) and node.id in forbidden_names:
+                    found.append(f"{path.relative_to(SRC).as_posix()}:{node.lineno} references {node.id}")
+        found.extend(violations(paths, forbidden_modules))
+        self.assertNoViolations(found)
+
 
 
 def _literal_collection_violations(paths: list[Path], forbidden_together: set[str]) -> list[str]:

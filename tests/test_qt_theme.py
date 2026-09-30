@@ -16,6 +16,7 @@ from exam_trainer.adapters.ui.qt.theme import THEMES, ThemeManager, build_styles
 from exam_trainer.adapters.ui.qt.theme.registry import DuplicateThemeError, ThemeRegistry
 from exam_trainer.adapters.ui.qt.theme.themes import DEFAULT_THEME_KEY, THEME_REGISTRY
 from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
+from exam_trainer.adapters.theme.user_theme_loader import UserThemeLoader
 
 RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
 COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
@@ -268,6 +269,91 @@ class ThemeManagerTest(unittest.TestCase):
         self.assertEqual(received, ["minimal"])
         self.assertIn(THEMES["minimal"].background, widget.styleSheet())
         self.assertEqual(manager.color("fail").name(), THEMES["minimal"].fail)
+
+
+class ExternalThemeIntegrationTest(unittest.TestCase):
+    """Fase 5: the loaded-theme.json -> THEME_REGISTRY -> ThemeManager path,
+    exercised without ever mutating the real process-wide THEME_REGISTRY
+    singleton (each test patches in its own isolated registry and restores
+    the original afterward)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
+    def _isolated_registry_with(self, tmp_path: Path) -> ThemeRegistry:
+        registry = ThemeRegistry(THEMES.values())
+        loader = UserThemeLoader(base=THEMES["terminal"])
+        loader.load_into(registry, tmp_path)
+        self.assertEqual(loader.load_errors, {}, loader.load_errors)
+        return registry
+
+    def _write_theme(self, tmp_path: Path, folder: str, theme_id: str) -> None:
+        import json
+
+        theme_dir = tmp_path / folder
+        theme_dir.mkdir(parents=True)
+        (theme_dir / "theme.json").write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "id": theme_id,
+                    "name": "External " + theme_id,
+                    "tokens": {"accent": "#00ffcc"},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def test_external_theme_appears_in_theme_manager_available(self) -> None:
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self._write_theme(tmp_path, "my-ext-theme", "my-ext-theme")
+            registry = self._isolated_registry_with(tmp_path)
+
+            with patch("exam_trainer.adapters.ui.qt.theme.manager.THEME_REGISTRY", registry):
+                available_keys = {tokens.key for tokens in ThemeManager.available()}
+
+        self.assertIn("my-ext-theme", available_keys)
+        # Built-ins are still all there alongside it.
+        self.assertTrue(set(THEMES.keys()).issubset(available_keys))
+
+    def test_external_saved_theme_can_be_restored(self) -> None:
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self._write_theme(tmp_path, "restorable", "restorable")
+            registry = self._isolated_registry_with(tmp_path)
+
+            # Simulates config.json having "theme": "restorable" from a
+            # previous run, resolved the same way ThemeManager resolves it.
+            with patch("exam_trainer.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
+                restored = get_theme("restorable")
+
+        self.assertEqual(restored.key, "restorable")
+        self.assertEqual(restored.accent, "#00ffcc")
+
+    def test_removed_or_invalid_saved_theme_falls_back_to_default(self) -> None:
+        import tempfile
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self._write_theme(tmp_path, "temporary", "temporary")
+            registry = self._isolated_registry_with(tmp_path)
+
+            with patch("exam_trainer.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
+                # "temporary" was never persisted; config.json still points at
+                # a theme id that simply does not exist in this registry
+                # (e.g. the user removed the folder, or it failed to load).
+                fallback = get_theme("uninstalled-external-theme")
+
+        self.assertEqual(fallback.key, DEFAULT_THEME_KEY)
 
 
 class CursorControllerTest(unittest.TestCase):

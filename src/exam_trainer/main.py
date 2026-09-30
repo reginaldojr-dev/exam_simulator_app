@@ -5,12 +5,15 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
+from exam_trainer.adapters.theme.user_theme_loader import UserThemeLoader
 from exam_trainer.adapters.ui.qt.components.combo_wheel_guard import install_combo_box_wheel_guard
 from exam_trainer.adapters.ui.qt.main_window import MainWindow
 from exam_trainer.adapters.ui.qt.startup_window import StartupWindow
 from exam_trainer.adapters.ui.qt.i18n import LocaleService
 from exam_trainer.adapters.ui.qt.theme import ThemeManager
+from exam_trainer.adapters.ui.qt.theme.themes import TERMINAL, THEME_REGISTRY
 from exam_trainer.infrastructure.app_factory import AppFactory
+from exam_trainer.infrastructure.paths import user_themes_dir
 
 
 class DesktopApp:
@@ -21,6 +24,11 @@ class DesktopApp:
         self._config_repository = factory.create_config_repository()
         self._workspace_service = factory.create_workspace_service()
         self._locale_service = LocaleService(self._config_repository, self._qt_app)
+        # Declarative user themes (resources/theme-contract.md) are loaded once,
+        # before the ThemeManager is built, so THEMES/THEME_REGISTRY already
+        # include them by the time the UI opens. A theme.json that fails
+        # validation is skipped -- never a reason to stop startup.
+        UserThemeLoader(base=TERMINAL).load_into(THEME_REGISTRY, user_themes_dir())
         self._theme_manager = ThemeManager(self._config_repository.load_theme())
         self._window: MainWindow | StartupWindow | None = None
 

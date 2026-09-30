@@ -52,6 +52,15 @@ class EnvironmentTest(unittest.TestCase):
 
         self.assertEqual(APP_DIR_NAME, "exam-trainer")
 
+    def test_user_themes_dir_uses_the_current_data_root(self) -> None:
+        # Fase 5: the external-themes folder is not a separate root -- it is
+        # "themes" under the same persistent data directory config.json and
+        # the managed packs already use, never a hardcoded %APPDATA% path.
+        from exam_trainer.infrastructure.paths import managed_packs_dir, user_config_dir, user_themes_dir
+
+        self.assertEqual(user_themes_dir(), user_config_dir() / "themes")
+        self.assertEqual(user_themes_dir().parent, managed_packs_dir().parent)
+
 
 if __name__ == "__main__":
     unittest.main()
