@@ -12,7 +12,7 @@
     "basics",
     "practice"
   ],
-  "description": "Pack autoral de estudo Java Basics para o Exam Trainer.",
+  "description": "Pack autoral de estudo Java Basics para o RankedDojo.",
   "exam": {
     "duration_minutes": 60
   },

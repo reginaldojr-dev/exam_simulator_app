@@ -1,42 +1,65 @@
 # RankedDojo
 
-RankedDojo is a local-first desktop app for programming practice and exam simulation.
-It manages study packs, workspaces, runtime/toolchain checks, correction traces,
-training progress, exam sessions and history in a compact PySide6 UI.
+RankedDojo é um app desktop local-first para prática de programação e simulação de
+provas/exames. Ele gerencia packs de estudo, workspaces, verificação de
+runtime/toolchain, traces de correção, progresso de treino e sessões/histórico de
+exames em uma UI compacta em PySide6.
 
-This repository contains the app engine and public example packs. It does not contain
-private/original exam packs or proprietary study material.
+Este repositório contém o motor do app e packs de exemplo públicos. Ele não contém
+packs de prova privados/originais nem material de estudo proprietário.
 
-## Features
+## Funcionalidades
 
-- Training mode with level-based or random activity selection.
-- Exam mode with absolute deadlines, resume, PASS/FAIL flow and 100% completion rule.
-- Generic runtime layer for C, C++, Python and Java/JDK.
-- Runtime preflight: missing toolchains block correction/exam start with clear messages.
-- Pack contract v3 with Markdown subjects, `programming_language`, `content_language`,
-  usage constraints, validation plans and optional references only when needed.
-- SQLite progress/history with migrations and backups.
-- Workspace separation for training and exams.
-- Home flow for `QUERO ESTUDAR ALGO NOVO`: create a vendor-neutral prompt for generating
-  compatible packs, then import them.
-- PyInstaller build flow for `RankedDojo.exe` with safe replacement and SHA-256 checksum.
+- Modo Treino com seleção de atividade por nível ou aleatória.
+- Modo Exame com prazo absoluto, retomada, fluxo PASS/FAIL e regra de conclusão 100%.
+- Camada de runtime genérica para C, C++, Python e Java/JDK.
+- Preflight de runtime: toolchains ausentes bloqueiam início de correção/exame com
+  mensagens claras.
+- Contrato de pack v3 com subjects em Markdown, `programming_language`,
+  `content_language`, restrições de uso, planos de validação e referências opcionais
+  apenas quando necessário.
+- Progresso/histórico em SQLite com migrations e backups.
+- Separação de workspace entre treino e exames.
+- Fluxo da Home para `QUERO ESTUDAR ALGO NOVO`: cria um prompt neutro de fornecedor
+  para gerar packs compatíveis, e depois importá-los.
+- Fluxo de build via PyInstaller para gerar `RankedDojo.exe`, com substituição segura
+  e checksum SHA-256.
 
-## Requirements
+## Requisitos
 
 - Python 3.12+
 - PySide6
-- Optional external toolchains depending on the pack:
-  - C: GCC/Clang compatible compiler
-  - C++: C++17-capable compiler
-  - Python: system Python 3.9+ (`py -3`, `python3` or `python`)
-  - Java: JDK (`javac` and `java`)
+- Toolchains externas opcionais, dependendo do pack:
+  - C: compilador compatível com GCC/Clang
+  - C++: compilador com suporte a C++17
+  - Python: Python do sistema 3.9+ (`py -3`, `python3` ou `python`)
+  - Java: JDK (`javac` e `java`)
 
-The app never installs runtimes automatically. Missing runtimes are reported in the UI.
-When frozen, Python exercises must use a system Python, not the bundled app executable.
+O app nunca instala runtimes automaticamente. Runtimes ausentes são reportados na UI.
+Quando empacotado (frozen), exercícios de Python precisam de um Python do sistema, e
+não do executável do app.
 
-## Development
+## Como executar (uso normal)
 
-Use the project-local virtual environment at the repository root:
+A forma pública recomendada de rodar o RankedDojo é pelo comando instalado ou pelo
+executável:
+
+```bash
+rankeddojo
+```
+
+```text
+RankedDojo.exe   # Windows, build gerado por PyInstaller
+RankedDojo       # Linux/macOS, build gerado por PyInstaller
+```
+
+O comando `rankeddojo` é instalado junto com o pacote Python (veja "Desenvolvimento"
+abaixo) e é o ponto de entrada público declarado em `pyproject.toml`
+(`[project.scripts]`).
+
+## Desenvolvimento
+
+Use o ambiente virtual local do repositório, na raiz do projeto:
 
 ```powershell
 python -m venv .venv
@@ -54,13 +77,21 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[build]"
 ```
 
-Run from source:
+Depois de instalado em modo editável, o comando público `rankeddojo` já fica
+disponível dentro do `.venv`.
+
+Execução alternativa a partir do código-fonte (uso interno/dev, não é o comando
+público do produto):
 
 ```bash
 python -m exam_trainer.main
 ```
 
-Run tests:
+Esse caminho existe porque `exam_trainer` é o namespace interno do pacote Python; ele
+não é o nome público do app e não deve ser usado como instrução de uso para o
+usuário final.
+
+Rodar os testes:
 
 ```bash
 python -m pytest -q
@@ -68,37 +99,40 @@ python -m pytest -q
 
 ## Packs
 
-Packs can be imported from a folder or ZIP through `Configuracoes > Packs`.
-The full supported contract is the single source of truth:
+Packs podem ser importados de uma pasta ou ZIP em `Configuracoes > Packs`.
+O contrato completo suportado é a fonte única da verdade:
 
 - [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md)
 
-Public example packs live in [`examples/packs`](examples/packs):
+Packs de exemplo públicos ficam em [`examples/packs`](examples/packs):
 
 - `c-basics`
 - `cpp-basics`
 - `python-basics`
 - `java-basics`
 - `sample_rank`
-- `rank02-practice` when present in the checkout
+- `rank02-practice`, quando presente no checkout
 
-Private/original packs belong under `_local/packs/` and are ignored by Git.
+Packs privados/originais ficam em `_local/packs/` e são ignorados pelo Git.
 
-Security note: packs may contain harnesses or references that are compiled/executed during
-correction with the current user's permissions. Import only packs you trust. The importer
-rejects unsafe paths, ZIP traversal, symlinks/junctions and unsupported strategies, but it
-does not provide a full sandbox.
+Nota de segurança: packs podem conter harnesses ou referências que são
+compiladas/executadas durante a correção com as permissões do usuário atual. Importe
+apenas packs em que você confia. O importador rejeita paths inseguros, ZIP traversal,
+symlinks/junctions e estratégias não suportadas, mas não oferece um sandbox completo.
 
-## Workspace And Data
+## Workspace e dados
 
-On Windows, app configuration and the local SQLite database still use the legacy data
-directory for compatibility:
+No Windows, a configuração do app e o banco SQLite local ainda usam o diretório de
+dados legado por compatibilidade:
 
 ```text
 %APPDATA%\exam-trainer\
 ```
 
-Training and exam files are separate:
+Esse caminho é um detalhe técnico interno de compatibilidade de dados (não o nome
+público do produto) e não deve ser alterado nem usado como marca do app.
+
+Arquivos de treino e de exame ficam separados:
 
 ```text
 workspace/
@@ -110,59 +144,62 @@ workspace/
         └── <activity_id>/
 ```
 
-Legacy training workspaces are migrated defensively when safe. Existing user files are not
-deleted silently.
+Workspaces de treino legados são migrados de forma defensiva quando é seguro fazê-lo.
+Arquivos existentes do usuário nunca são apagados silenciosamente.
 
 ## Build
 
-Build from the project `.venv`:
+Build a partir do `.venv` do projeto:
 
 ```bash
-python build.py            # build only if relevant inputs changed
-python build.py --force    # force rebuild
-python build.py --run      # build if needed, then open the executable
+python build.py            # builda só se houver mudança relevante nos inputs
+python build.py --force    # força o rebuild
+python build.py --run      # builda se necessário e já abre o executável
 ```
 
-Output:
+Saída:
 
 ```text
 _local/dist/RankedDojo.exe
 _local/dist/RankedDojo.exe.sha256
 ```
 
-On Linux/macOS the executable name is `RankedDojo`.
+No Linux/macOS o nome do executável é `RankedDojo`.
 
-Build behavior:
+Comportamento do build:
 
-- hashes only release/build inputs (`src/`, `examples/`, README, LICENSE, CHANGELOG,
-  spec, pyproject and environment versions);
-- ignores `_local/`, private packs, Git metadata, caches, logs and temporary files;
-- builds in `_local/build/_staging`;
-- keeps the previous executable if PyInstaller fails;
-- replaces the executable only after a successful build;
-- reports Windows App Control / Smart App Control launch blocks without traceback.
+- faz hash apenas dos inputs de release/build (`src/`, `examples/`, README, LICENSE,
+  CHANGELOG, spec, pyproject e versões de ambiente);
+- ignora `_local/`, packs privados, metadados do Git, caches, logs e arquivos
+  temporários;
+- builda em `_local/build/_staging`;
+- mantém o executável anterior se o PyInstaller falhar;
+- só substitui o executável após um build bem-sucedido;
+- reporta bloqueios de execução do Windows App Control / Smart App Control sem
+  traceback.
 
-Trusted code signing is an external release step. No certificate is stored in this repo.
+Assinatura de código confiável é um passo externo de release. Nenhum certificado fica
+armazenado neste repositório.
 
-## Release Checklist
+## Checklist de release
 
-1. Run the full test suite.
-2. Build with `python build.py --force`.
-3. Smoke test the executable.
-4. Sign the executable when a trusted certificate is available.
-5. Verify the SHA-256 checksum.
-6. Publish a release manually if desired.
+1. Rodar a suíte de testes completa.
+2. Buildar com `python build.py --force`.
+3. Fazer smoke test do executável.
+4. Assinar o executável quando houver certificado confiável disponível.
+5. Verificar o checksum SHA-256.
+6. Publicar uma release manualmente, se desejado.
 
-No remote release is created by the build script.
+Nenhuma release remota é criada pelo script de build.
 
-## Documentation
+## Documentação
 
-- Current operational snapshot: [`docs/current-state.md`](docs/current-state.md)
-- Session/status log: [`docs/project-status.md`](docs/project-status.md)
-- Architectural decisions: [`docs/decisions`](docs/decisions)
-- Runtime notes: [`docs/runtimes.md`](docs/runtimes.md)
-- Pack contract: [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md)
+- Snapshot operacional atual: [`docs/current-state.md`](docs/current-state.md)
+- Log de sessão/status: [`docs/project-status.md`](docs/project-status.md)
+- Decisões de arquitetura: [`docs/decisions`](docs/decisions)
+- Notas de runtime: [`docs/runtimes.md`](docs/runtimes.md)
+- Contrato de pack: [`src/exam_trainer/resources/pack-contract.md`](src/exam_trainer/resources/pack-contract.md)
 
-## License
+## Licença
 
-RankedDojo is released under the [MIT License](LICENSE).
+RankedDojo é distribuído sob a [Licença MIT](LICENSE).

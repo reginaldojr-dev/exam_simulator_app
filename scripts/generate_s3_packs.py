@@ -35,7 +35,7 @@ def pack(root: Path, pack_id: str, name: str, languages: list[str], levels: list
         "languages": languages,
         "content_language": "pt-BR",
         "topics": [*languages, "basics", "practice"],
-        "description": f"Pack autoral de estudo {name} para o Exam Trainer.",
+        "description": f"Pack autoral de estudo {name} para o RankedDojo.",
         "exam": {"duration_minutes": 60},
         "levels": [{"id": level, "path": level} for level in levels],
     })

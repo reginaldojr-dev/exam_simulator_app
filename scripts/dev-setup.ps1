@@ -1,4 +1,4 @@
-# Prepara o ambiente de desenvolvimento do Exam Trainer (Windows / PowerShell).
+# Prepara o ambiente de desenvolvimento do RankedDojo (Windows / PowerShell).
 #
 #   powershell -ExecutionPolicy Bypass -File .\scripts\dev-setup.ps1
 #   powershell -ExecutionPolicy Bypass -File .\scripts\dev-setup.ps1 -RunTests
@@ -14,7 +14,7 @@ param([switch]$RunTests)
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
-$Dist = "exam-trainer"   # [project].name em pyproject.toml
+$Dist = "rankeddojo"   # [project].name em pyproject.toml
 
 if (-not (Test-Path "$Root\.venv\Scripts\python.exe")) {
     Write-Host "Criando .venv ..."

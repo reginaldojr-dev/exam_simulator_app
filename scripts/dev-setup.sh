@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Prepara o ambiente de desenvolvimento do Exam Trainer (Linux/macOS).
+# Prepara o ambiente de desenvolvimento do RankedDojo (Linux/macOS).
 #   ./scripts/dev-setup.sh            # cria .venv e instala
 #   ./scripts/dev-setup.sh --run-tests
 set -eu
