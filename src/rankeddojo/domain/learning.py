@@ -127,18 +127,29 @@ def _validate_prerequisites(pack_id: str, activities: dict[str, LearningActivity
             visit(activity_id, (activity_id,))
 
 
+def is_activity_unlocked(
+    activity: LearningActivityRef, completed_activity_ids: frozenset[str]
+) -> bool:
+    """An activity is unlocked when every one of its `prerequisites` ids
+    is already in `completed_activity_ids` (an activity with no
+    prerequisites is always unlocked: `set(()) <= anything` is always
+    true). This is the single source of truth for the "locked" gate --
+    reused by `select_next_activity` below and by any consumer (e.g. a UI
+    listing a whole track) that needs to know whether a *specific*
+    activity, not just the track's single next one, can be started."""
+    return set(activity.prerequisites) <= completed_activity_ids
+
+
 def select_next_activity(
     track: LearningTrack, completed_activity_ids: frozenset[str]
 ) -> LearningActivityRef | None:
     """The first not-yet-completed activity, in track order, whose
     prerequisites (if any) are all completed. No adaptive logic: a plain
-    linear scan plus a simple prerequisite check -- when an activity has no
-    prerequisites, track order alone decides (`set(()) <= anything` is
-    always true)."""
+    linear scan plus `is_activity_unlocked`."""
     for ref in track.activities:
         if ref.activity_id in completed_activity_ids:
             continue
-        if set(ref.prerequisites) <= completed_activity_ids:
+        if is_activity_unlocked(ref, completed_activity_ids):
             return ref
     return None
 

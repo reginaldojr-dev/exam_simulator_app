@@ -16,6 +16,7 @@ from rankeddojo.domain.learning import (
     LearningActivityRef,
     LearningTrack,
     current_level,
+    is_activity_unlocked,
     select_next_activity,
 )
 from rankeddojo.domain.progress import ActivityProgress

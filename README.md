@@ -22,6 +22,8 @@ packs de prova privados/originais nem material de estudo proprietário.
 - Separação de workspace entre treino e exames.
 - Fluxo da Home para `QUERO ESTUDAR ALGO NOVO`: cria um prompt neutro de fornecedor
   para gerar packs compatíveis, e depois importá-los.
+- Trilha de aprendizado progressivo por linguagem (C, C++, Python, Java), combinando
+  conteúdo oficial embutido e packs instalados pelo usuário.
 - Fluxo de build via PyInstaller para gerar `RankedDojo.exe`, com substituição segura
   e checksum SHA-256.
 

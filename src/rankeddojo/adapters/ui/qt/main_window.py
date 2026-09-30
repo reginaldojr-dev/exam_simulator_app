@@ -55,6 +55,11 @@ from rankeddojo.application.use_cases.mvp_coordinator import (
     PreflightResult,
     TrainingOptions,
 )
+from rankeddojo.application.use_cases.get_learning_track import (
+    LearningActivityRef,
+    LearningTrackView,
+    is_activity_unlocked,
+)
 
 MENU_WIDTH = 460
 ACTIVITY_PROGRESS_LABELS: dict[ActivityProgress, str] = {
@@ -113,6 +118,11 @@ class MainWindow(QMainWindow):
         self._history_page = self._build_history_page()
         self._settings_page = self._build_settings_page()
         self._pack_help_page = self._build_pack_help_page()
+        self._learning_language: str | None = None
+        self._learning_track_view: LearningTrackView | None = None
+        self._learning_track_rows: list[LearningActivityRef] = []
+        self._learning_languages_page = self._build_learning_languages_page()
+        self._learning_track_page = self._build_learning_track_page()
         for page in (
             self._home_page,
             self._study_page,
@@ -124,6 +134,8 @@ class MainWindow(QMainWindow):
             self._history_page,
             self._settings_page,
             self._pack_help_page,
+            self._learning_languages_page,
+            self._learning_track_page,
         ):
             self._stack.addWidget(page)
         self.setCentralWidget(self._stack)
@@ -197,6 +209,10 @@ class MainWindow(QMainWindow):
             self._show_settings()
         elif self._stack.currentWidget() is self._exam_prepare_page:
             self._show_exam_prepare()
+        elif self._stack.currentWidget() is self._learning_languages_page:
+            self._refresh_learning_languages()
+        elif self._stack.currentWidget() is self._learning_track_page and self._learning_language is not None:
+            self._render_learning_track()
 
     def _set_locale_from_combo(self, index: int) -> None:
         locale = self._locale_combo.itemData(index)
@@ -208,6 +224,7 @@ class MainWindow(QMainWindow):
         menu_labels = (
             self._t("Quero estudar algo novo"),
             self._t("Treinar"),
+            self._t("Trilha de aprendizado"),
             self._t("Modo prova"),
             self._t("Histórico"),
             self._t("Configurações"),
@@ -284,6 +301,22 @@ class MainWindow(QMainWindow):
         self._refresh_settings_cards()
         self._set_title_label(self._pack_help_title, self._t("Como criar um Pack").upper())
         self._set_button(self._open_full_docs_button, self._action("Abrir documentação completa"))
+
+        self._set_title_label(self._learning_languages_title, self._t("Trilha de aprendizado").upper())
+        self._learning_languages_subtitle.setText(self._t("Escolha uma linguagem para ver a trilha."))
+        self._set_title_label(self._learning_track_title, self._t("Trilha de aprendizado").upper())
+        self._set_button(self._learning_continue_button, self._action("Continuar", "primary"))
+        self._set_button(self._learning_open_button, self._action("Abrir atividade"))
+        self._learning_track_table.setHorizontalHeaderLabels(
+            (
+                self._t("Nível").upper(),
+                self._t("Título").upper(),
+                self._t("Tópicos").upper(),
+                self._t("Dificuldade").upper(),
+                self._t("Estado").upper(),
+            )
+        )
+
         for button, source in self._footer_buttons:
             self._set_button(button, self._footer_text(source))
 
@@ -410,6 +443,7 @@ class MainWindow(QMainWindow):
             (
                 ("QUERO ESTUDAR ALGO NOVO", self._open_study_flow),
                 ("TREINAR", self._open_training_setup),
+                ("TRILHA DE APRENDIZADO", self._open_learning_flow),
                 ("MODO PROVA", self._open_exam_setup),
                 ("HISTÓRICO", self._show_history),
                 ("CONFIGURAÇÕES", lambda: self._show_settings()),
@@ -425,7 +459,7 @@ class MainWindow(QMainWindow):
         menu_layout.addWidget(self._home_status)
         layout.addLayout(self._centered(menu))
         layout.addStretch(2)
-        layout.addLayout(self._footer(None, [("1-5", "navegar"), ("Tab", "foco"), ("Enter", "abrir")]))
+        layout.addLayout(self._footer(None, [("1-6", "navegar"), ("Tab", "foco"), ("Enter", "abrir")]))
         return page
 
     def _build_study_page(self) -> QWidget:
@@ -989,6 +1023,8 @@ class MainWindow(QMainWindow):
             self._exam_prepare_page: lambda: self._go(self._exam_page),
             self._trace_page: lambda: self._go(self._exercise_page),
             self._pack_help_page: lambda: self._show_settings("Packs"),
+            self._learning_languages_page: self._show_home,
+            self._learning_track_page: lambda: self._go(self._learning_languages_page),
         }
         for page, action in back_targets.items():
             QShortcut(QKeySequence(Qt.Key.Key_Escape), page).activated.connect(action)
@@ -1079,6 +1115,226 @@ class MainWindow(QMainWindow):
             return
         self._show_resume_if_needed()
         self._go(self._exam_page)
+
+    # -------------------------------------------------------- aprendizado
+    def _build_learning_languages_page(self) -> QWidget:
+        page, layout = self._page()
+        self._learning_languages_title = self._title("TRILHA DE APRENDIZADO")
+        layout.addWidget(self._learning_languages_title)
+        self._learning_languages_subtitle = ui.label(
+            self._t("Escolha uma linguagem para ver a trilha."), role="prompt", wrap=True
+        )
+        layout.addWidget(self._learning_languages_subtitle)
+        layout.addSpacing(6)
+
+        self._learning_languages_list = QWidget()
+        self._learning_languages_layout = QVBoxLayout(self._learning_languages_list)
+        self._learning_languages_layout.setContentsMargins(0, 0, 0, 0)
+        self._learning_languages_layout.setSpacing(8)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(self._learning_languages_list)
+        layout.addWidget(scroll, 1)
+
+        layout.addLayout(self._footer(self._show_home, [("Esc", "voltar")]))
+        return page
+
+    def _open_learning_flow(self) -> None:
+        self._refresh_learning_languages()
+        self._go(self._learning_languages_page)
+
+    def _refresh_learning_languages(self) -> None:
+        while self._learning_languages_layout.count():
+            item = self._learning_languages_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        try:
+            languages = self._coordinator.learning_languages()
+        except Exception:  # noqa: BLE001 - a content/provider error never breaks the UI
+            languages = ()
+            self._learning_languages_layout.addWidget(
+                ui.label(
+                    self._t("Não foi possível carregar as linguagens disponíveis."),
+                    status="fail",
+                    wrap=True,
+                )
+            )
+        if not languages:
+            self._learning_languages_layout.addWidget(
+                ui.label(
+                    self._t("Nenhuma trilha de aprendizado disponível no momento."),
+                    role="muted",
+                    wrap=True,
+                )
+            )
+        for language in languages:
+            button = self._button(
+                f"> {self._learning_language_display_name(language)}",
+                lambda checked=False, lang=language: self._show_learning_track(lang),
+                "menu",
+            )
+            self._learning_languages_layout.addWidget(button)
+        self._learning_languages_layout.addStretch(1)
+
+    def _learning_language_display_name(self, language: str) -> str:
+        names = {"c": "C", "cpp": "C++", "python": "Python", "java": "Java"}
+        return names.get(language, self._coordinator.runtime_display_name(language))
+
+    def _build_learning_track_page(self) -> QWidget:
+        page, layout = self._page(spacing=8)
+        self._learning_track_title = self._title("TRILHA DE APRENDIZADO")
+        layout.addWidget(self._learning_track_title)
+        self._learning_track_progress = ui.label("")
+        layout.addWidget(self._learning_track_progress)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
+        self._learning_continue_button = self._button(
+            self._action("Continuar", "primary"), self._continue_learning, "primary"
+        )
+        action_row.addWidget(self._learning_continue_button)
+        self._learning_open_button = self._button(
+            self._action("Abrir atividade"), self._open_selected_learning_activity
+        )
+        action_row.addWidget(self._learning_open_button)
+        action_row.addStretch(1)
+        layout.addLayout(action_row)
+
+        self._learning_track_table = self._table(
+            ("NÍVEL", "TÍTULO", "TÓPICOS", "DIFICULDADE", "ESTADO"), stretch=1
+        )
+        self._learning_track_table.cellDoubleClicked.connect(
+            lambda *_: self._open_selected_learning_activity()
+        )
+        self._learning_track_table.itemSelectionChanged.connect(self._sync_learning_open_button)
+        layout.addWidget(self._learning_track_table, 1)
+
+        layout.addLayout(
+            self._footer(lambda: self._go(self._learning_languages_page), [("Esc", "voltar")])
+        )
+        return page
+
+    def _show_learning_track(self, language: str) -> None:
+        self._learning_language = language
+        self._render_learning_track()
+        self._go(self._learning_track_page)
+
+    def _render_learning_track(self) -> None:
+        language = self._learning_language
+        if language is None:
+            return
+        self._set_title_label(
+            self._learning_track_title,
+            f"{self._t('Trilha de aprendizado').upper()} — {self._learning_language_display_name(language)}",
+        )
+        try:
+            view = self._coordinator.learning_track(language)
+        except Exception:  # noqa: BLE001 - a content/provider error never breaks the UI
+            self._learning_track_view = None
+            self._learning_track_rows = []
+            self._learning_track_table.setRowCount(0)
+            self._learning_track_progress.setText(
+                self._t("Não foi possível carregar a trilha de aprendizado.")
+            )
+            ui.set_status(self._learning_track_progress, "fail")
+            self._learning_continue_button.setEnabled(False)
+            self._learning_open_button.setEnabled(False)
+            return
+        self._learning_track_view = view
+        self._learning_track_rows = list(view.track.activities)
+        ui.set_status(self._learning_track_progress, "")
+        completed = len(view.completed_activity_ids)
+        total = len(view.track.activities)
+        if total == 0:
+            self._learning_track_progress.setText(self._t("Ainda não há atividades nesta trilha."))
+        else:
+            bar_width = 20
+            filled = round((completed / total) * bar_width)
+            bar = "█" * filled + "░" * (bar_width - filled)
+            self._learning_track_progress.setText(
+                f"[{bar}] {self._t('{completed}/{total} concluídos', completed=completed, total=total)}"
+            )
+        self._learning_continue_button.setEnabled(view.next_activity is not None)
+
+        self._learning_track_table.setRowCount(len(self._learning_track_rows))
+        for row_index, activity in enumerate(self._learning_track_rows):
+            completed_activity = activity.activity_id in view.completed_activity_ids
+            unlocked = completed_activity or is_activity_unlocked(activity, view.completed_activity_ids)
+            if completed_activity:
+                marker, status_color = "[✓]", "success"
+                state_text = self._t(ACTIVITY_PROGRESS_LABELS[ActivityProgress.COMPLETED])
+            elif unlocked:
+                marker, status_color = "[ ]", None
+                state_text = self._t("Disponível")
+            else:
+                marker, status_color = "[🔒]", "text_secondary"
+                state_text = self._t("Bloqueado")
+            cells = (
+                self._item(str(activity.position), None, align_right=True),
+                self._item(activity.title),
+                self._item(", ".join(activity.topics)),
+                self._item(activity.difficulty or "—"),
+                self._item(f"{marker} {state_text}", status_color),
+            )
+            for column, item in enumerate(cells):
+                self._learning_track_table.setItem(row_index, column, item)
+        self._sync_learning_open_button()
+
+    def _sync_learning_open_button(self) -> None:
+        self._learning_open_button.setEnabled(self._selected_learning_activity() is not None)
+
+    def _selected_learning_activity(self) -> LearningActivityRef | None:
+        row = self._learning_track_table.currentRow()
+        if row < 0 or row >= len(self._learning_track_rows):
+            return None
+        return self._learning_track_rows[row]
+
+    def _open_selected_learning_activity(self) -> None:
+        activity = self._selected_learning_activity()
+        if activity is not None:
+            self._open_learning_activity(activity)
+
+    def _continue_learning(self) -> None:
+        if self._learning_language is None:
+            return
+        try:
+            activity = self._coordinator.next_learning_activity(self._learning_language)
+        except Exception:  # noqa: BLE001 - a content/provider error never breaks the UI
+            QMessageBox.warning(
+                self,
+                self._t("Trilha de aprendizado"),
+                self._t("Não foi possível carregar a trilha de aprendizado."),
+            )
+            return
+        if activity is None:
+            QMessageBox.information(
+                self, self._t("Trilha de aprendizado"), self._t("Trilha concluída!")
+            )
+            return
+        self._open_learning_activity(activity)
+
+    def _open_learning_activity(self, activity: LearningActivityRef) -> None:
+        view = self._learning_track_view
+        if view is not None:
+            completed = activity.activity_id in view.completed_activity_ids
+            if not completed and not is_activity_unlocked(activity, view.completed_activity_ids):
+                QMessageBox.information(
+                    self,
+                    self._t("Trilha de aprendizado"),
+                    self._t("Esta atividade está bloqueada por pré-requisitos."),
+                )
+                return
+        try:
+            ref = self._coordinator.exercise_ref_for_activity(activity.pack_id, activity.activity_id)
+        except Exception:  # noqa: BLE001 - a content/provider error never breaks the UI
+            ref = None
+        if ref is None:
+            QMessageBox.warning(
+                self, self._t("Trilha de aprendizado"), self._t("Atividade não encontrada.")
+            )
+            return
+        self._load_exercise(ref, mode="training")
 
     # ------------------------------------------------ tarefas em segundo plano
     def _run_task(

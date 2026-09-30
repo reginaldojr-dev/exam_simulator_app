@@ -107,19 +107,29 @@ class AppFactory:
             workspace_root=workspace_root,
             runtimes=runtimes,
             editor_factory=editor_factory,
+            content_registry=self.create_content_registry(pack_loader, exercise_loader),
         )
 
     def create_config_repository(self) -> JsonAppConfigRepository:
         return JsonAppConfigRepository(app_config_file_path())
 
-    def create_content_registry(self) -> ContentRegistry:
-        """Fase 9: one `ContentRegistry` combining built-in learning content
-        (bundled example packs that opted in via `pack.json`'s `learning_track`)
-        and installed pack content (the user's own managed packs, same opt-in).
-        Not wired into app startup -- nothing currently consumes it, so nothing
-        about existing startup behavior changes by this method existing."""
-        pack_loader = JsonPackLoader()
-        exercise_loader = JsonExerciseDefinitionLoader()
+    def create_content_registry(
+        self,
+        pack_loader: JsonPackLoader | None = None,
+        exercise_loader: JsonExerciseDefinitionLoader | None = None,
+    ) -> ContentRegistry:
+        """Fase 9/10: one `ContentRegistry` combining built-in learning
+        content (bundled example packs that opted in via `pack.json`'s
+        `learning_track`) and installed pack content (the user's own
+        managed packs, same opt-in). `create_mvp_coordinator` wires this
+        into the coordinator the UI already talks to, passing the SAME
+        `pack_loader`/`exercise_loader` it built (capability-aware) so
+        learning content stays in sync with the main pack catalog's
+        language support. Called with no arguments, it falls back to
+        plain loaders -- e.g. for a caller that only needs the registry
+        on its own."""
+        pack_loader = pack_loader or JsonPackLoader()
+        exercise_loader = exercise_loader or JsonExerciseDefinitionLoader()
         registry = ContentRegistry()
         registry.register_provider(
             "builtin",

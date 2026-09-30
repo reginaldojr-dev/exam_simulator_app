@@ -16,11 +16,15 @@ from rankeddojo.application.mvp_models import (
     ProgressEntry,
 )
 from rankeddojo.application.study_intent import PackPromptBuilder, StudyIntent
+from rankeddojo.application.engine.content_registry import ContentRegistry
+from rankeddojo.application.use_cases.get_learning_track import GetLearningTrack, LearningTrackView
+from rankeddojo.application.use_cases.get_next_learning_activity import GetNextLearningActivity
 from rankeddojo.application.engine.activity_preflight import (
     ActivityContentPreflight,
     ActivityPreflightStatus,
 )
 from rankeddojo.domain.attempt_modes import EXAM_MODE, TRAINING_MODE
+from rankeddojo.domain.learning import LearningActivityRef
 from rankeddojo.domain.grading import GradingOutcome, GradingPolicy, GradingResult, TraceData
 from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
 from rankeddojo.domain.pack_definition import PackDefinition
@@ -105,6 +109,7 @@ class MVPTrainerCoordinator:
         clock: Callable[[], datetime] | None = None,
         rng: random.Random | None = None,
         session_policies: SessionPolicyRegistry | None = None,
+        content_registry: ContentRegistry | None = None,
     ) -> None:
         """`runtimes`: one runtime per language, assembled by the composition root
         or the test itself. The application never instantiates a concrete runtime
@@ -129,6 +134,14 @@ class MVPTrainerCoordinator:
         self._history = HistoryService(progress_repository)
         self._activity_preflight = ActivityContentPreflight(runtimes)
         self._expired_exam: ExamState | None = None
+        # Fase 9/10: learning tracks. `content_registry` is optional -- an
+        # empty `ContentRegistry()` (no providers registered) behaves like
+        # "no learning content available" everywhere (empty languages()/
+        # track()), so every existing caller/test that builds a coordinator
+        # without passing one keeps working unchanged.
+        self._content_registry = content_registry or ContentRegistry()
+        self._get_learning_track = GetLearningTrack(self._content_registry, progress_repository)
+        self._get_next_learning_activity = GetNextLearningActivity(self._get_learning_track)
         self.adopt_legacy_progress()
 
     def adopt_legacy_progress(self) -> int:
@@ -154,6 +167,30 @@ class MVPTrainerCoordinator:
         packs = {pack.id: pack for pack in self.list_packs()}
         pack = packs.get(pack_id)
         return () if pack is None else tuple(level.id for level in pack.levels)
+
+    # ------------------------------------------------------------ learning
+    # Thin delegation to the Fase 9 learning-track use cases: the UI talks
+    # only to the coordinator (never to `ContentRegistry`/`LocalPackCatalog`
+    # directly, per the architecture boundary test), and no prerequisite or
+    # progress-derivation logic is reimplemented here.
+    def learning_languages(self) -> tuple[str, ...]:
+        return self._content_registry.languages()
+
+    def learning_track(self, language: str) -> LearningTrackView:
+        return self._get_learning_track.execute(language)
+
+    def next_learning_activity(self, language: str) -> LearningActivityRef | None:
+        return self._get_next_learning_activity.execute(language)
+
+    def exercise_ref_for_activity(self, pack_id: str, activity_id: str) -> ExerciseRef | None:
+        """Resolves a learning activity back to the same `ExerciseRef` the
+        existing training/exam flow already uses -- reuses `_pack_catalog`
+        (the one source of truth for pack/exercise parsing) instead of any
+        new lookup path."""
+        for ref in self._pack_catalog.list_exercises(pack_id):
+            if ref.definition.id == activity_id:
+                return ref
+        return None
 
     def list_progress(self) -> list[ProgressEntry]:
         return self._progress_repository.list_progress()
