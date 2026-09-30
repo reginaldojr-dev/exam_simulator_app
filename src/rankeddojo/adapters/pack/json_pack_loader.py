@@ -20,6 +20,8 @@ V2_PACK_KEYS = frozenset(
         "languages",
         "content_language",
         "topics",
+        # Learning-track opt-in (Fase 9), optional. See domain/pack_definition.py.
+        "learning_track",
         "description",
         "exam",
         "levels",
@@ -57,6 +59,7 @@ class JsonPackLoader:
             content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
             topics = read_topics(data.get("topics", []), PackDefinitionError)
             self._read_languages_metadata(data.get("languages", []))
+            learning_track = self._read_bool(data.get("learning_track", False), "learning_track")
         elif schema_version >= 2:
             unknown = sorted(set(data) - V2_PACK_KEYS)
             if unknown:
@@ -65,9 +68,11 @@ class JsonPackLoader:
             content_language = self._read_locale(data.get("content_language", "pt-BR"), "content_language")
             topics = read_topics(data.get("topics", []), PackDefinitionError)
             self._read_languages_metadata(data.get("languages", []))
+            learning_track = self._read_bool(data.get("learning_track", False), "learning_track")
         else:
-            # v1: no language/topics. Extra fields remain ignored as before.
+            # v1: no language/topics/learning_track. Extra fields remain ignored as before.
             language, content_language, topics = DEFAULT_LANGUAGE, "pt-BR", ()
+            learning_track = False
         if language not in self._languages:
             supported = ", ".join(sorted(self._languages))
             raise PackDefinitionError(f"Unsupported language: {language} (supported: {supported}).")
@@ -86,6 +91,7 @@ class JsonPackLoader:
             language=language,
             content_language=content_language,
             topics=topics,
+            learning_track=learning_track,
         )
 
     def _read_optional_pack_language(self, data: dict[str, Any]) -> str:
@@ -130,6 +136,12 @@ class JsonPackLoader:
         if not 1 <= len(parts) <= 3 or not all(part.isalnum() and 2 <= len(part) <= 8 for part in parts):
             raise PackDefinitionError(f"{field_name} must be a locale like pt-BR or en.")
         return locale
+
+    @staticmethod
+    def _read_bool(value: Any, field_name: str) -> bool:
+        if not isinstance(value, bool):
+            raise PackDefinitionError(f"{field_name} must be a boolean.")
+        return value
 
     def _read_exam_duration(self, data: dict[str, Any]) -> int | None:
         if "exam" not in data:

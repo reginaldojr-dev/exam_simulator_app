@@ -10,6 +10,7 @@
     "java",
     "basics"
   ],
+  "difficulty": "medium",
   "submission": {
     "filename": "InventoryApp.java",
     "extra_files": [

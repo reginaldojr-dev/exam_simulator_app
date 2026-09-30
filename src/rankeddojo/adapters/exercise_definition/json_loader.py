@@ -40,6 +40,8 @@ from rankeddojo.domain.pack_definition import DEFAULT_LANGUAGE
 
 
 DEFAULT_TIMEOUT_SECONDS = 2
+MAX_DIFFICULTY_LENGTH = 40
+MAX_PREREQUISITES = 20
 V2_EXERCISE_KEYS = frozenset(
     (
         "schema_version",
@@ -67,6 +69,9 @@ V3_EXERCISE_KEYS = frozenset(
         "programming_language",
         "content_language",
         "topics",
+        # Learning-track metadata (Fase 9), both optional. See domain/learning.py.
+        "difficulty",
+        "prerequisites",
         "submission",
         "usage",
         "validation",
@@ -164,6 +169,12 @@ class JsonExerciseDefinitionLoader:
         if self._capabilities.expectations.requires_reference(tests.expectation) and reference is None and schema_version >= 2:
             raise ExerciseDefinitionError("expectation reference_output requires a reference.")
         topics = read_topics(data.get("topics", []), ExerciseDefinitionError)
+        difficulty = self._read_difficulty(data.get("difficulty")) if schema_version >= 3 else None
+        prerequisites = (
+            self._read_prerequisites(data.get("prerequisites")) if schema_version >= 3 else ()
+        )
+        if exercise_id in prerequisites:
+            raise ExerciseDefinitionError("prerequisites cannot include the exercise's own id.")
         if reference is not None and execution.reference != reference.source:
             execution = replace(execution, reference=reference.source)
 
@@ -185,6 +196,8 @@ class JsonExerciseDefinitionLoader:
             activity_type=activity_type,
             validation_plan=validation_plan,
             usage=usage,
+            difficulty=difficulty,
+            prerequisites=prerequisites,
         )
 
     def _read_submission(self, data: dict[str, Any]) -> SubmissionDefinition:
@@ -521,6 +534,32 @@ class JsonExerciseDefinitionLoader:
             self._read_relative_path_value(value, f"support_files[{index}]")
             for index, value in enumerate(raw_support_files)
         )
+
+    def _read_difficulty(self, raw: Any) -> str | None:
+        if raw is None:
+            return None
+        if not isinstance(raw, str) or not raw.strip() or len(raw.strip()) > MAX_DIFFICULTY_LENGTH:
+            raise ExerciseDefinitionError(
+                f"difficulty must be a non-empty string up to {MAX_DIFFICULTY_LENGTH} characters."
+            )
+        return raw.strip()
+
+    def _read_prerequisites(self, raw: Any) -> tuple[str, ...]:
+        if raw is None:
+            return ()
+        if not isinstance(raw, list) or len(raw) > MAX_PREREQUISITES:
+            raise ExerciseDefinitionError(
+                f"prerequisites must be a list with at most {MAX_PREREQUISITES} entries."
+            )
+        ids: list[str] = []
+        for index, value in enumerate(raw):
+            if not isinstance(value, str):
+                raise ExerciseDefinitionError(f"prerequisites[{index}] must be a string.")
+            try:
+                ids.append(validate_identifier(value, f"prerequisites[{index}]"))
+            except UnsafeValueError as error:
+                raise ExerciseDefinitionError(str(error)) from error
+        return tuple(dict.fromkeys(ids))
 
     def _require_object_field(
         self,

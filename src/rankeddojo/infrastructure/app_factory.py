@@ -17,16 +17,22 @@ from rankeddojo.adapters.runtime.cpp_runtime import CppRuntime
 from rankeddojo.adapters.runtime.java_runtime import JavaRuntime
 from rankeddojo.adapters.runtime.python_runtime import PythonRuntime
 from rankeddojo.application.capabilities import capabilities_from_runtime_descriptors
+from rankeddojo.application.engine.content_registry import ContentRegistry
 from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
 from rankeddojo.adapters.exercise_definition.json_loader import JsonExerciseDefinitionLoader
 from rankeddojo.adapters.pack.json_pack_loader import JsonPackLoader
 from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
 from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.learning.pack_content_provider import PackContentProvider
 from rankeddojo.adapters.plugins.loader import PluginLoader
 from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
 from rankeddojo.application.use_cases.initialize_application import (
     InitializeApplication,
+)
+from rankeddojo.application.use_cases.get_learning_track import GetLearningTrack
+from rankeddojo.application.use_cases.get_next_learning_activity import (
+    GetNextLearningActivity,
 )
 from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
 from rankeddojo.infrastructure.paths import (
@@ -105,3 +111,43 @@ class AppFactory:
 
     def create_config_repository(self) -> JsonAppConfigRepository:
         return JsonAppConfigRepository(app_config_file_path())
+
+    def create_content_registry(self) -> ContentRegistry:
+        """Fase 9: one `ContentRegistry` combining built-in learning content
+        (bundled example packs that opted in via `pack.json`'s `learning_track`)
+        and installed pack content (the user's own managed packs, same opt-in).
+        Not wired into app startup -- nothing currently consumes it, so nothing
+        about existing startup behavior changes by this method existing."""
+        pack_loader = JsonPackLoader()
+        exercise_loader = JsonExerciseDefinitionLoader()
+        registry = ContentRegistry()
+        registry.register_provider(
+            "builtin",
+            PackContentProvider(
+                LocalPackCatalog(
+                    bundled_sample_packs_dir(),
+                    pack_loader=pack_loader,
+                    exercise_loader=exercise_loader,
+                )
+            ),
+        )
+        registry.register_provider(
+            "installed",
+            PackContentProvider(
+                LocalPackCatalog(
+                    managed_packs_dir(),
+                    pack_loader=pack_loader,
+                    exercise_loader=exercise_loader,
+                )
+            ),
+        )
+        return registry
+
+    def create_get_learning_track(self) -> GetLearningTrack:
+        return GetLearningTrack(
+            content_registry=self.create_content_registry(),
+            progress_repository=self.create_progress_repository(),
+        )
+
+    def create_get_next_learning_activity(self) -> GetNextLearningActivity:
+        return GetNextLearningActivity(get_learning_track=self.create_get_learning_track())

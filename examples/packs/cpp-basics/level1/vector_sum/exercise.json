@@ -10,6 +10,7 @@
     "cpp",
     "basics"
   ],
+  "difficulty": "easy",
   "submission": {
     "filename": "vector_sum.cpp"
   },

@@ -109,6 +109,12 @@ class ExerciseDefinition:
     activity_type: str = "exercise"
     validation_plan: ValidationPlan | None = None
     usage: UsageConstraints = field(default_factory=UsageConstraints)
+    # Learning-track metadata (Fase 9): optional, technical, never used for
+    # grading. `difficulty` is a free-form label for future consumption --
+    # it does not control selection or level-up in v1. `prerequisites` names
+    # other exercise ids from the SAME pack only; see `domain/learning.py`.
+    difficulty: str | None = None
+    prerequisites: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.programming_language is None:

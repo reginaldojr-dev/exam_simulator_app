@@ -10,6 +10,10 @@
     "c",
     "basics"
   ],
+  "difficulty": "easy",
+  "prerequisites": [
+    "char_stats"
+  ],
   "submission": {
     "filename": "ft_strlen_lite.c"
   },

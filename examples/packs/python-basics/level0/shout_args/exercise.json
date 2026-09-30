@@ -10,6 +10,7 @@
     "python",
     "basics"
   ],
+  "difficulty": "intro",
   "submission": {
     "filename": "shout_args.py"
   },

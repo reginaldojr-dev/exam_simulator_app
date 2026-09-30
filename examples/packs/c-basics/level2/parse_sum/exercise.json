@@ -10,6 +10,11 @@
     "c",
     "basics"
   ],
+  "difficulty": "medium",
+  "prerequisites": [
+    "array_peak",
+    "ft_strlen_lite"
+  ],
   "submission": {
     "filename": "parse_sum.c"
   },

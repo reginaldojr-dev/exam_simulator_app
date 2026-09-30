@@ -10,6 +10,7 @@
     "cpp",
     "basics"
   ],
+  "difficulty": "medium",
   "submission": {
     "filename": "BoxCounter.cpp"
   },

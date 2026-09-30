@@ -28,6 +28,10 @@ class PackDefinition:
     language: str = DEFAULT_LANGUAGE
     content_language: str = "pt-BR"
     topics: tuple[str, ...] = ()
+    # Learning-track opt-in (Fase 9): a pack without this (or set to False)
+    # keeps existing training/exam behavior unchanged and is simply invisible
+    # to the learning track model -- see `adapters/learning/pack_content_provider.py`.
+    learning_track: bool = False
 
     @property
     def exam_duration_seconds_or_default(self) -> int:
