@@ -44,3 +44,12 @@ class AppSettingsRepository(ConfigRepository, Protocol):
 
     def save_ui_locale(self, locale: str) -> None:
         raise NotImplementedError
+
+    def load_enabled_plugins(self) -> tuple[str, ...]:
+        """Ids of plugins explicitly opted in (see `adapters/plugins/`).
+        Absent or malformed in the config file -> empty tuple, never raises;
+        an old config file without this key still loads normally."""
+        raise NotImplementedError
+
+    def save_enabled_plugins(self, plugin_ids: tuple[str, ...]) -> None:
+        raise NotImplementedError

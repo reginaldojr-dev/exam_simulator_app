@@ -258,6 +258,81 @@ class DependencyBoundariesTest(unittest.TestCase):
         found.extend(violations(paths, forbidden_modules))
         self.assertNoViolations(found)
 
+    # ---------------------------------------------------------------- plugins
+    def test_plugin_manifest_never_executes_code(self) -> None:
+        """Fase 6: plugin.json is purely declarative. `manifest.py` only reads
+        JSON and builds a `PluginManifest` value -- it must never import
+        `importlib` or call an execution primitive."""
+        forbidden_names = {"eval", "exec", "compile", "__import__"}
+        forbidden_modules = ("subprocess", "importlib", "os.system", "pty", "ctypes")
+        path = SRC / "adapters" / "plugins" / "manifest.py"
+        found = self._forbidden_execution_primitives(path, forbidden_names)
+        found.extend(violations([path], forbidden_modules))
+        self.assertNoViolations(found)
+
+    def test_plugin_discovery_never_executes_code_before_the_enabled_check(self) -> None:
+        """Fase 6: `loader.py` legitimately uses `importlib.util` exactly once,
+        to import an explicitly enabled, API-compatible plugin's own
+        entrypoint file -- that single controlled import is the plugin
+        execution step itself, gated behind manifest validation, API-version
+        compatibility, and the opt-in check. Nothing else in the loader may
+        use `eval`/`exec`/`compile`/`__import__`, a shell, or any other
+        execution primitive."""
+        forbidden_names = {"eval", "exec", "compile", "__import__"}
+        forbidden_modules = ("subprocess", "os.system", "pty", "ctypes")
+        path = SRC / "adapters" / "plugins" / "loader.py"
+        found = self._forbidden_execution_primitives(path, forbidden_names)
+        found.extend(violations([path], forbidden_modules))
+        self.assertNoViolations(found)
+
+    def test_plugin_context_never_executes_code(self) -> None:
+        """Fase 6: `context.py` only forwards registration calls into existing
+        registries -- it never imports or executes anything itself."""
+        forbidden_names = {"eval", "exec", "compile", "__import__"}
+        forbidden_modules = ("subprocess", "importlib", "os.system", "pty", "ctypes")
+        path = SRC / "adapters" / "plugins" / "context.py"
+        found = self._forbidden_execution_primitives(path, forbidden_names)
+        found.extend(violations([path], forbidden_modules))
+        self.assertNoViolations(found)
+
+    @staticmethod
+    def _forbidden_execution_primitives(path: Path, forbidden_names: set[str]) -> list[str]:
+        found = []
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in forbidden_names:
+                found.append(f"{path.relative_to(SRC).as_posix()}:{node.lineno} calls {node.func.id}()")
+            if isinstance(node, ast.Name) and node.id in forbidden_names:
+                found.append(f"{path.relative_to(SRC).as_posix()}:{node.lineno} references {node.id}")
+        return found
+
+
+    def test_packs_and_themes_never_import_plugins(self) -> None:
+        """Fase 6: `adapters/plugins/` is architecturally isolated -- neither
+        pack loading nor theme loading may import it, and it may not import
+        either of them back."""
+        forbidden = ("rankeddojo.adapters.plugins",)
+        found = violations(files_in("adapters", "pack"), forbidden)
+        found.extend(violations(files_in("adapters", "theme"), forbidden))
+        self.assertNoViolations(found)
+
+    def test_plugins_never_import_theme_or_pack_loading(self) -> None:
+        """`adapters/plugins/` may reuse the generic path-safety helper in
+        `adapters/pack/pack_security.py` (`ensure_inside`) the same way a
+        pack import already does -- that module touches no pack-specific
+        state, it only resolves and contains a filesystem path. Nothing in
+        `adapters/plugins/` may import anything else from pack loading or
+        from theme loading."""
+        allowed = ("rankeddojo.adapters.pack.pack_security",)
+        found = []
+        for path in files_in("adapters", "plugins"):
+            for ref in imports_of(path):
+                if ref.module.startswith("rankeddojo.adapters.theme"):
+                    found.append(f"{ref.file}:{ref.line} imports {ref.module}")
+                elif ref.module.startswith("rankeddojo.adapters.pack") and not _matches(ref.module, allowed):
+                    found.append(f"{ref.file}:{ref.line} imports {ref.module}")
+        self.assertNoViolations(found)
+
 
 
 def _literal_collection_violations(paths: list[Path], forbidden_together: set[str]) -> list[str]:

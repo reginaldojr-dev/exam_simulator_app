@@ -89,6 +89,20 @@ class JsonAppConfigRepository:
         data["ui_locale"] = self._normalize_ui_locale(locale)
         self._save_data(data)
 
+    def load_enabled_plugins(self) -> tuple[str, ...]:
+        data = self._load_data()
+        value = data.get("enabled_plugins")
+        if not isinstance(value, list):
+            return ()
+        return tuple(
+            dict.fromkeys(item for item in value if isinstance(item, str) and item.strip())
+        )
+
+    def save_enabled_plugins(self, plugin_ids: tuple[str, ...]) -> None:
+        data = self._load_data()
+        data["enabled_plugins"] = list(dict.fromkeys(plugin_ids))
+        self._save_data(data)
+
     def _load_data(self) -> dict[str, Any]:
         if not self._config_file_path.exists():
             return {}

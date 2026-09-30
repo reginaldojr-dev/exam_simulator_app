@@ -9,6 +9,7 @@ from rankeddojo.adapters.persistence.sqlite_progress_repository import (
 from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
 from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
 from rankeddojo.adapters.compiler.system_cpp_compiler import SystemCppCompiler
+from rankeddojo.adapters.editor.editor_registry import EDITOR_REGISTRY
 from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditorFactory
 from rankeddojo.adapters.grader.generic_grader import GenericGrader
 from rankeddojo.adapters.runtime.c_runtime import CRuntime
@@ -21,6 +22,7 @@ from rankeddojo.adapters.exercise_definition.json_loader import JsonExerciseDefi
 from rankeddojo.adapters.pack.json_pack_loader import JsonPackLoader
 from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
 from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.plugins.loader import PluginLoader
 from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
 from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
 from rankeddojo.application.use_cases.initialize_application import (
@@ -32,6 +34,7 @@ from rankeddojo.infrastructure.paths import (
     app_database_file_path,
     bundled_sample_packs_dir,
     managed_packs_dir,
+    user_plugins_dir,
 )
 
 
@@ -60,6 +63,17 @@ class AppFactory:
                 PythonRuntime(manual_python=config.load_runtime_path("python")),
                 JavaRuntime(manual_javac=config.load_runtime_path("java")),
             ]
+        )
+        # Built-ins are registered first (above); local opt-in plugins are loaded
+        # next, directly into the same RuntimeRegistry/EditorRegistry -- there is no
+        # separate plugin registry. A plugin never overrides a built-in (see
+        # adapters/plugins/context.py). Zero plugins enabled/installed -> identical
+        # behavior to before plugins existed.
+        PluginLoader().load_into(
+            plugins_dir=user_plugins_dir(),
+            enabled_plugin_ids=config.load_enabled_plugins(),
+            runtimes=runtimes,
+            editors=EDITOR_REGISTRY,
         )
         capabilities = capabilities_from_runtime_descriptors(runtimes.descriptors())
         pack_loader = JsonPackLoader(supported_languages=frozenset(capabilities.languages))
