@@ -29,6 +29,7 @@ QLabel[role="headline"] {{ color: {t.text_bright}; font-weight: 700; }}
 QLabel[role="panel-caption"] {{ color: {t.text_secondary}; padding: 2px 0; }}
 QLabel[role="hint"] {{ color: {t.text_secondary}; font-size: {t.font_size - 1}px; }}
 QLabel[role="timer"] {{ color: {t.text_bright}; font-weight: 700; }}
+QLabel[role="mono"] {{ color: {t.text_primary}; font-family: {t.font_mono}; }}
 QLabel[status="pass"] {{ color: {t.success}; font-weight: 700; }}
 QLabel[status="fail"] {{ color: {t.fail}; font-weight: 700; }}
 QLabel[status="pending"] {{ color: {t.warning}; font-weight: 700; }}
@@ -41,7 +42,8 @@ QFrame[role="banner"] {{ border-radius: {r}px; }}
 QFrame[role="banner"][status="pass"] {{ background: {t.success_background}; border: 2px solid {t.success}; }}
 QFrame[role="banner"][status="fail"] {{ background: {t.fail_background}; border: 2px solid {t.fail}; }}
 QFrame[role="hintbar"] {{ border-top: 1px solid {t.border}; }}
-QFrame[role="card"] QLabel, QFrame[role="banner"] QLabel, QFrame[role="hintbar"] QLabel {{ background: transparent; }}
+QFrame[role="trace-summary"] {{ background: {t.surface_alt}; border: 1px solid {t.border_strong}; border-radius: {r}px; }}
+QFrame[role="card"] QLabel, QFrame[role="banner"] QLabel, QFrame[role="hintbar"] QLabel, QFrame[role="trace-summary"] QLabel {{ background: transparent; }}
 
 /* ---------- buttons ---------- */
 QPushButton {{

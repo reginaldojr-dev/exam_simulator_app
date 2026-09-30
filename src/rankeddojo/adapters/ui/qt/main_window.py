@@ -41,6 +41,7 @@ from rankeddojo.application.capabilities import default_exercise_capabilities
 from rankeddojo.application.history_service import HistoryQuery
 from rankeddojo.application.study_intent import StudyIntent
 from rankeddojo.application.engine.activity_preflight import ActivityPreflightStatus
+from rankeddojo.application.engine.trace_summary import TraceSummary
 from rankeddojo.resources import PACK_CONTRACT, pack_contract_text, resource_path
 from rankeddojo.application.mvp_models import (
     ActiveExercise,
@@ -90,6 +91,7 @@ class MainWindow(QMainWindow):
         self._tasks = task_runner or TaskRunner(self)
         self._active: ActiveExercise | None = None
         self._last_outcome: CorrectionOutcome | None = None
+        self._trace_summary: TraceSummary | None = None
         self._training_options: TrainingOptions | None = None
         self._exam_state: ExamState | None = None
         self._mode = "training"
@@ -114,7 +116,6 @@ class MainWindow(QMainWindow):
         self._exam_page = self._build_exam_page()
         self._exam_prepare_page = self._build_exam_prepare_page()
         self._exercise_page = self._build_exercise_page()
-        self._trace_page = self._build_trace_page()
         self._history_page = self._build_history_page()
         self._settings_page = self._build_settings_page()
         self._pack_help_page = self._build_pack_help_page()
@@ -130,7 +131,6 @@ class MainWindow(QMainWindow):
             self._exam_page,
             self._exam_prepare_page,
             self._exercise_page,
-            self._trace_page,
             self._history_page,
             self._settings_page,
             self._pack_help_page,
@@ -165,6 +165,7 @@ class MainWindow(QMainWindow):
             animations=tokens.animations,
             cursor_char=tokens.cursor_char,
         )
+        self._subject.apply_theme(tokens)
         if self._stack.currentWidget() is self._history_page:
             self._show_history()
 
@@ -277,8 +278,6 @@ class MainWindow(QMainWindow):
         self._set_button(self._trace_button, self._action("Ver trace"))
         self._set_button(self._next_button, self._action("Próximo/trocar"))
         self._set_button(self._exercise_back_button, self._action("Voltar"))
-        self._set_title_label(self._trace_title, "TRACE")
-        self._set_button(self._save_trace_button, self._action("Salvar trace como..."))
 
         self._set_title_label(self._history_title, self._t("Histórico").upper())
         history_tabs = {
@@ -699,19 +698,28 @@ class MainWindow(QMainWindow):
         self._exercise_meta = self._exercise_id_label
 
         layout.addSpacing(4)
-        layout.addWidget(ui.label("subject.md — less", role="panel-caption"))
+        self._subject_prompt_label = ui.label("", role="panel-caption")
+        layout.addWidget(self._subject_prompt_label)
         self._subject = ui.SubjectMarkdownView()
         self._subject.setMinimumHeight(240)
         layout.addWidget(self._subject, 1)
 
         self._feedback = ui.FeedbackBanner()
+        self._feedback.clicked.connect(self._reopen_trace_summary)
         layout.addWidget(self._feedback)
+
+        self._trace_summary_panel = ui.TraceSummaryPanel()
+        self._trace_summary_panel.set_open_full_handler(self._open_full_trace)
+        layout.addWidget(self._trace_summary_panel)
+        self._trace_collapse_timer = QTimer(self)
+        self._trace_collapse_timer.setSingleShot(True)
+        self._trace_collapse_timer.timeout.connect(self._collapse_trace_summary)
 
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         self._open_editor_button = self._button("[ ABRIR IDE ]", self._open_editor)
         self._correct_button = self._button("> CORRIGIR", self._submit_current, "primary")
-        self._trace_button = self._button("[ VER TRACE ]", self._show_trace)
+        self._trace_button = self._button("[ VER TRACE ]", self._toggle_trace_summary)
         self._next_button = self._button("[ PRÓXIMO/TROCAR ]", self._next_exercise)
         self._exercise_back_button = self._button("[ VOLTAR ]", self._back_from_exercise)
         buttons.addWidget(self._open_editor_button, 3)
@@ -720,23 +728,6 @@ class MainWindow(QMainWindow):
         buttons.addWidget(self._next_button, 3)
         buttons.addWidget(self._exercise_back_button, 2)
         layout.addLayout(buttons)
-        return page
-
-    def _build_trace_page(self) -> QWidget:
-        page, layout = self._page()
-        self._trace_title = self._title("TRACE")
-        layout.addWidget(self._trace_title)
-        layout.addWidget(ui.label("trace.log — less", role="panel-caption"))
-        self._trace_text = self._terminal_text()
-        layout.addWidget(self._trace_text, 1)
-        row = QHBoxLayout()
-        self._save_trace_button = self._button("[ SALVAR TRACE COMO... ]", self._save_trace_as)
-        row.addWidget(self._save_trace_button)
-        row.addStretch(1)
-        layout.addLayout(row)
-        layout.addLayout(
-            self._footer(lambda: self._go(self._exercise_page), [("Esc", "voltar ao exercício")], "[ VOLTAR AO EXERCÍCIO ]")
-        )
         return page
 
     # ---------------------------------------------------------------- history
@@ -1021,7 +1012,6 @@ class MainWindow(QMainWindow):
             self._history_page: self._show_home,
             self._settings_page: self._show_home,
             self._exam_prepare_page: lambda: self._go(self._exam_page),
-            self._trace_page: lambda: self._go(self._exercise_page),
             self._pack_help_page: lambda: self._show_settings("Packs"),
             self._learning_languages_page: self._show_home,
             self._learning_track_page: lambda: self._go(self._learning_languages_page),
@@ -1587,11 +1577,17 @@ class MainWindow(QMainWindow):
         self._mode = mode
         self._active = active
         self._last_outcome = None
+        self._trace_summary = None
+        self._trace_collapse_timer.stop()
+        self._trace_summary_panel.clear()
         self._refresh_exercise_frame()
         self._exam_timer_label.setVisible(mode == "exam")
         if mode == "exam" and self._exam_state is not None:
             self._render_exam_timer(self._exam_state)
         self._subject.set_subject_markdown(active.subject_text)
+        self._subject_prompt_label.setText(
+            f"rankeddojo@dojo:~/{active.exercise_workspace_path.name}$ less subject.md"
+        )
         self._feedback.clear()
         self._open_editor_button.setToolTip(
             self._t("Abrir a pasta do exercício no {editor}", editor=self._coordinator.editor_display_name())
@@ -1638,7 +1634,7 @@ class MainWindow(QMainWindow):
         active = self._active
         self._set_title_label(self._exercise_title, active.ref.definition.name)
         self._exercise_id_label.setText(f"ID: {active.ref.definition.id}")
-        self._exercise_rank_label.setText(f"{self._t('Rank').upper()}: {active.ref.pack.name}")
+        self._exercise_rank_label.setText(f"{self._t('Pack').upper()}: {active.ref.pack.name}")
         self._exercise_level_label.setText(f"LEVEL: {active.ref.level_id}")
         self._open_editor_button.setToolTip(
             self._t("Abrir a pasta do exercício no {editor}", editor=self._coordinator.editor_display_name())
@@ -1691,7 +1687,8 @@ class MainWindow(QMainWindow):
         if self._active is not active:
             return  # the user left the exercise; the attempt was already saved
         self._last_outcome = outcome
-        self._trace_button.setEnabled(True)
+        self._trace_summary = self._coordinator.trace_summary(outcome)
+        self._trace_button.setEnabled(self._trace_summary is not None)
         if outcome.result.outcome is GradingOutcome.CONTENT_ERROR:
             self._show_content_error_feedback()
         elif outcome.result.passed:
@@ -1702,7 +1699,8 @@ class MainWindow(QMainWindow):
     def _on_exam_graded(self, active: ActiveExercise, result: tuple[CorrectionOutcome, ExamState | None]) -> None:
         outcome, next_state = result
         self._last_outcome = outcome
-        self._trace_button.setEnabled(True)
+        self._trace_summary = self._coordinator.trace_summary(outcome)
+        self._trace_button.setEnabled(self._trace_summary is not None)
         if next_state is None:
             self._timer.stop()
             self._clear_exam_editor_context()
@@ -1741,43 +1739,113 @@ class MainWindow(QMainWindow):
         self._show_pass_feedback(self._t("Exercício concluído.").upper(), with_next=True)
 
     def _show_fail_feedback(self, message: str) -> None:
-        editor = self._coordinator.editor_display_name()
-        actions = [
-            ui.button(self._action("Ver trace"), self._show_trace, "small"),
-            ui.button(self._action("Abrir no {editor}", editor=editor), self._open_editor, "small"),
-            ui.button(self._action("Voltar para corrigir"), self._feedback.clear, "small"),
-        ]
-        self._feedback.show_result("fail", "[✗] FAIL", message, actions, animate=self._theme.tokens.animations)
+        has_summary = self._trace_summary is not None
+        if has_summary:
+            message = f"{message} ({self._t('Clique para ver detalhes')})"
+        self._feedback.show_result("fail", "[✗] FAIL", message, [], animate=self._theme.tokens.animations)
+        self._feedback.set_clickable(has_summary)
+        self._present_trace_summary()
 
     def _show_content_error_feedback(self) -> None:
         """Content/pack error, distinct from a normal user FAIL (never uses the 'fail' status)."""
-        actions = [ui.button(self._action("Ver trace"), self._show_trace, "small")]
+        has_summary = self._trace_summary is not None
+        message = self._t("Este exercício tem um erro de conteúdo do pack — não é um erro seu. Não conta como tentativa.")
+        if has_summary:
+            message = f"{message} ({self._t('Clique para ver detalhes')})"
         self._feedback.show_result(
             "pending",
             "[!] " + self._t("CONTEÚDO INVÁLIDO"),
-            self._t("Este exercício tem um erro de conteúdo do pack — não é um erro seu. Não conta como tentativa."),
-            actions,
+            message,
+            [],
             animate=self._theme.tokens.animations,
         )
+        self._feedback.set_clickable(has_summary)
+        self._present_trace_summary()
+
+    _TRACE_SUMMARY_AUTO_COLLAPSE_MS = 4500
+
+    def _present_trace_summary(self) -> None:
+        """Auto-opens the "trace resumido" right after a FAIL/content-error,
+        then schedules its auto-collapse (see `_collapse_trace_summary`) --
+        the drawer itself only owns the expand/collapse animation.
+        """
+        if self._trace_summary is None:
+            self._trace_summary_panel.clear()
+            self._trace_collapse_timer.stop()
+            return
+        title, rows = self._trace_summary_view(self._trace_summary)
+        self._trace_summary_panel.set_open_full_text(self._action("Abrir trace completo"))
+        self._trace_summary_panel.set_open_full_enabled(self._last_outcome is not None)
+        self._trace_summary_panel.show_summary(title, rows, animate=self._theme.tokens.animations)
+        self._trace_collapse_timer.stop()
+        self._trace_collapse_timer.start(self._TRACE_SUMMARY_AUTO_COLLAPSE_MS)
+
+    def _trace_summary_view(self, summary: TraceSummary) -> tuple[str, list[tuple[str, str]]]:
+        """Translates a `TraceSummary` (stable, untranslated `stage`/fields)
+        into the (title, field rows) `TraceSummaryPanel.show_summary` renders.
+        """
+        if summary.stage == "content_error":
+            return self._t("Erro de conteúdo"), [(self._t("Erro"), summary.message)]
+        if summary.stage == "compilation":
+            compilation = summary.compilation
+            rows = [
+                (self._t("Compilador"), compilation.compiler if compilation else ""),
+                (self._t("Flags"), " ".join(compilation.flags) if compilation else ""),
+                (self._t("Fontes"), ", ".join(compilation.sources) if compilation else ""),
+                (self._t("Saída"), compilation.output_path if compilation else ""),
+                (self._t("Erro"), summary.message),
+            ]
+            return self._t("Falha de compilação"), rows
+        if summary.stage == "test":
+            failure = summary.test_failure
+            rows: list[tuple[str, str]] = []
+            if failure is not None:
+                rows.append((self._t("Esperado"), failure.expected))
+                rows.append((self._t("Recebido"), failure.received))
+                if failure.stderr:
+                    rows.append((self._t("Stderr"), failure.stderr))
+                if failure.timed_out:
+                    rows.append((self._t("Timeout"), self._t("Execução excedeu o tempo limite")))
+                elif failure.exit_code is not None:
+                    rows.append((self._t("Código de saída"), str(failure.exit_code)))
+            title = self._t("Teste {index}", index=summary.message)
+            return title, rows
+        return self._t("Trace resumido"), []
+
+    def _toggle_trace_summary(self) -> None:
+        if self._trace_summary is None:
+            return
+        self._trace_collapse_timer.stop()
+        if self._trace_summary_panel.isHidden():
+            self._present_trace_summary()
+        else:
+            self._trace_summary_panel.toggle()
+
+    def _reopen_trace_summary(self) -> None:
+        if self._trace_summary is None:
+            return
+        self._trace_collapse_timer.stop()
+        self._trace_summary_panel.expand(animate=self._theme.tokens.animations)
+
+    def _collapse_trace_summary(self) -> None:
+        self._trace_summary_panel.collapse(animate=self._theme.tokens.animations)
+
+    def _open_full_trace(self) -> None:
+        if self._last_outcome is None:
+            return
+        try:
+            self._coordinator.open_trace_in_editor(self._last_outcome)
+        except Exception as error:
+            QMessageBox.warning(self, "Editor", str(error))
 
     def _show_pass_feedback(self, message: str, with_next: bool = False) -> None:
         actions: list[QPushButton] = []
         if with_next and self._mode == "training":
             actions.append(ui.button(self._action("Próximo exercício"), self._next_exercise, "small"))
         self._feedback.show_result("pass", "[✓] PASS", message, actions, animate=self._theme.tokens.animations)
-
-    def _show_trace(self) -> None:
-        if self._last_outcome is None:
-            return
-        self._trace_text.setPlainText(self._last_outcome.result.trace_data.as_text())
-        self._go(self._trace_page)
-
-    def _save_trace_as(self) -> None:
-        if self._last_outcome is None:
-            return
-        target, _ = QFileDialog.getSaveFileName(self, self._t("Salvar trace como..."), "trace.txt")
-        if target:
-            Path(target).write_text(self._last_outcome.result.trace_data.as_text(), encoding="utf-8")
+        self._feedback.set_clickable(False)
+        self._trace_collapse_timer.stop()
+        self._trace_summary_panel.clear()
 
     def _next_exercise(self) -> None:
         if self._training_options is None or self._mode != "training":

@@ -17,6 +17,7 @@ from rankeddojo.application.mvp_models import (
 )
 from rankeddojo.application.study_intent import PackPromptBuilder, StudyIntent
 from rankeddojo.application.engine.content_registry import ContentRegistry
+from rankeddojo.application.engine.trace_summary import TraceSummary, build_trace_summary
 from rankeddojo.application.use_cases.get_learning_track import GetLearningTrack, LearningTrackView
 from rankeddojo.application.use_cases.get_next_learning_activity import GetNextLearningActivity
 from rankeddojo.application.engine.activity_preflight import (
@@ -524,6 +525,26 @@ class MVPTrainerCoordinator:
     def open_in_editor(self, active: ActiveExercise, *, reuse_window: bool = False) -> None:
         try:
             self._editor.open_directory(active.exercise_workspace_path, reuse_window=reuse_window)
+        except EditorLaunchError:
+            raise
+
+    def trace_summary(self, outcome: CorrectionOutcome) -> TraceSummary | None:
+        """The "trace resumido" for `outcome` -- `None` when it passed.
+
+        UI-facing gateway: keeps `MainWindow` from importing
+        `rankeddojo.application.engine.trace_summary`'s builder or
+        `rankeddojo.domain.grading` directly (same pattern as the other
+        small delegation methods on this coordinator).
+        """
+        return build_trace_summary(outcome.result)
+
+    def open_trace_in_editor(self, outcome: CorrectionOutcome) -> None:
+        """Opens the already-written `outcome.trace_path` (see
+        `_persist_outcome`) in the user's configured editor, as a new tab --
+        never inside RankedDojo's own window.
+        """
+        try:
+            self._editor.open_file(outcome.trace_path, reuse_window=True)
         except EditorLaunchError:
             raise
 

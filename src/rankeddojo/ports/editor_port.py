@@ -12,6 +12,16 @@ class EditorPort(Protocol):
     def open_directory(self, directory: Path, *, reuse_window: bool = False) -> None:
         raise NotImplementedError
 
+    def open_file(self, path: Path, *, reuse_window: bool = True) -> None:
+        """Open a single file, adding it as a new tab of an already-open window
+        when the editor supports that (see `reuse_window` on `open_directory`).
+
+        Used to open the raw `trace.txt` in the user's configured editor --
+        never inside RankedDojo's own window -- alongside the exercise files
+        already open there.
+        """
+        raise NotImplementedError
+
 
 class EditorFactory(Protocol):
     """Create and validate editors from the user-configured command.

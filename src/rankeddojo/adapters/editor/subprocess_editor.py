@@ -39,6 +39,22 @@ class SubprocessEditor:
                 f"Could not open {directory} with {self.display_name}: {error}"
             ) from error
 
+    def open_file(self, path: Path, *, reuse_window: bool = True) -> None:
+        command = [self._executable]
+        if reuse_window and _supports_reuse_window(self._executable, self.display_name):
+            command.append("--reuse-window")
+        command.append(str(path))
+        try:
+            subprocess.Popen(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError as error:
+            raise EditorLaunchError(
+                f"Could not open {path} with {self.display_name}: {error}"
+            ) from error
+
 
 def editor_display_name(executable: str) -> str:
     lowered = executable.lower()

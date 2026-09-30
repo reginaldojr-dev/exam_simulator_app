@@ -107,9 +107,13 @@ class FailingGrader:
 class RecordingEditor:
     def __init__(self) -> None:
         self.calls: list[tuple[Path, bool]] = []
+        self.file_calls: list[tuple[Path, bool]] = []
 
     def open_directory(self, directory: Path, *, reuse_window: bool = False) -> None:
         self.calls.append((directory, reuse_window))
+
+    def open_file(self, path: Path, *, reuse_window: bool = True) -> None:
+        self.file_calls.append((path, reuse_window))
 
 
 class SlowProbeCompiler(AvailableCompiler):
