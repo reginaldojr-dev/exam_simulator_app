@@ -29,11 +29,119 @@ def _rules(qss: str) -> list[tuple[str, str]]:
 
 class ThemeTokensTest(unittest.TestCase):
     def test_every_theme_defines_every_color_token(self) -> None:
-        color_fields = [name for name, field in ThemeTokens.__dataclass_fields__.items() if field.type == "str" and name not in ("key", "name", "font_body", "font_title", "cursor_char")]
+        color_fields = [name for name, field in ThemeTokens.__dataclass_fields__.items() if field.type == "str" and name not in ("key", "name", "font_body", "font_title", "font_mono", "cursor_char")]
         for theme in THEMES.values():
             for name in color_fields:
                 value = getattr(theme, name)
                 self.assertRegex(value, r"^#[0-9a-fA-F]{6}$", f"{theme.key}.{name}")
+
+    def test_every_theme_defines_accent_secondary_and_font_mono(self) -> None:
+        # Schema closure for Fase 3: every theme -- old and new -- must carry
+        # a valid accent_secondary color and a non-empty font_mono stack.
+        for theme in THEMES.values():
+            self.assertRegex(theme.accent_secondary, r"^#[0-9a-fA-F]{6}$", theme.key)
+            self.assertIsInstance(theme.font_mono, str)
+            self.assertTrue(theme.font_mono.strip(), theme.key)
+
+    def test_rankeddojo_official_themes_are_registered(self) -> None:
+        # The three approved RankedDojo concepts must exist with stable,
+        # English keys and the approved reference colors.
+        self.assertEqual(THEMES["default"].background, "#0d0f12")
+        self.assertEqual(THEMES["default"].surface_alt, "#14171b")
+        self.assertEqual(THEMES["default"].border, "#262b31")
+        self.assertEqual(THEMES["default"].accent, "#34e0a1")
+        self.assertEqual(THEMES["default"].accent_secondary, "#8b5cf6")
+
+        self.assertEqual(THEMES["gamified"].accent, "#b833ff")
+        self.assertEqual(THEMES["gamified"].accent_secondary, "#2be0a0")
+        self.assertRegex(THEMES["gamified"].background, r"^#(1c1330|0b0710)$")
+
+        self.assertEqual(THEMES["retro"].background, "#0a0e0a")
+        self.assertEqual(THEMES["retro"].accent, "#39ff14")
+
+        self.assertEqual(get_theme("default").key, "default")
+        self.assertEqual(get_theme("gamified").key, "gamified")
+        self.assertEqual(get_theme("retro").key, "retro")
+
+    def test_legacy_theme_ids_remain_available_after_rankeddojo_themes(self) -> None:
+        # Adding the three new official themes must never drop or rename the
+        # pre-existing ones, nor invalidate a config that persisted their key.
+        for legacy_key in ("terminal", "amber", "gameboy", "neon", "minimal", "paper"):
+            self.assertIn(legacy_key, THEMES)
+            self.assertEqual(get_theme(legacy_key).key, legacy_key)
+
+    def test_theme_collection_grew_without_losing_anything(self) -> None:
+        # Capacity check instead of a fixed count: enough themes exist to
+        # cover both the legacy set and the three new RankedDojo concepts,
+        # without hardcoding a total that the next phase would need to bump.
+        legacy = {"terminal", "amber", "gameboy", "neon", "minimal", "paper"}
+        rankeddojo = {"default", "gamified", "retro"}
+        self.assertTrue(legacy.issubset(THEMES.keys()))
+        self.assertTrue(rankeddojo.issubset(THEMES.keys()))
+
+    def test_terminal_role_text_uses_font_mono(self) -> None:
+        # Technical panels (trace/terminal/commands/docs) must use font_mono,
+        # never the theme's general-purpose font_body.
+        for theme in THEMES.values():
+            rules = {selector.strip(): body for selector, body in _rules(build_stylesheet(theme))}
+            self.assertIn('QTextEdit[role="terminal"]', rules)
+            self.assertIn(theme.font_mono, rules['QTextEdit[role="terminal"]'])
+
+    def test_minimal_theme_keeps_sans_body_but_mono_terminal_text(self) -> None:
+        # A theme whose general UI font is sans (e.g. Minimal) must still
+        # render technical content in a monospace font_mono, not its sans
+        # font_body -- font_mono defaults independently of font_body.
+        minimal = THEMES["minimal"]
+        self.assertNotIn("monospace", minimal.font_body.lower())
+        self.assertIn("monospace", minimal.font_mono.lower())
+        rules = {selector.strip(): body for selector, body in _rules(build_stylesheet(minimal))}
+        terminal_rule = rules['QTextEdit[role="terminal"]']
+        self.assertIn(minimal.font_mono, terminal_rule)
+        self.assertNotIn(minimal.font_body, terminal_rule)
+
+    def test_default_and_gamified_ui_is_not_forced_into_mono(self) -> None:
+        # The new themes must not turn the whole Default/Gamified UI mono:
+        # only the terminal-role technical panels get font_mono.
+        for key in ("default", "gamified"):
+            theme = THEMES[key]
+            self.assertNotIn("monospace", theme.font_body.lower())
+            rules = {selector.strip(): body for selector, body in _rules(build_stylesheet(theme))}
+            self.assertNotIn(theme.font_mono, rules["QWidget"])
+
+    def test_logo_role_is_driven_by_generic_tokens_per_theme(self) -> None:
+        # The mini logo mark must read its look from accent/accent_secondary/
+        # background/font_title -- proven here by checking that each theme's
+        # own token values show up in its own generated rule, with no
+        # hardcoded color or theme-name branching in the stylesheet.
+        for theme in THEMES.values():
+            rules = {selector.strip(): body for selector, body in _rules(build_stylesheet(theme))}
+            self.assertIn('QLabel[role="logo"]', rules)
+            logo_rule = rules['QLabel[role="logo"]']
+            self.assertIn(f"background: {theme.accent};", logo_rule)
+            self.assertIn(theme.accent_secondary, logo_rule)
+            self.assertIn(f"color: {theme.background};", logo_rule)
+            self.assertIn(theme.font_title, logo_rule)
+
+    def test_qss_source_has_no_conditional_theme_identity_branching(self) -> None:
+        # Guard against the exact anti-pattern this phase forbids: no
+        # `if`/branch inside build_stylesheet may key off a theme's identity
+        # (key/name). Appearance must come only from token values plugged
+        # into the same rules for every theme. (Role attributes such as
+        # role="terminal" are unrelated component roles, not theme
+        # branching, so this checks control flow, not arbitrary substrings.)
+        import ast
+        import inspect
+        import textwrap
+
+        from exam_trainer.adapters.ui.qt.theme import qss as qss_module
+
+        source = textwrap.dedent(inspect.getsource(qss_module.build_stylesheet))
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.If):
+                branch_source = ast.get_source_segment(source, node.test) or ""
+                self.assertNotIn(".key", branch_source)
+                self.assertNotIn(".name", branch_source)
 
     def test_accent_is_never_a_large_background(self) -> None:
         for theme in THEMES.values():

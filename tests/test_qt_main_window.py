@@ -740,6 +740,33 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("dojo@RankedDojo:", window._workspace_label.text())
             self.assertNotIn("EXAM TRAINER", window._cursor._titles[window._title_home])
             self.assertNotIn("user@42", window._workspace_label.text())
+            # The mini logo mark sits beside the "RankedDojo" title; the
+            # written brand itself never changes shape or name per theme.
+            self.assertEqual(window._home_logo.property("role"), "logo")
+            self.assertTrue(window._home_logo.text())
+
+    def test_home_logo_mark_is_generic_and_reused_across_themes(self) -> None:
+        # The logo consumer must not be rebuilt or special-cased when the
+        # theme changes -- same widget instance, same glyph, regardless of
+        # which theme (old or new RankedDojo one) is active.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            logo = window._home_logo
+            glyph = logo.text()
+
+            for theme_key in ("terminal", "default", "gamified", "retro", "paper"):
+                window._theme.set_theme(theme_key)
+                self.assertIs(window._home_logo, logo)
+                self.assertEqual(window._home_logo.text(), glyph)
+                self.assertEqual(window._home_logo.property("role"), "logo")
+
+    def test_theme_combo_offers_new_rankeddojo_themes_alongside_legacy_ones(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._show_settings()
+
+            for key in ("default", "gamified", "retro", "terminal", "amber", "gameboy", "neon", "minimal", "paper"):
+                self.assertGreaterEqual(window._theme_combo.findData(key), 0, key)
 
     def test_home_is_pt_br_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

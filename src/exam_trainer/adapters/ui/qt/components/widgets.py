@@ -67,6 +67,27 @@ def section_label(text: str) -> QLabel:
     return label(text, role="section")
 
 
+def logo_mark(glyph: str = ">", size: int = 34) -> QLabel:
+    """Small geometric RankedDojo brand mark.
+
+    A generic, token-driven component: its look (fill, border, corner
+    radius, title font) comes entirely from the active theme's `accent`,
+    `accent_secondary`, `background` and `font_title` tokens through the
+    `role="logo"` QSS rule -- there is no branching on theme id/name here or
+    in the stylesheet, and no per-theme image asset. Swapping the theme
+    restyles it exactly like every other widget.
+
+    `glyph` stays a plain geometric character (terminal/rank inspired, e.g.
+    ">" or a chevron) -- never a samurai/katana/torii image.
+    """
+    widget = QLabel(glyph)
+    widget.setProperty("role", "logo")
+    widget.setFixedSize(size, size)
+    widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    widget.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+    return widget
+
+
 def set_status(widget: QWidget, status: str) -> None:
     if status not in STATUSES:
         raise ValueError(f"Unknown status: {status}")

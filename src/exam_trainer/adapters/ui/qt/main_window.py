@@ -392,9 +392,15 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ home
     def _build_home_page(self) -> QWidget:
         page, layout = self._page(margins=28)
+        self._home_logo = ui.logo_mark()
         self._title_home = self._title("RankedDojo")
+        title_row = QHBoxLayout()
+        title_row.setSpacing(10)
+        title_row.addWidget(self._home_logo)
+        title_row.addWidget(self._title_home)
+        title_row.addStretch(1)
         self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
-        layout.addWidget(self._title_home)
+        layout.addLayout(title_row)
         layout.addWidget(self._workspace_label)
         layout.addStretch(1)
 

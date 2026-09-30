@@ -99,7 +99,11 @@ QCheckBox::indicator:checked, QRadioButton::indicator:checked {{ background: {t.
 
 /* ---------- text panels (subject, trace, docs) ---------- */
 QTextEdit {{ background: {t.surface}; color: {t.text_primary}; border: 1px solid {t.border}; border-radius: {r}px; padding: 10px; selection-background-color: {t.selected_background}; selection-color: {t.text_bright}; }}
-QTextEdit[role="terminal"] {{ font-family: {t.font_body}; }}
+/* Terminal-role panels are the app's technical content: trace output,
+   commands, exam-prep instructions, pack docs. They always use font_mono,
+   never font_body -- readable code/commands matter more here than the
+   theme's general UI typeface. */
+QTextEdit[role="terminal"] {{ font-family: {t.font_mono}; }}
 
 /* ---------- table ---------- */
 QTableView, QTableWidget {{ background: {t.surface}; color: {t.text_primary}; gridline-color: {t.surface_alt}; border: 1px solid {t.border}; border-radius: {r}px; selection-background-color: {t.selected_background}; selection-color: {t.text_bright}; outline: 0; }}
@@ -116,6 +120,13 @@ QScrollBar:horizontal {{ background: {t.background}; height: 10px; margin: 0; }}
 QScrollBar::handle:horizontal {{ background: {t.border}; min-width: 24px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
 QScrollBar::add-page, QScrollBar::sub-page {{ background: transparent; }}
+
+/* ---------- brand ---------- */
+QLabel[role="logo"] {{
+    background: {t.accent}; color: {t.background};
+    border: 2px solid {t.accent_secondary}; border-radius: {r}px;
+    font-family: {t.font_title}; font-weight: 900;
+}}
 
 /* ---------- dialogs ---------- */
 QMessageBox QLabel {{ color: {t.text_primary}; }}

@@ -24,6 +24,7 @@ class ThemeTokens:
 
     # text
     accent: str              # titles, focus border, cursor, indicators
+    accent_secondary: str    # second accent for components that need two; combine as they see fit
     text_primary: str        # body text
     text_bright: str         # texto em hover/selected
     text_secondary: str      # secondary labels, hints, IDs
@@ -45,6 +46,11 @@ class ThemeTokens:
     # typography and shape
     font_body: str = 'Consolas, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", "Courier New", monospace'
     font_title: str = 'Consolas, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", "Courier New", monospace'
+    # Dedicated font for technical content: traces, commands, terminal panels.
+    # Defaults to the same monospace stack `font_body`/`font_title` used before
+    # this token existed, so themes that never set it explicitly keep looking
+    # exactly as they did.
+    font_mono: str = 'Consolas, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", "Courier New", monospace'
     font_size: int = 13
     title_size: int = 28
     radius: int = 0
