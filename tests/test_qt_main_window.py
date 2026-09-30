@@ -509,14 +509,32 @@ class MainWindowTest(unittest.TestCase):
             self.assertEqual(shown, ["invalid pack"])
 
     def test_global_style_does_not_use_neon_green_as_solid_button_background(self) -> None:
+        # The intent here is button-scoped: no QPushButton/global button rule
+        # may use the neon green as a solid background. It is not a blanket
+        # ban on that color anywhere in the stylesheet -- the Fase 3 mini
+        # logo (QLabel[role="logo"]) legitimately uses it as its fill, and
+        # that is not what this test is meant to catch.
+        import re
+
+        rule_pattern = re.compile(r"([^{}]+)\{([^{}]*)\}")
+        comment_pattern = re.compile(r"/\*.*?\*/", re.DOTALL)
+
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
 
-            style = window.styleSheet().lower()
+            style = window.styleSheet()
+            style_lower = style.lower()
+            clean_style = comment_pattern.sub("", style)
+            button_rules = "\n".join(
+                body
+                for selector, body in rule_pattern.findall(clean_style)
+                if "QPushButton" in selector
+            ).lower()
 
-            self.assertNotIn("background: #39ff14", style)
-            self.assertIn("background: #102010", style)
-            self.assertIn("qpushbutton:hover", style)
+            self.assertNotIn("background: #39ff14", button_rules)
+            self.assertNotIn("background-color: #39ff14", button_rules)
+            self.assertIn("background: #102010", style_lower)
+            self.assertIn("qpushbutton:hover", style_lower)
 
     def test_training_and_exam_next_button_visibility(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
