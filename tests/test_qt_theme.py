@@ -146,6 +146,45 @@ class ThemeTokensTest(unittest.TestCase):
                 self.assertNotIn(".key", branch_source)
                 self.assertNotIn(".name", branch_source)
 
+    def test_button_borders_never_use_the_bevel_tokens(self) -> None:
+        # The previous "beveled keycap" look gave QPushButton's bottom
+        # border its own darker/thicker color (`t.bevel`/`t.bevel_width`),
+        # which read as a missing/clipped bottom edge on several dark
+        # themes. Buttons must use a single, uniform border now -- the
+        # bevel tokens stay defined on `ThemeTokens` (other code may still
+        # reference them later) but `build_stylesheet` must never emit them.
+        for theme in THEMES.values():
+            qss = build_stylesheet(theme)
+            self.assertNotIn(theme.bevel.lower(), qss.lower(), theme.key)
+
+    def test_button_rules_declare_no_asymmetric_border_bottom(self) -> None:
+        # A `border-bottom` declared with its own width/color (distinct from
+        # the rule's `border`) is exactly the shape of the clipped-bottom-
+        # edge bug. The one intentional exception is the "tab" variant's
+        # selected-tab underline indicator -- a different, pre-existing UI
+        # pattern (a 2px accent underline on the checked tab), not a
+        # 3D-bevel effect, and out of scope for this fix.
+        border_bottom_re = re.compile(r"border-bottom\s*:")
+        for theme in THEMES.values():
+            for selector, body in _rules(build_stylesheet(theme)):
+                if "QPushButton" not in selector or "tab" in selector:
+                    continue
+                self.assertNotRegex(body, border_bottom_re, f"{theme.key}: {selector}")
+
+    def test_button_border_sides_are_uniform_within_each_variant_and_state(self) -> None:
+        # Every `border: <width> <style> <color>` shorthand declared on a
+        # QPushButton rule (any variant, any state) must apply to all four
+        # sides -- i.e. there must be no separate per-side override sitting
+        # alongside it. This is the general form of the two checks above.
+        side_re = re.compile(r"border-(top|right|bottom|left)\s*:")
+        for theme in THEMES.values():
+            for selector, body in _rules(build_stylesheet(theme)):
+                if "QPushButton" not in selector or "tab" in selector:
+                    continue
+                if "border:" not in body:
+                    continue
+                self.assertNotRegex(body, side_re, f"{theme.key}: {selector}")
+
     def test_accent_is_never_a_large_background(self) -> None:
         for theme in THEMES.values():
             for selector, body in _rules(build_stylesheet(theme)):

@@ -37,8 +37,12 @@ from rankeddojo.adapters.ui.qt.components.cursor import CursorController
 from rankeddojo.adapters.ui.qt.i18n import LOCALE_LABELS, LocaleService, SUPPORTED_UI_LOCALES, tr
 from rankeddojo.adapters.ui.qt.subject_sections import (
     ALLOWED_HEADINGS,
+    CONSTRAINTS_HEADINGS,
+    EXPECTED_FILE_HEADINGS,
     NOT_ALLOWED_HEADINGS,
+    demote_examples_heading,
     extract_list_section,
+    strip_sections,
 )
 from rankeddojo.adapters.ui.qt.task_runner import TaskRunner
 from rankeddojo.adapters.ui.qt.theme import ThemeManager, ThemeTokens
@@ -107,6 +111,7 @@ class MainWindow(QMainWindow):
         self._editor_targets: dict[tuple[str, str], Path] = {}
         self._level_checks: list[ui.OptionButton] = []
         self._footer_buttons: list[tuple[QPushButton, str]] = []
+        self._footer_hint_bars: list[tuple[ui.HintBar, list[tuple[str, str]]]] = []
 
         self._theme = theme_manager or ThemeManager(self._saved_theme_key())
         self._locale = locale_service or LocaleService(coordinator)
@@ -290,6 +295,7 @@ class MainWindow(QMainWindow):
         self._sidebar_expected_header.setText(f"> {self._t('Arquivos esperados').upper()}")
         self._sidebar_allowed_header.setText(f"> {self._t('Permitido').upper()}")
         self._sidebar_not_allowed_header.setText(f"> {self._t('Não permitido').upper()}")
+        self._sidebar_constraints_header.setText(f"> {self._t('Regras').upper()}")
 
         self._set_title_label(self._history_title, self._t("Histórico").upper())
         history_tabs = {
@@ -330,6 +336,8 @@ class MainWindow(QMainWindow):
 
         for button, source in self._footer_buttons:
             self._set_button(button, self._footer_text(source))
+        for hint_bar, hints in self._footer_hint_bars:
+            hint_bar.set_hints([(key, self._t(text)) for key, text in hints])
 
     def _footer_text(self, source: str) -> str:
         if source == "[ VOLTAR ]":
@@ -426,7 +434,9 @@ class MainWindow(QMainWindow):
             row.addWidget(back_button)
             row.addStretch(1)
             footer.addLayout(row)
-        footer.addWidget(ui.HintBar(hints))
+        hint_bar = ui.HintBar([(key, self._t(text)) for key, text in hints])
+        self._footer_hint_bars.append((hint_bar, hints))
+        footer.addWidget(hint_bar)
         return footer
 
     # ------------------------------------------------------------------ home
@@ -872,10 +882,14 @@ class MainWindow(QMainWindow):
         self._sidebar_not_allowed_block, self._sidebar_not_allowed_header, self._sidebar_not_allowed_value = (
             self._build_sidebar_block()
         )
+        self._sidebar_constraints_block, self._sidebar_constraints_header, self._sidebar_constraints_value = (
+            self._build_sidebar_block()
+        )
         for block in (
             self._sidebar_expected_block,
             self._sidebar_allowed_block,
             self._sidebar_not_allowed_block,
+            self._sidebar_constraints_block,
         ):
             sidebar_layout.addWidget(block)
 
@@ -1835,7 +1849,6 @@ class MainWindow(QMainWindow):
         self._exam_timer_label.setVisible(mode == "exam")
         if mode == "exam" and self._exam_state is not None:
             self._render_exam_timer(self._exam_state)
-        self._subject.set_subject_markdown(active.subject_text)
         self._subject_prompt_label.setText(
             f"rankeddojo@dojo:~/{active.exercise_workspace_path.name}$ less subject.md"
         )
@@ -1902,48 +1915,118 @@ class MainWindow(QMainWindow):
         self._sidebar_expected_value.setText(f"> {active.ref.definition.submission.filename}")
 
         usage = active.ref.definition.usage
-        allowed_items = self._usage_category_items(usage.allowed)
-        if not allowed_items:
+        allowed_lines = self._usage_category_lines(usage.allowed)
+        if not allowed_lines:
             # Legacy compatibility fallback: packs with no structured
             # `usage.allowed` (pre-contract content) may still spell it out
             # as a subject.md heading -- see `subject_sections.py`.
-            allowed_items = extract_list_section(active.subject_text, ALLOWED_HEADINGS)
-        if allowed_items:
-            self._sidebar_allowed_value.setText("\n".join(f"> {item}" for item in allowed_items))
-            self._sidebar_allowed_block.show()
-        else:
-            self._sidebar_allowed_value.setText("")
-            self._sidebar_allowed_block.hide()
+            allowed_lines = [f"> {item}" for item in extract_list_section(active.subject_text, ALLOWED_HEADINGS)]
+        self._set_sidebar_block(self._sidebar_allowed_block, self._sidebar_allowed_value, allowed_lines)
 
-        not_allowed_items = self._usage_category_items(usage.forbidden)
-        if not not_allowed_items:
+        not_allowed_lines = self._usage_category_lines(usage.forbidden)
+        if not not_allowed_lines:
             # Same legacy compatibility fallback as above, for the
             # "forbidden" side.
-            not_allowed_items = extract_list_section(active.subject_text, NOT_ALLOWED_HEADINGS)
-        if not_allowed_items:
-            self._sidebar_not_allowed_value.setText("\n".join(f"> {item}" for item in not_allowed_items))
-            self._sidebar_not_allowed_block.show()
-        else:
-            self._sidebar_not_allowed_value.setText("")
-            self._sidebar_not_allowed_block.hide()
+            not_allowed_lines = [
+                f"> {item}" for item in extract_list_section(active.subject_text, NOT_ALLOWED_HEADINGS)
+            ]
+        self._set_sidebar_block(self._sidebar_not_allowed_block, self._sidebar_not_allowed_value, not_allowed_lines)
+
+        # `constraints` has no structured sub-categories (unlike
+        # allowed/forbidden) -- it is already a flat list of short technical
+        # rules, so it never needs the grouped-by-category rendering.
+        # `style`/`behavior`/`notes` are deliberately NOT surfaced here: per
+        # the subject content contract, those read as pedagogical
+        # explanation (why/how to approach the problem) rather than a short
+        # fact to look up, so they stay in the subject body only and are
+        # never stripped from it.
+        constraint_lines = [f"> {item}" for item in usage.constraints]
+        if not constraint_lines:
+            constraint_lines = [
+                f"> {item}" for item in extract_list_section(active.subject_text, CONSTRAINTS_HEADINGS)
+            ]
+        self._set_sidebar_block(self._sidebar_constraints_block, self._sidebar_constraints_value, constraint_lines)
+
+        self._subject.set_subject_markdown(
+            self._exercise_body_markdown(
+                active.subject_text,
+                allowed_shown=bool(allowed_lines),
+                not_allowed_shown=bool(not_allowed_lines),
+                constraints_shown=bool(constraint_lines),
+            )
+        )
 
     @staticmethod
-    def _usage_category_items(category) -> tuple[str, ...]:
-        """Flattens a structured usage category (an `ExerciseDefinition.usage.
-        allowed`/`.forbidden`, reached via the application layer -- functions,
-        libraries, imports, headers, apis, flags) into the single ordered
-        list the sidebar shows. Presentation only: the grouping itself is
-        not surfaced. Values are technical identifiers (`write`, `printf`,
-        ...) and must never be passed through i18n.
+    def _set_sidebar_block(block: QWidget, value_label: QLabel, lines: list[str]) -> None:
+        if lines:
+            value_label.setText("\n".join(lines))
+            block.show()
+        else:
+            value_label.setText("")
+            block.hide()
+
+    _USAGE_CATEGORY_FIELDS: tuple[tuple[str, str], ...] = (
+        ("functions", "Funções"),
+        ("libraries", "Bibliotecas"),
+        ("imports", "Imports"),
+        ("headers", "Headers"),
+        ("apis", "APIs"),
+        ("flags", "Flags"),
+    )
+
+    def _usage_category_lines(self, category) -> list[str]:
+        """Sidebar display lines for one structured usage category (an
+        `ExerciseDefinition.usage.allowed`/`.forbidden`, reached via the
+        application layer). Grouped by sub-category (functions, libraries,
+        imports, headers, apis, flags) only when more than one is populated
+        -- the common single-category case (almost always just `functions`
+        today) stays a flat, unlabeled list so the sidebar doesn't grow for
+        no reason. Category labels go through i18n; the technical values
+        inside them (`write`, `printf`, ...) never do.
         """
-        return (
-            category.functions
-            + category.libraries
-            + category.imports
-            + category.headers
-            + category.apis
-            + category.flags
+        groups = [
+            (self._t(label), getattr(category, field))
+            for field, label in self._USAGE_CATEGORY_FIELDS
+            if getattr(category, field)
+        ]
+        if not groups:
+            return []
+        if len(groups) == 1:
+            return [f"> {item}" for item in groups[0][1]]
+        lines: list[str] = []
+        for label, items in groups:
+            lines.append(label)
+            lines.extend(f"  > {item}" for item in items)
+        return lines
+
+    @staticmethod
+    def _exercise_body_markdown(
+        subject_text: str, *, allowed_shown: bool, not_allowed_shown: bool, constraints_shown: bool
+    ) -> str:
+        """Subject Markdown with sections already promoted to the sidebar
+        removed, so the main panel never repeats what the sidebar already
+        shows -- the general rule, not a per-heading special case. Each
+        `(heading_variants, shown)` pair below is the one place this
+        decision is made; a future promoted category is one more entry
+        here, not a new branch. A section is stripped only when the caller
+        has already confirmed the same information IS being shown in the
+        sidebar (structured metadata or the legacy fallback, either way) --
+        never speculatively, so content with no sidebar representation is
+        never silently dropped. `style`/`behavior`/`notes` and the exercise's
+        pedagogical content (objective, expected behavior, explanations,
+        examples) are never in this table and always stay in the body.
+        """
+        promoted_sections: tuple[tuple[tuple[str, ...], bool], ...] = (
+            (EXPECTED_FILE_HEADINGS, True),  # submission.filename is mandatory, always shown
+            (ALLOWED_HEADINGS, allowed_shown),
+            (NOT_ALLOWED_HEADINGS, not_allowed_shown),
+            (CONSTRAINTS_HEADINGS, constraints_shown),
         )
+        body = subject_text
+        for heading_variants, shown in promoted_sections:
+            if shown:
+                body = strip_sections(body, heading_variants)
+        return demote_examples_heading(body)
 
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):

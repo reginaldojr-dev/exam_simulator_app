@@ -207,7 +207,14 @@ class OptionButton(QPushButton):
 
 
 class HintBar(QFrame):
-    """Footer with keyboard shortcuts: [1-4] navigate, [Esc] back."""
+    """Footer with keyboard shortcuts: [1-4] navigate, [Esc] back.
+
+    `hints` is already-translated display text (key, text) pairs -- this
+    widget never translates anything itself. `set_hints` updates the same
+    labels in place (same length/order as construction) so a caller can
+    retranslate on locale change without rebuilding the layout; see
+    `MainWindow._footer`/`_retranslate_static_ui`.
+    """
 
     def __init__(self, hints: list[tuple[str, str]]) -> None:
         super().__init__()
@@ -215,9 +222,16 @@ class HintBar(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 8, 0, 0)
         layout.setSpacing(18)
+        self._hint_labels: list[QLabel] = []
         for key, text in hints:
-            layout.addWidget(label(f"[{key}] {text}", role="hint"))
+            hint_label = label(f"[{key}] {text}", role="hint")
+            self._hint_labels.append(hint_label)
+            layout.addWidget(hint_label)
         layout.addStretch(1)
+
+    def set_hints(self, hints: list[tuple[str, str]]) -> None:
+        for (key, text), hint_label in zip(hints, self._hint_labels):
+            hint_label.setText(f"[{key}] {text}")
 
 
 class FeedbackBanner(QFrame):
@@ -500,6 +514,7 @@ class SubjectMarkdownView(QTextBrowser):
             font_mono = 'Consolas, "Cascadia Mono", "JetBrains Mono", monospace'
             text_primary = "#e4ffe4"
             text_bright = "#b8ffb8"
+            text_secondary = "#7fae7f"
             accent = "#a6f7a6"
             border = "#2f5f3b"
             surface_alt = "#102010"
@@ -507,6 +522,7 @@ class SubjectMarkdownView(QTextBrowser):
             font_mono = tokens.font_mono
             text_primary = tokens.text_primary
             text_bright = tokens.text_bright
+            text_secondary = tokens.text_secondary
             accent = tokens.accent
             border = tokens.border
             surface_alt = tokens.surface_alt
@@ -537,6 +553,19 @@ h3 {{
   margin: 14px 0 6px 0;
   font-size: 1.02em;
   color: {text_bright};
+}}
+h6 {{
+  /* Demoted "Example(s)"/"Exemplo(s)" grouping heading only (see
+     `subject_sections.demote_examples_heading`) -- a quiet label, not a
+     section title, so it never outweighs the exercise's own instructions.
+     Individual "Example 1"/"Example 2" sub-headings are untouched and keep
+     the normal h2/h3 styling above. */
+  margin: 16px 0 4px 0;
+  font-size: 0.82em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: {text_secondary};
 }}
 p {{
   margin: 6px 0 10px 0;

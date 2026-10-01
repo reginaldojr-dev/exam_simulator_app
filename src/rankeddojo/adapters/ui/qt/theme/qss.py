@@ -11,7 +11,9 @@ from rankeddojo.adapters.ui.qt.theme.tokens import ThemeTokens
 
 def build_stylesheet(t: ThemeTokens) -> str:
     r = t.radius
-    bw = t.bevel_width
+    # `t.bevel`/`t.bevel_width` are no longer used here (see the buttons
+    # section below) -- left defined on ThemeTokens for now rather than
+    # touching every theme's token set for an unrelated visual fix.
     return f"""
 /* ---------- base ---------- */
 QWidget {{ background: {t.background}; color: {t.text_primary}; font-family: {t.font_body}; font-size: {t.font_size}px; }}
@@ -64,28 +66,35 @@ QProgressBar[role="progress"]::chunk {{ background: {t.accent}; border-radius: 3
 QFrame[role="card"] QLabel, QFrame[role="banner"] QLabel, QFrame[role="hintbar"] QLabel, QFrame[role="trace-summary"] QLabel {{ background: transparent; }}
 
 /* ---------- buttons ---------- */
+/* Every side of a button's border uses the same color/width -- a previous
+   "beveled keycap" look gave border-bottom its own, much darker/thicker
+   color (`t.bevel`), which on several themes reads as a missing/clipped
+   bottom edge rather than an intentional 3D effect, and was visually
+   inconsistent with the flat dojo-primary/secondary/cta buttons introduced
+   for the Home screen. Kept flat and uniform here instead -- across all
+   states (hover/focus/pressed/checked/disabled) and all button variants. */
 QPushButton {{
     background: {t.background}; color: {t.text_primary};
-    border: 2px solid {t.border}; border-bottom: {bw}px solid {t.bevel}; border-radius: {r}px;
+    border: 2px solid {t.border}; border-radius: {r}px;
     padding: 7px 12px; text-align: left; font-weight: 700;
     outline: none;
 }}
-QPushButton:hover, QPushButton:focus {{ background: {t.hover_background}; color: {t.text_bright}; border-color: {t.border_strong}; border-bottom-color: {t.bevel}; }}
-QPushButton:pressed {{ background: {t.pressed_background}; color: {t.text_bright}; border-top-width: {bw}px; border-bottom-width: 2px; }}
+QPushButton:hover, QPushButton:focus {{ background: {t.hover_background}; color: {t.text_bright}; border-color: {t.border_strong}; }}
+QPushButton:pressed {{ background: {t.pressed_background}; color: {t.text_bright}; }}
 QPushButton:checked {{ background: {t.selected_background}; color: {t.text_bright}; border-color: {t.border_strong}; }}
 QPushButton:disabled {{ background: {t.background}; color: {t.text_disabled}; border: 2px dashed {t.border_disabled}; }}
 
-QPushButton[variant="primary"] {{ color: {t.accent}; border: 2px solid {t.border_strong}; border-bottom: {bw}px solid {t.bevel}; }}
+QPushButton[variant="primary"] {{ color: {t.accent}; border: 2px solid {t.border_strong}; }}
 QPushButton[variant="primary"]:hover, QPushButton[variant="primary"]:focus {{ background: {t.hover_background}; color: {t.text_bright}; }}
 QPushButton[variant="primary"]:disabled {{ color: {t.text_disabled}; border: 2px dashed {t.border_disabled}; }}
 
 QPushButton[variant="start"] {{
-    color: {t.accent}; border: 2px solid {t.border_strong}; border-bottom: {bw + 2}px solid {t.bevel};
+    color: {t.accent}; border: 2px solid {t.border_strong};
     font-family: {t.font_title}; font-size: {t.font_size + 4}px; font-weight: 900; letter-spacing: 2px;
     padding: 16px 28px; text-align: center; min-width: 280px;
 }}
 QPushButton[variant="start"]:hover, QPushButton[variant="start"]:focus {{ background: {t.hover_background}; color: {t.text_bright}; }}
-QPushButton[variant="start"]:pressed {{ background: {t.pressed_background}; border-top-width: {bw + 2}px; border-bottom-width: 2px; }}
+QPushButton[variant="start"]:pressed {{ background: {t.pressed_background}; }}
 
 QPushButton[variant="menu"] {{ min-height: 30px; padding: 10px 16px; font-size: {t.font_size + 1}px; }}
 
@@ -103,10 +112,10 @@ QPushButton[variant="option"]:hover, QPushButton[variant="option"]:focus {{ back
 QPushButton[variant="option"]:checked {{ background: transparent; color: {t.text_bright}; border: 1px solid transparent; }}
 QPushButton[variant="option"]:checked:hover, QPushButton[variant="option"]:checked:focus {{ background: {t.hover_background}; border: 1px solid {t.border_strong}; }}
 
-QPushButton[variant="danger"] {{ color: {t.fail}; border: 2px solid {t.fail}; border-bottom: {bw}px solid {t.bevel}; }}
+QPushButton[variant="danger"] {{ color: {t.fail}; border: 2px solid {t.fail}; }}
 QPushButton[variant="danger"]:hover, QPushButton[variant="danger"]:focus {{ background: {t.fail_background}; color: {t.fail}; border-color: {t.fail}; }}
 
-QPushButton[variant="small"] {{ padding: 4px 10px; border-bottom-width: 2px; font-size: {t.font_size - 1}px; }}
+QPushButton[variant="small"] {{ padding: 4px 10px; font-size: {t.font_size - 1}px; }}
 
 QPushButton[variant="dojo-primary"] {{
     color: {t.text_bright}; background: {t.surface}; border: 1px solid {t.border};
