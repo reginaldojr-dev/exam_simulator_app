@@ -16,6 +16,7 @@ __all__ = [
     "GradingOutcome",
     "ActiveExercise",
     "CorrectionOutcome",
+    "LastSessionSummary",
 ]
 
 
@@ -47,3 +48,23 @@ class CorrectionOutcome:
     result: GradingResult
     trace_path: Path
     attempts_count: int
+
+
+@dataclass(frozen=True)
+class LastSessionSummary:
+    """The most recent *training* attempt across all packs, for the Home
+    screen's "LAST SESSION" block. Built from attempt history + pack catalog
+    data the application layer already exposes elsewhere (same building
+    blocks `exercise_ref_for_activity`/`exercise_history_rows` use) -- no new
+    persistence or schema. `pack_name`/`activity_name`/`language` fall back to
+    the raw ids when the pack is no longer installed, rather than guessing.
+    """
+
+    pack_id: str
+    pack_name: str
+    activity_id: str
+    activity_name: str
+    language: str
+    mode: str
+    completed_count: int
+    total_count: int

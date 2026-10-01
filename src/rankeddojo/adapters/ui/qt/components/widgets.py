@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QStackedWidget,
     QTextBrowser,
@@ -24,7 +25,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-BUTTON_VARIANTS = ("default", "primary", "start", "menu", "tab", "option", "danger", "small")
+BUTTON_VARIANTS = (
+    "default",
+    "primary",
+    "start",
+    "menu",
+    "tab",
+    "option",
+    "danger",
+    "small",
+    "dojo-primary",
+    "dojo-secondary",
+    "cta",
+)
 STATUSES = ("pass", "fail", "pending", "muted", "")
 
 
@@ -86,6 +99,47 @@ def logo_mark(glyph: str = ">", size: int = 34) -> QLabel:
     widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
     widget.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
     return widget
+
+
+def pill(text: str, status: str = "ready") -> QLabel:
+    """Small, discreet status chip (e.g. the Home screen's "READY" badge).
+
+    Deliberately not a button: no hover/press affordance, just a label with
+    `role="pill"` so QSS can give it a chip-like background/border purely
+    from theme tokens.
+    """
+    widget = QLabel(text)
+    widget.setProperty("role", "pill")
+    widget.setProperty("status", status)
+    widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    return widget
+
+
+def keycap(key: str) -> QLabel:
+    """Small keyboard-affordance glyph shown beside a secondary action
+    (e.g. "N" next to "Study something new"). Purely visual -- it does not
+    imply a bound shortcut; see the Home screen's secondary action row.
+    """
+    widget = QLabel(key)
+    widget.setProperty("role", "keycap")
+    widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    return widget
+
+
+def progress_bar(total: int, value: int) -> QProgressBar:
+    """Slim, track+fill progress indicator (e.g. "LAST SESSION" completion).
+
+    `role="progress"` keeps it token-driven (accent fill, discreet track) and
+    text is hidden -- the numeric counter next to it is a separate label, so
+    the bar itself stays a simple visual, not a mixed widget.
+    """
+    bar = QProgressBar()
+    bar.setProperty("role", "progress")
+    bar.setRange(0, max(total, 0))
+    bar.setValue(max(0, min(value, total)) if total else 0)
+    bar.setTextVisible(False)
+    bar.setFixedHeight(6)
+    return bar
 
 
 def set_status(widget: QWidget, status: str) -> None:

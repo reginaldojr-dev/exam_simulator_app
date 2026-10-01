@@ -31,6 +31,17 @@ QLabel[role="panel-caption"] {{ color: {t.text_secondary}; padding: 2px 0; }}
 QLabel[role="hint"] {{ color: {t.text_secondary}; font-size: {t.font_size - 1}px; }}
 QLabel[role="timer"] {{ color: {t.text_bright}; font-weight: 700; }}
 QLabel[role="mono"] {{ color: {t.text_primary}; font-family: {t.font_mono}; }}
+QLabel[role="activity-name"] {{ color: {t.text_bright}; font-family: {t.font_mono}; font-weight: 700; font-size: {t.font_size + 4}px; }}
+QLabel[role="question"] {{ color: {t.text_secondary}; font-size: {t.font_size + 3}px; }}
+QLabel[role="caption-muted"] {{ color: {t.text_secondary}; font-size: {t.font_size - 1}px; font-weight: 700; letter-spacing: 1.5px; }}
+QLabel[role="pill"] {{
+    background: {t.selected_background}; color: {t.success}; border: 1px solid {t.success};
+    border-radius: {r + 8}px; padding: 3px 14px; font-size: {t.font_size - 1}px; font-weight: 700; letter-spacing: 1px;
+}}
+QLabel[role="keycap"] {{
+    background: {t.surface_alt}; color: {t.text_secondary}; border: 1px solid {t.border};
+    border-radius: 3px; padding: 1px 6px; font-size: {t.font_size - 1}px; font-weight: 700;
+}}
 QLabel[status="pass"] {{ color: {t.success}; font-weight: 700; }}
 QLabel[status="fail"] {{ color: {t.fail}; font-weight: 700; }}
 QLabel[status="pending"] {{ color: {t.warning}; font-weight: 700; }}
@@ -46,6 +57,10 @@ QFrame[role="hintbar"] {{ border-top: 1px solid {t.border}; }}
 QFrame[role="trace-summary"] {{ background: {t.surface_alt}; border: 1px solid {t.border_strong}; border-radius: {r}px; }}
 QWidget[role="exercise-sidebar"] {{ background: {t.surface_alt}; border-right: 1px solid {t.border}; }}
 QWidget[role="exercise-footer"] {{ border-top: 1px solid {t.border}; }}
+QWidget[role="dojo-header"] {{ border-bottom: 1px solid {t.border}; }}
+QFrame[role="divider"] {{ background: {t.border}; border: none; }}
+QProgressBar[role="progress"] {{ background: {t.border_disabled}; border: none; border-radius: 3px; }}
+QProgressBar[role="progress"]::chunk {{ background: {t.accent}; border-radius: 3px; }}
 QFrame[role="card"] QLabel, QFrame[role="banner"] QLabel, QFrame[role="hintbar"] QLabel, QFrame[role="trace-summary"] QLabel {{ background: transparent; }}
 
 /* ---------- buttons ---------- */
@@ -92,6 +107,39 @@ QPushButton[variant="danger"] {{ color: {t.fail}; border: 2px solid {t.fail}; bo
 QPushButton[variant="danger"]:hover, QPushButton[variant="danger"]:focus {{ background: {t.fail_background}; color: {t.fail}; border-color: {t.fail}; }}
 
 QPushButton[variant="small"] {{ padding: 4px 10px; border-bottom-width: 2px; font-size: {t.font_size - 1}px; }}
+
+QPushButton[variant="dojo-primary"] {{
+    color: {t.text_bright}; background: {t.surface}; border: 1px solid {t.border};
+    font-family: {t.font_mono}; font-weight: 700; font-size: {t.font_size + 1}px;
+    text-align: center; min-width: 140px; max-width: 160px; min-height: 54px;
+}}
+QPushButton[variant="dojo-primary"]:hover, QPushButton[variant="dojo-primary"]:focus {{
+    background: {t.hover_background}; border: 1px solid {t.border_strong}; color: {t.accent};
+}}
+QPushButton[variant="dojo-primary"]:pressed {{ background: {t.pressed_background}; }}
+
+QPushButton[variant="dojo-secondary"] {{
+    color: {t.text_primary}; background: {t.surface}; border: 1px solid {t.border};
+    font-family: {t.font_mono}; font-weight: 700; font-size: {t.font_size}px;
+    text-align: left; padding: 8px 14px; min-height: 38px; max-height: 44px;
+}}
+QPushButton[variant="dojo-secondary"]:hover, QPushButton[variant="dojo-secondary"]:focus {{
+    background: {t.hover_background}; border: 1px solid {t.border_strong}; color: {t.text_bright};
+}}
+QPushButton[variant="dojo-secondary"]:pressed {{ background: {t.pressed_background}; }}
+
+QPushButton[variant="cta"] {{
+    color: {t.background}; background: {t.accent}; border: 1px solid {t.accent};
+    font-family: {t.font_mono}; font-weight: 700; font-size: {t.font_size + 1}px;
+    text-align: center; min-width: 140px; max-width: 160px; min-height: 45px; max-height: 50px;
+}}
+QPushButton[variant="cta"]:hover, QPushButton[variant="cta"]:focus {{
+    background: {t.accent_secondary}; border: 1px solid {t.border_strong};
+}}
+QPushButton[variant="cta"]:pressed {{ background: {t.accent}; }}
+QPushButton[variant="cta"]:disabled {{
+    background: {t.background}; color: {t.text_disabled}; border: 1px dashed {t.border_disabled};
+}}
 
 /* ---------- inputs ---------- */
 QComboBox, QLineEdit {{ background: {t.surface}; color: {t.text_primary}; border: 1px solid {t.border}; border-radius: {r}px; padding: 6px 8px; }}

@@ -28,6 +28,7 @@ from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinat
 from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
 from rankeddojo.domain.progress import ActivityProgress
 from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.runtime_port import RuntimeStatus
 from rankeddojo.ports.grader_port import GradingRequest
 
 
@@ -791,18 +792,20 @@ class MainWindowTest(unittest.TestCase):
                 self.assertGreaterEqual(window._theme_combo.findData(key), 0, key)
 
     def test_home_is_pt_br_by_default(self) -> None:
-        # Menu order after the Learning Track addition: Study, Training,
-        # Learning Track, Exam Mode, History, Settings -- Learning Track now
-        # sits at position 3, pushing Exam Mode/History/Settings down one.
+        # Dojo Session home: three short primary actions (LEARN/TRAIN/EXAM)
+        # plus three secondary ones (STUDY NEW/HISTORY/SETTINGS) -- no more
+        # "> [N] " prefix, since the numbers are no longer shown on screen
+        # (the underlying `_menu_buttons` order is still 1-6 internally, see
+        # `_install_shortcuts`, but that is no longer part of the button text).
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
 
-            labels = [button.property("baseText") for button in window._menu_buttons]
-
-            self.assertIn("> [2] TREINAR", labels)
-            self.assertIn("> [3] TRILHA DE APRENDIZADO", labels)
-            self.assertIn("> [4] MODO PROVA", labels)
-            self.assertIn("> [5] HISTÓRICO", labels)
+            self.assertEqual(window._home_train_button.property("baseText"), "TREINAR")
+            self.assertEqual(window._home_learn_button.property("baseText"), "APRENDER")
+            self.assertEqual(window._home_exam_button.property("baseText"), "PROVA")
+            self.assertEqual(window._home_study_button.property("baseText"), "QUERO ESTUDAR ALGO NOVO")
+            self.assertEqual(window._home_history_button.property("baseText"), "HISTÓRICO")
+            self.assertEqual(window._home_settings_button.property("baseText"), "CONFIGURAÇÕES")
 
     def test_home_can_switch_to_english_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -810,13 +813,12 @@ class MainWindowTest(unittest.TestCase):
 
             window._locale.set_locale("en")
 
-            labels = [button.property("baseText") for button in window._menu_buttons]
-            self.assertIn("> [1] STUDY SOMETHING NEW", labels)
-            self.assertIn("> [2] TRAINING", labels)
-            self.assertIn("> [3] LEARNING TRACK", labels)
-            self.assertIn("> [4] EXAM MODE", labels)
-            self.assertIn("> [5] HISTORY", labels)
-            self.assertIn("> [6] SETTINGS", labels)
+            self.assertEqual(window._home_learn_button.property("baseText"), "LEARN")
+            self.assertEqual(window._home_train_button.property("baseText"), "TRAIN")
+            self.assertEqual(window._home_exam_button.property("baseText"), "EXAM")
+            self.assertEqual(window._home_study_button.property("baseText"), "STUDY SOMETHING NEW")
+            self.assertEqual(window._home_history_button.property("baseText"), "HISTORY")
+            self.assertEqual(window._home_settings_button.property("baseText"), "SETTINGS")
 
     def test_home_can_switch_to_spanish_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -824,13 +826,12 @@ class MainWindowTest(unittest.TestCase):
 
             window._locale.set_locale("es")
 
-            labels = [button.property("baseText") for button in window._menu_buttons]
-            self.assertIn("> [1] ESTUDIAR ALGO NUEVO", labels)
-            self.assertIn("> [2] ENTRENAR", labels)
-            self.assertIn("> [3] RUTA DE APRENDIZAJE", labels)
-            self.assertIn("> [4] MODO EXAMEN", labels)
-            self.assertIn("> [5] HISTORIAL", labels)
-            self.assertIn("> [6] CONFIGURACIÓN", labels)
+            self.assertEqual(window._home_learn_button.property("baseText"), "APRENDER")
+            self.assertEqual(window._home_train_button.property("baseText"), "ENTRENAR")
+            self.assertEqual(window._home_exam_button.property("baseText"), "EXAMEN")
+            self.assertEqual(window._home_study_button.property("baseText"), "ESTUDIAR ALGO NUEVO")
+            self.assertEqual(window._home_history_button.property("baseText"), "HISTORIAL")
+            self.assertEqual(window._home_settings_button.property("baseText"), "CONFIGURACIÓN")
 
     def test_settings_shows_translated_locale_selector_with_three_languages(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1226,6 +1227,126 @@ class MainWindowTest(unittest.TestCase):
             self.assertIs(window._stack.currentWidget(), window._settings_page)
             self.assertIsNotNone(window._pending_action)
 
+
+    def test_home_last_session_shows_real_progress_and_continue_resumes_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=True)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+            window._submit_current()
+            self.assertTrue(window._tasks.wait())
+
+            window._refresh_home_last_session()
+
+            summary = window._coordinator.last_session_summary()
+            self.assertIsNotNone(summary)
+            self.assertEqual(summary.activity_id, ref.definition.id)
+            self.assertFalse(window._last_session_name.isHidden())
+            self.assertFalse(window._last_session_continue_button.isHidden())
+            self.assertTrue(window._last_session_empty_label.isHidden())
+            self.assertEqual(window._last_session_name.text(), ref.definition.name)
+            self.assertIn(str(summary.completed_count), window._last_session_progress_label.text())
+            self.assertIn(str(summary.total_count), window._last_session_progress_label.text())
+            # Never a hardcoded fraction: it must reflect the real pack size.
+            self.assertEqual(
+                window._last_session_progress.maximum(),
+                max(summary.total_count, 1),
+            )
+
+            window._continue_last_session()
+
+            self.assertIsNotNone(window._active)
+            self.assertEqual(window._active.ref.definition.id, ref.definition.id)
+            self.assertIs(window._stack.currentWidget(), window._exercise_page)
+
+    def test_home_last_session_shows_empty_state_without_prior_training(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._refresh_home_last_session()
+
+            self.assertIsNone(window._coordinator.last_session_summary())
+            self.assertFalse(window._last_session_empty_label.isHidden())
+            self.assertTrue(window._last_session_name.isHidden())
+            self.assertTrue(window._last_session_meta.isHidden())
+            self.assertTrue(window._last_session_progress.isHidden())
+            self.assertTrue(window._last_session_progress_label.isHidden())
+            self.assertTrue(window._last_session_continue_button.isHidden())
+            self.assertEqual(window._last_session_empty_label.text(), "NENHUMA SESSÃO RECENTE")
+
+    def test_home_language_status_reflects_runtime_registry_without_hardcoding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            fake_statuses = (
+                RuntimeStatus(language="c", display_name="C", supported=True, available=True, checked=True, tool="gcc"),
+                RuntimeStatus(language="cpp", display_name="C++", supported=True, available=True, checked=True, tool="g++"),
+                RuntimeStatus(language="python", display_name="Python", supported=True, available=True, checked=True, tool="python3"),
+                RuntimeStatus(language="java", display_name="Java", supported=True, available=False, checked=True),
+            )
+            window._coordinator.runtime_statuses = lambda probe=False: fake_statuses
+
+            window._refresh_home_status()
+
+            chips = []
+            for index in range(window._home_language_status.count()):
+                widget = window._home_language_status.itemAt(index).widget()
+                if widget is not None:
+                    chips.append(widget)
+            self.assertEqual(len(chips), 4)
+            texts = {chip.text(): chip.property("status") for chip in chips}
+            self.assertEqual(texts["C ✓"], "pass")
+            self.assertEqual(texts["C++ ✓"], "pass")
+            self.assertEqual(texts["Python ✓"], "pass")
+            self.assertEqual(texts["Java !"], "pending")
+            # No parallel/hardcoded runtime logic: swapping which language is
+            # unavailable must change which chip shows "!" accordingly.
+            fake_statuses_swapped = (
+                RuntimeStatus(language="c", display_name="C", supported=True, available=False, checked=True),
+                RuntimeStatus(language="java", display_name="Java", supported=True, available=True, checked=True, tool="javac"),
+            )
+            window._coordinator.runtime_statuses = lambda probe=False: fake_statuses_swapped
+            window._refresh_home_status()
+            swapped_texts = {}
+            for index in range(window._home_language_status.count()):
+                widget = window._home_language_status.itemAt(index).widget()
+                if widget is not None:
+                    swapped_texts[widget.text()] = widget.property("status")
+            self.assertEqual(swapped_texts["C !"], "pending")
+            self.assertEqual(swapped_texts["Java ✓"], "pass")
+
+    def test_home_applies_every_theme_without_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            for key in ("default", "gamified", "retro", "terminal", "amber", "gameboy", "neon", "minimal", "paper"):
+                window._theme.set_theme(key)
+                QApplication.processEvents()
+            # Reaching here without a raised exception is the assertion; the
+            # new dojo-primary/dojo-secondary/cta/pill/keycap/progress roles
+            # must resolve under every theme using only existing tokens.
+            self.assertTrue(window.styleSheet())
+
+    def test_home_keyboard_shortcut_order_still_maps_to_original_screens(self) -> None:
+        # `_menu_buttons` keeps the pre-redesign order (study, train, learn,
+        # exam, history, settings) purely so the numeric shortcuts installed
+        # by `_install_shortcuts` keep opening the same screens, even though
+        # the buttons are now visually split into two groups.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            self.assertEqual(len(window._menu_buttons), 6)
+            self.assertIs(window._menu_buttons[0], window._home_study_button)
+            self.assertIs(window._menu_buttons[1], window._home_train_button)
+            self.assertIs(window._menu_buttons[2], window._home_learn_button)
+            self.assertIs(window._menu_buttons[3], window._home_exam_button)
+            self.assertIs(window._menu_buttons[4], window._home_history_button)
+            self.assertIs(window._menu_buttons[5], window._home_settings_button)
+
+            window._menu_buttons[1].click()
+            self.assertIs(window._stack.currentWidget(), window._training_page)
+            window._show_home()
+            window._menu_buttons[3].click()
+            self.assertIs(window._stack.currentWidget(), window._exam_page)
 
 if __name__ == "__main__":
     unittest.main()

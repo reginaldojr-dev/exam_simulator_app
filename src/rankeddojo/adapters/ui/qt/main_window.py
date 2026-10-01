@@ -54,6 +54,7 @@ from rankeddojo.application.mvp_models import (
     CorrectionOutcome,
     ExerciseRef,
     GradingOutcome,
+    LastSessionSummary,
 )
 from rankeddojo.application.use_cases.mvp_coordinator import (
     ExamState,
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
         self._tasks = task_runner or TaskRunner(self)
         self._active: ActiveExercise | None = None
         self._last_outcome: CorrectionOutcome | None = None
+        self._last_session_summary: LastSessionSummary | None = None
         self._trace_summary: TraceSummary | None = None
         self._training_options: TrainingOptions | None = None
         self._exam_state: ExamState | None = None
@@ -228,16 +230,17 @@ class MainWindow(QMainWindow):
 
     def _retranslate_static_ui(self) -> None:
         self._set_title_label(self._title_home, "RankedDojo")
-        menu_labels = (
-            self._t("Quero estudar algo novo"),
-            self._t("Treinar"),
-            self._t("Trilha de aprendizado"),
-            self._t("Modo prova"),
-            self._t("Histórico"),
-            self._t("Configurações"),
-        )
-        for index, (button, label) in enumerate(zip(self._menu_buttons, menu_labels, strict=True), start=1):
-            self._set_button(button, f"> [{index}] {label.upper()}")
+        self._home_ready_pill.setText(f"\u25cf {self._t('Pronto').upper()}")
+        self._home_question_label.setText(self._t("O que você vai fazer hoje?"))
+        self._set_button(self._home_learn_button, self._t("Aprender").upper())
+        self._set_button(self._home_train_button, self._t("Treinar").upper())
+        self._set_button(self._home_exam_button, self._t("Prova").upper())
+        self._set_button(self._home_study_button, self._t("Quero estudar algo novo").upper())
+        self._set_button(self._home_history_button, self._t("Histórico").upper())
+        self._set_button(self._home_settings_button, self._t("Configurações").upper())
+        self._last_session_header.setText(self._t("Última sessão").upper())
+        self._set_button(self._last_session_continue_button, self._t("Continuar").upper())
+        self._refresh_home_last_session()
 
         self._set_title_label(self._study_title, self._t("Quero estudar algo novo título"))
         self._study_description.setText(self._t("Descreva o que quer estudar, gere um prompt compatível e importe o pack resultante."))
@@ -379,7 +382,7 @@ class MainWindow(QMainWindow):
 
     def _button(self, text: str, handler, variant: str = "default") -> QPushButton:
         button = ui.button(text, handler, variant)
-        if variant in ("menu", "start", "primary", "tab"):
+        if variant in ("menu", "start", "primary", "tab", "dojo-primary", "dojo-secondary", "cta"):
             self._cursor.track(button)
         return button
 
@@ -427,47 +430,165 @@ class MainWindow(QMainWindow):
         return footer
 
     # ------------------------------------------------------------------ home
+    @staticmethod
+    def _divider() -> QFrame:
+        divider = QFrame()
+        divider.setProperty("role", "divider")
+        divider.setFixedHeight(1)
+        return divider
+
     def _build_home_page(self) -> QWidget:
-        page, layout = self._page(margins=28)
+        """"Dojo Session" home: a minimal, terminal-flavored landing screen
+        (header, a centered READY area with the three main actions, LAST
+        SESSION, and a bottom bar) -- replaces the old single vertical menu.
+
+        `_menu_buttons` keeps the exact order the old menu used (study,
+        train, learn, exam, history, settings) purely so the existing
+        numeric keyboard shortcuts in `_install_shortcuts` keep opening the
+        same screens as before, even though the buttons are now grouped
+        visually into two clusters (3 primary + 3 secondary) instead of one
+        vertical list.
+        """
+        page, layout = self._page(margins=0, spacing=0)
+
+        # Kept alive (not shown) purely so `_change_workspace()` can keep
+        # calling `.setText()` on it -- the redesigned Home deliberately
+        # drops the workspace-path/packs/runtimes line (see spec).
+        self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
+
+        # ------------------------------------------------------------- header
+        header = QWidget()
+        header.setProperty("role", "dojo-header")
+        header.setFixedHeight(76)
+        header_layout = QHBoxLayout(header)
+        header_layout.setContentsMargins(30, 0, 30, 0)
+        header_layout.setSpacing(10)
         self._home_logo = ui.logo_mark()
         self._title_home = self._title("RankedDojo")
-        title_row = QHBoxLayout()
-        title_row.setSpacing(10)
-        title_row.addWidget(self._home_logo)
-        title_row.addWidget(self._title_home)
-        title_row.addStretch(1)
-        self._workspace_label = ui.label(self._workspace_prompt(), role="prompt", wrap=True)
-        layout.addLayout(title_row)
-        layout.addWidget(self._workspace_label)
-        layout.addStretch(1)
+        header_layout.addWidget(self._home_logo)
+        header_layout.addWidget(self._title_home)
+        header_layout.addStretch(1)
+        layout.addWidget(header)
 
-        menu = QWidget()
-        menu.setMaximumWidth(MENU_WIDTH)
-        menu_layout = QVBoxLayout(menu)
-        menu_layout.setContentsMargins(0, 0, 0, 0)
-        menu_layout.setSpacing(10)
-        self._menu_buttons: list[QPushButton] = []
-        for index, (text, handler) in enumerate(
-            (
-                ("QUERO ESTUDAR ALGO NOVO", self._open_study_flow),
-                ("TREINAR", self._open_training_setup),
-                ("TRILHA DE APRENDIZADO", self._open_learning_flow),
-                ("MODO PROVA", self._open_exam_setup),
-                ("HISTÓRICO", self._show_history),
-                ("CONFIGURAÇÕES", lambda: self._show_settings()),
-            ),
-            start=1,
-        ):
-            button = self._button(f"> [{index}] {text}", handler, "menu")
-            self._menu_buttons.append(button)
-            menu_layout.addWidget(button)
-        self._home_status = ui.label("", role="muted", wrap=True)
+        # --------------------------------------------------------- ready area
+        ready_area = QWidget()
+        ready_layout = QVBoxLayout(ready_area)
+        ready_layout.setContentsMargins(30, 0, 30, 0)
+        ready_layout.setSpacing(16)
+        ready_layout.addStretch(2)
+
+        self._home_ready_pill = ui.pill("", status="ready")
+        ready_layout.addLayout(self._centered(self._home_ready_pill))
+
+        self._home_question_label = ui.label("", role="question")
+        ready_layout.addLayout(self._centered(self._home_question_label))
+
+        actions_row = QWidget()
+        actions_layout = QHBoxLayout(actions_row)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(16)
+        self._home_learn_button = self._button("", self._open_learning_flow, "dojo-primary")
+        self._home_train_button = self._button("", self._open_training_setup, "dojo-primary")
+        self._home_exam_button = self._button("", self._open_exam_setup, "dojo-primary")
+        for button in (self._home_learn_button, self._home_train_button, self._home_exam_button):
+            actions_layout.addWidget(button)
+        ready_layout.addLayout(self._centered(actions_row))
+
+        # Transient feedback for the background runtime/exercise preflight
+        # checks (see `_exercise_preflight_checked`/`_exam_preflight_checked`)
+        # -- empty almost always, matching the generous negative space here.
+        self._home_status = ui.label("", role="hint")
         self._home_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        menu_layout.addSpacing(10)
-        menu_layout.addWidget(self._home_status)
-        layout.addLayout(self._centered(menu))
-        layout.addStretch(2)
-        layout.addLayout(self._footer(None, [("1-6", "navegar"), ("Tab", "foco"), ("Enter", "abrir")]))
+        ready_layout.addLayout(self._centered(self._home_status))
+
+        ready_layout.addStretch(3)
+        layout.addWidget(ready_area, 1)
+
+        # ----------------------------------------------------------- divider
+        divider_row_1 = QHBoxLayout()
+        divider_row_1.setContentsMargins(30, 0, 30, 0)
+        divider_row_1.addWidget(self._divider())
+        layout.addLayout(divider_row_1)
+
+        # ------------------------------------------------------ last session
+        last_session_area = QWidget()
+        last_session_layout = QHBoxLayout(last_session_area)
+        last_session_layout.setContentsMargins(30, 18, 30, 18)
+        last_session_layout.setSpacing(16)
+
+        last_session_text = QVBoxLayout()
+        last_session_text.setSpacing(4)
+        self._last_session_header = ui.label("", role="caption-muted")
+        last_session_text.addWidget(self._last_session_header)
+        self._last_session_name = ui.label("", role="activity-name")
+        last_session_text.addWidget(self._last_session_name)
+        self._last_session_meta = ui.label("", role="meta")
+        last_session_text.addWidget(self._last_session_meta)
+        progress_row = QHBoxLayout()
+        progress_row.setSpacing(10)
+        self._last_session_progress = ui.progress_bar(1, 0)
+        self._last_session_progress.setFixedWidth(220)
+        progress_row.addWidget(self._last_session_progress)
+        self._last_session_progress_label = ui.label("", role="meta")
+        progress_row.addWidget(self._last_session_progress_label)
+        progress_row.addStretch(1)
+        last_session_text.addLayout(progress_row)
+        self._last_session_empty_label = ui.label("", role="muted")
+        last_session_text.addWidget(self._last_session_empty_label)
+        last_session_layout.addLayout(last_session_text, 1)
+
+        self._last_session_continue_button = self._button("", self._continue_last_session, "cta")
+        last_session_layout.addWidget(self._last_session_continue_button, 0, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(last_session_area)
+
+        # ----------------------------------------------------------- divider
+        divider_row_2 = QHBoxLayout()
+        divider_row_2.setContentsMargins(30, 0, 30, 0)
+        divider_row_2.addWidget(self._divider())
+        layout.addLayout(divider_row_2)
+
+        # ------------------------------------------------------- bottom bar
+        bottom_bar = QWidget()
+        bottom_layout = QHBoxLayout(bottom_bar)
+        bottom_layout.setContentsMargins(30, 16, 30, 20)
+        bottom_layout.setSpacing(10)
+
+        secondary_row = QHBoxLayout()
+        secondary_row.setSpacing(10)
+        self._menu_buttons: list[QPushButton] = []
+        self._home_study_button = self._button("", self._open_study_flow, "dojo-secondary")
+        self._home_history_button = self._button("", self._show_history, "dojo-secondary")
+        self._home_settings_button = self._button("", lambda: self._show_settings(), "dojo-secondary")
+        # Order preserved exactly from the old vertical menu (study, train,
+        # learn, exam, history, settings) so the existing numeric shortcuts
+        # ("1".."6", see `_install_shortcuts`) keep opening the same screens.
+        self._menu_buttons.append(self._home_study_button)
+        self._menu_buttons.append(self._home_train_button)
+        self._menu_buttons.append(self._home_learn_button)
+        self._menu_buttons.append(self._home_exam_button)
+        self._menu_buttons.append(self._home_history_button)
+        self._menu_buttons.append(self._home_settings_button)
+
+        for key, button in (
+            ("N", self._home_study_button),
+            ("H", self._home_history_button),
+            ("S", self._home_settings_button),
+        ):
+            item = QWidget()
+            item_layout = QHBoxLayout(item)
+            item_layout.setContentsMargins(0, 0, 0, 0)
+            item_layout.setSpacing(6)
+            item_layout.addWidget(ui.keycap(key))
+            item_layout.addWidget(button)
+            secondary_row.addWidget(item)
+        bottom_layout.addLayout(secondary_row)
+        bottom_layout.addStretch(1)
+
+        self._home_language_status = QHBoxLayout()
+        self._home_language_status.setSpacing(14)
+        bottom_layout.addLayout(self._home_language_status)
+
+        layout.addWidget(bottom_bar)
         return page
 
     def _build_study_page(self) -> QWidget:
@@ -1119,6 +1240,7 @@ class MainWindow(QMainWindow):
     def _show_home(self) -> None:
         self._show_resume_if_needed()
         self._refresh_home_status()
+        self._refresh_home_last_session()
         self._refresh_study_languages()
         self._go(self._home_page)
 
@@ -1127,12 +1249,56 @@ class MainWindow(QMainWindow):
         self._go(self._study_page)
 
     def _refresh_home_status(self) -> None:
-        packs = len(self._coordinator.list_packs())
-        ready = sum(1 for status in self._coordinator.runtime_statuses() if status.tool)
-        total = len(self._coordinator.runtime_statuses())
-        runtimes = self._t("{ready}/{total} verificados", ready=ready, total=total) if total else self._t("0 registrados")
-        exam = f"   ·   {self._t('prova em andamento')}" if self._coordinator.load_active_exam() is not None else ""
-        self._home_status.setText(f"{self._t('packs')}: {packs}   ·   {self._t('runtimes')}: {runtimes}{exam}")
+        """Clears any transient preflight message (see
+        `_exercise_preflight_checked`/`_exam_preflight_checked`) and rebuilds
+        the language-status row from the same `runtime_statuses()` data the
+        old packs/runtimes line used -- no parallel runtime-detection logic.
+        """
+        self._home_status.setText("")
+        while self._home_language_status.count():
+            item = self._home_language_status.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.setParent(None)
+        for status in self._coordinator.runtime_statuses():
+            available = bool(status.tool) or status.available
+            mark = "\u2713" if available else "!"
+            chip = ui.label(f"{status.display_name} {mark}", status="pass" if available else "pending")
+            self._home_language_status.addWidget(chip)
+
+    def _refresh_home_last_session(self) -> None:
+        """Populates the LAST SESSION block from `coordinator.last_session_summary()`
+        (the most recent *training* attempt) -- or shows the empty state when
+        there is none yet. Never fabricates a session.
+        """
+        summary = self._coordinator.last_session_summary()
+        self._last_session_summary = summary
+        has_summary = summary is not None
+        self._last_session_name.setVisible(has_summary)
+        self._last_session_meta.setVisible(has_summary)
+        self._last_session_progress.setVisible(has_summary)
+        self._last_session_progress_label.setVisible(has_summary)
+        self._last_session_continue_button.setVisible(has_summary)
+        self._last_session_empty_label.setVisible(not has_summary)
+        if summary is None:
+            self._last_session_empty_label.setText(self._t("Nenhuma sessão recente").upper())
+            return
+        self._last_session_name.setText(summary.activity_name)
+        self._last_session_meta.setText(f"{summary.language.upper()} · {summary.pack_id} · {summary.mode}")
+        total = max(summary.total_count, 1)
+        self._last_session_progress.setRange(0, total)
+        self._last_session_progress.setValue(min(summary.completed_count, total))
+        self._last_session_progress_label.setText(f"{summary.completed_count} / {summary.total_count}")
+
+    def _continue_last_session(self) -> None:
+        summary = getattr(self, "_last_session_summary", None)
+        if summary is None:
+            return
+        ref = self._coordinator.exercise_ref_for_activity(summary.pack_id, summary.activity_id)
+        if ref is None:
+            QMessageBox.warning(self, self._t("Última sessão"), self._t("Atividade não encontrada."))
+            return
+        self._load_exercise(ref, mode="training")
 
     def _refresh_study_languages(self) -> None:
         current = self._study_language_combo.currentData()

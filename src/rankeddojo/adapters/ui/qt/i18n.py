@@ -90,7 +90,12 @@ def tr(source_text: str, context: str = "RankedDojo") -> str:
 TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
     "en": {
         "Quero estudar algo novo": "Study something new",
-        "Treinar": "Training",
+        "Treinar": "Train",
+        "Prova": "Exam",
+        "Pronto": "Ready",
+        "O que você vai fazer hoje?": "What are you doing today?",
+        "Última sessão": "Last session",
+        "Nenhuma sessão recente": "No recent session",
         "Modo prova": "Exam mode",
         "Histórico": "History",
         "Configurações": "Settings",
@@ -357,6 +362,11 @@ TRANSLATIONS: Mapping[str, Mapping[str, str]] = {
     "es": {
         "Quero estudar algo novo": "Estudiar algo nuevo",
         "Treinar": "Entrenar",
+        "Prova": "Examen",
+        "Pronto": "Listo",
+        "O que você vai fazer hoje?": "¿Qué vas a hacer hoy?",
+        "Última sessão": "Última sesión",
+        "Nenhuma sessão recente": "Ninguna sesión reciente",
         "Modo prova": "Modo examen",
         "Histórico": "Historial",
         "Configurações": "Configuración",

@@ -13,6 +13,7 @@ from rankeddojo.application.mvp_models import (
     ActiveExercise,
     CorrectionOutcome,
     ExerciseRef,
+    LastSessionSummary,
     ProgressEntry,
 )
 from rankeddojo.application.study_intent import PackPromptBuilder, StudyIntent
@@ -192,6 +193,55 @@ class MVPTrainerCoordinator:
             if ref.definition.id == activity_id:
                 return ref
         return None
+
+    def last_session_summary(self) -> LastSessionSummary | None:
+        """The Home screen's "LAST SESSION" block: the most recent *training*
+        attempt, with the pack/exercise metadata and progress fraction needed
+        to display it. Built entirely from existing read paths -- the same
+        `list_activity_attempts` the history screen uses (already sorted most
+        recent first) and the same `_pack_catalog`/`progress_by_exercise`
+        combination `exercise_ref_for_activity`/`exercise_history_rows`
+        already rely on. Exam attempts are excluded: resuming an exam needs
+        the dedicated exam-resume flow (`load_active_exam`/`_exam_resume_card`),
+        which this block never duplicates.
+
+        Returns None when there is no training attempt yet -- the UI shows an
+        empty state rather than inventing a session.
+        """
+        attempts = self._progress_repository.list_activity_attempts(policy=TRAINING_MODE)
+        if not attempts:
+            return None
+        latest = attempts[0]
+        pack_id = str(latest["pack_id"])
+        activity_id = str(latest.get("activity_id") or latest.get("exercise_id"))
+        pack_name = pack_id
+        activity_name = activity_id
+        language = ""
+        total_count = 0
+        completed_count = 0
+        for pack in self._pack_catalog.list_packs():
+            if pack.id != pack_id:
+                continue
+            pack_name = pack.name
+            refs = self._pack_catalog.list_exercises(pack.id)
+            total_count = len(refs)
+            progress = self._progress_repository.progress_by_exercise(pack.id)
+            completed_count = sum(1 for entry in progress.values() if entry.best_passed)
+            for ref in refs:
+                if ref.definition.id == activity_id:
+                    activity_name = ref.definition.name
+                    language = ref.definition.programming_language
+            break
+        return LastSessionSummary(
+            pack_id=pack_id,
+            pack_name=pack_name,
+            activity_id=activity_id,
+            activity_name=activity_name,
+            language=language,
+            mode=TRAINING_MODE,
+            completed_count=completed_count,
+            total_count=total_count,
+        )
 
     def list_progress(self) -> list[ProgressEntry]:
         return self._progress_repository.list_progress()
