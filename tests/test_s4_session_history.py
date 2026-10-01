@@ -148,6 +148,32 @@ class SessionPolicyHistoryTest(unittest.TestCase):
             self.assertTrue(by_session)
             self.assertTrue(all(entry.session_id == state.id for entry in by_session))
 
+    def test_contextual_history_projections_feed_history_inspector(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator = self._coordinator(root, StaticGrader(passed=False))
+            ref = next(
+                ref
+                for ref in coordinator._pack_catalog.list_exercises("sample_rank")
+                if ref.definition.id == "steady_echo"
+            )
+            active = coordinator.prepare_exercise(ref, overwrite=True)
+            coordinator.submit_training(active)
+
+            overview = coordinator.history_overview()
+            pack_summary = coordinator.history_pack_summary("sample_rank")
+            activity_summary = coordinator.history_activity_summary("sample_rank", "steady_echo")
+
+            self.assertGreaterEqual(overview.attempts, 1)
+            self.assertIsNotNone(pack_summary)
+            self.assertEqual(pack_summary.pack_id, "sample_rank")
+            self.assertGreaterEqual(pack_summary.attempts_count, 1)
+            self.assertIsNotNone(activity_summary)
+            self.assertEqual(activity_summary.activity_id, "steady_echo")
+            self.assertEqual(activity_summary.latest_result, "FAIL")
+            self.assertEqual(activity_summary.attempts[0].result, "FAIL")
+            self.assertFalse(activity_summary.attempts[0].trace_available)
+
     def test_sqlite_schema_has_neutral_activity_and_policy_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

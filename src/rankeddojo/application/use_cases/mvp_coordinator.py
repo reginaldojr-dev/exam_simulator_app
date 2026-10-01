@@ -384,6 +384,21 @@ class MVPTrainerCoordinator:
     def history_timeline(self, query: HistoryQuery = HistoryQuery()):
         return self._history.timeline(query)
 
+    def history_overview(self, query: HistoryQuery = HistoryQuery()):
+        return self._history.overview(query)
+
+    def history_pack_summaries(self):
+        return self._history.pack_summaries(self.list_packs(), self._pack_catalog.list_exercises)
+
+    def history_pack_summary(self, pack_id: str):
+        return self._history.pack_summary(pack_id, self.list_packs(), self._pack_catalog.list_exercises)
+
+    def history_activity_summary(self, pack_id: str, activity_id: str):
+        return self._history.activity_summary(pack_id, activity_id, self.list_packs(), self._pack_catalog.list_exercises)
+
+    def history_session_summaries(self):
+        return self._history.session_summaries()
+
     def inspect_pack(self, source_path: Path):
         """Validate a pack without copying it; report whether it contains executable code."""
         return self._pack_importer.inspect_pack(source_path)

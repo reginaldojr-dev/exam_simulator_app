@@ -605,25 +605,31 @@ class MainWindowTest(unittest.TestCase):
             self.assertTrue(window._tasks.wait())
 
             window._show_history()
-            window._set_history_view("activities")
+            window._select_history_pack("sample_rank")
 
             self.assertIs(window._stack.currentWidget(), window._history_page)
             headers = [
-                window._history_table.horizontalHeaderItem(column).text()
-                for column in range(window._history_table.columnCount())
+                window._history_activity_table.horizontalHeaderItem(column).text()
+                for column in range(window._history_activity_table.columnCount())
             ]
             self.assertEqual(
                 headers,
-                ["PACK/LEVEL", "ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"],
+                ["ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMA"],
             )
             matching_row = next(
                 row
-                for row in range(window._history_table.rowCount())
-                if "steady_echo" in window._history_table.item(row, 1).text()
+                for row in range(window._history_activity_table.rowCount())
+                if "steady_echo" in window._history_activity_table.item(row, 0).text()
             )
-            self.assertEqual(window._history_table.item(matching_row, 3).text(), "1")
-            self.assertEqual(window._history_table.item(matching_row, 4).text(), "FAIL")
-            self.assertEqual(window._history_table.item(matching_row, 2).text(), "[\u2717] Tentado")
+            self.assertEqual(window._history_activity_table.item(matching_row, 2).text(), "1")
+            self.assertEqual(window._history_activity_table.item(matching_row, 1).text(), "Tentado")
+
+            window._history_activity_table.selectRow(matching_row)
+            self.assertEqual(window._history_inspector_title.text(), "Steady Echo")
+            self.assertEqual(window._history_attempts_table.item(0, 1).text(), "FAIL")
+            window._history_attempts_table.selectRow(0)
+            self.assertIn("Trace não disponível", window._history_trace_summary.text())
+            self.assertFalse(window._history_trace_button.isEnabled())
 
             coordinator_row = next(
                 row
@@ -655,24 +661,24 @@ class MainWindowTest(unittest.TestCase):
             self.assertNotEqual(coordinator_row["status"], "concluído")
 
             window._show_history()
-            window._set_history_view("activities")
+            window._select_history_pack("sample_rank")
             row_index = next(
                 row
-                for row in range(window._history_table.rowCount())
-                if "steady_echo" in window._history_table.item(row, 1).text()
+                for row in range(window._history_activity_table.rowCount())
+                if "steady_echo" in window._history_activity_table.item(row, 0).text()
             )
-            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Concluído")
+            self.assertEqual(window._history_activity_table.item(row_index, 1).text(), "Concluído")
 
             window._locale.set_locale("en")
             window._render_history()
-            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Completed")
+            self.assertEqual(window._history_activity_table.item(row_index, 1).text(), "Completed")
 
             window._locale.set_locale("es")
             window._render_history()
-            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Completado")
+            self.assertEqual(window._history_activity_table.item(row_index, 1).text(), "Completado")
 
             # Counts derived from ActivityProgress stay correct regardless of locale.
-            self.assertIn("1/", window._history_summary.text())
+            self.assertIn("1", window._history_metric_completed.text())
 
     def test_history_exposes_overview_pack_session_and_timeline_views(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -684,18 +690,22 @@ class MainWindowTest(unittest.TestCase):
 
             window._show_history()
             self.assertEqual(window._history_view, "overview")
-            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "ITEM")
+            self.assertEqual(window._history_activity_table.horizontalHeaderItem(0).text(), "ITEM")
+            self.assertEqual(set(window._history_nav_buttons), {"overview", "sessions"})
 
-            window._set_history_view("packs")
-            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "PACK")
+            window._select_history_pack("sample_rank")
+            self.assertEqual(window._history_activity_table.horizontalHeaderItem(0).text(), "ATIVIDADE")
+            self.assertEqual(window._history_center_title.text(), "Sample Rank")
 
             window._set_history_view("sessions")
-            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "DATA")
+            self.assertEqual(window._history_session_table.horizontalHeaderItem(0).text(), "DATA")
+            self.assertFalse(window._history_session_table.isHidden())
 
-            window._set_history_view("timeline")
-            headers = [window._history_table.horizontalHeaderItem(column).text() for column in range(window._history_table.columnCount())]
-            self.assertEqual(headers, ["DATA", "SESSÃO", "PACK", "ATIVIDADE", "STATUS"])
-            self.assertGreaterEqual(window._history_table.rowCount(), 1)
+            headers = [
+                window._history_session_table.horizontalHeaderItem(column).text()
+                for column in range(window._history_session_table.columnCount())
+            ]
+            self.assertEqual(headers, ["DATA", "SESSÃO", "PACK", "STATUS", "ATIVIDADES"])
 
     def test_home_layout_survives_reference_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
