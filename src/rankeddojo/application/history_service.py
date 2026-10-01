@@ -93,12 +93,45 @@ class SessionHistorySummary:
 
 @dataclass(frozen=True)
 class HistoryOverviewSummary:
-    completed: int
-    attempted: int
-    attempts: int
-    exams: int
-    packs: int
+    completed_activity_count: int
+    attempted_activity_count: int
+    attempt_count: int
+    pack_count: int
+    exam_session_count: int
+    exam_passed_count: int
+    exam_failed_count: int
+    exam_timed_out_count: int
+    exam_abandoned_count: int
     recent: tuple[HistoryEntry, ...]
+
+    @property
+    def completed(self) -> int:
+        return self.completed_activity_count
+
+    @property
+    def attempted(self) -> int:
+        return self.attempted_activity_count
+
+    @property
+    def attempts(self) -> int:
+        return self.attempt_count
+
+    @property
+    def packs(self) -> int:
+        return self.pack_count
+
+    @property
+    def exams(self) -> int:
+        return self.exam_session_count
+
+
+@dataclass(frozen=True)
+class LearningHistorySummary:
+    language: str
+    current_level: int
+    completed_count: int
+    total_count: int
+    current_activity_id: str | None
 
 
 class HistoryService:
@@ -128,15 +161,24 @@ class HistoryService:
         completed = sum(1 for entry in progress if entry.best_passed)
         attempted = sum(1 for entry in progress if entry.attempts_count > 0)
         packs = len({entry.pack_id for entry in progress} | {entry.identity.pack_id for entry in attempts})
-        exams = len([row for row in self._progress_repository.list_exam_history()])
-        if filters.policy is not None:
-            exams = 0 if filters.policy != "exam" else exams
+        exam_rows = self._progress_repository.list_exam_history()
+        if filters.pack_id is not None:
+            exam_rows = [row for row in exam_rows if str(row.get("rank") or row.get("pack_id") or "") == filters.pack_id]
+        exams = len(exam_rows)
+        exam_statuses = [str(row.get("status") or "").lower() for row in exam_rows]
+        if filters.policy is not None and filters.policy != "exam":
+            exams = 0
+            exam_statuses = []
         return HistoryOverviewSummary(
-            completed=completed,
-            attempted=attempted,
-            attempts=len(attempts),
-            exams=exams,
-            packs=packs,
+            completed_activity_count=completed,
+            attempted_activity_count=attempted,
+            attempt_count=len(attempts),
+            pack_count=packs,
+            exam_session_count=exams,
+            exam_passed_count=exam_statuses.count("passed") + exam_statuses.count("completed"),
+            exam_failed_count=exam_statuses.count("failed"),
+            exam_timed_out_count=exam_statuses.count("timed_out") + exam_statuses.count("timeout"),
+            exam_abandoned_count=exam_statuses.count("abandoned"),
             recent=tuple(attempts[:5]),
         )
 
@@ -197,6 +239,26 @@ class HistoryService:
                 )
             )
         return tuple(sessions)
+
+    def exam_summaries(self) -> tuple[SessionHistorySummary, ...]:
+        return tuple(session for session in self.session_summaries() if session.policy == "exam")
+
+    def training_summaries(self) -> tuple[SessionHistorySummary, ...]:
+        rows = getattr(self._progress_repository, "list_training_sessions", lambda: [])()
+        return tuple(
+            SessionHistorySummary(
+                session_id=str(row["id"]),
+                policy="training",
+                pack_id=str(row.get("rank") or row.get("pack_id") or ""),
+                status=str(row.get("status") or ""),
+                finished_at=None if row.get("finished_at") is None else str(row["finished_at"]),
+                duration_seconds=None,
+                score=None,
+                activities_count=0,
+                activities=(),
+            )
+            for row in rows
+        )
 
     def exercise_rows(self, packs, list_exercises) -> list[dict[str, object]]:
         progress = self._progress_repository.progress_by_key()

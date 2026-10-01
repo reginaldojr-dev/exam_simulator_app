@@ -78,6 +78,9 @@ class TrainerProgressRepository(ProgressRepository, Protocol):
     def list_exam_history(self) -> list[dict[str, object]]:
         raise NotImplementedError
 
+    def list_training_sessions(self) -> list[dict[str, object]]:
+        raise NotImplementedError
+
     def record_exam_level_result(
         self, session_id: str, level_index: int, exercise_id: str, passed: bool, attempts_count: int
     ) -> None:

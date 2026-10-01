@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from rankeddojo.application.history_service import HistoryQuery, HistoryService
+from rankeddojo.application.history_service import HistoryQuery, HistoryService, LearningHistorySummary
 from rankeddojo.application.capabilities import ExerciseCapabilities, capabilities_from_runtime_descriptors
 from rankeddojo.application.mvp_models import (
     ActiveExercise,
@@ -398,6 +398,30 @@ class MVPTrainerCoordinator:
 
     def history_session_summaries(self):
         return self._history.session_summaries()
+
+    def history_exam_summaries(self):
+        return self._history.exam_summaries()
+
+    def history_training_summaries(self):
+        return self._history.training_summaries()
+
+    def history_learning_summaries(self) -> tuple[LearningHistorySummary, ...]:
+        summaries: list[LearningHistorySummary] = []
+        for language in self.learning_languages():
+            view = self.learning_track(language)
+            completed_count = len(view.completed_activity_ids)
+            if completed_count == 0:
+                continue
+            summaries.append(
+                LearningHistorySummary(
+                    language=language,
+                    current_level=view.current_level,
+                    completed_count=completed_count,
+                    total_count=len(view.track.activities),
+                    current_activity_id=None if view.next_activity is None else view.next_activity.activity_id,
+                )
+            )
+        return tuple(summaries)
 
     def inspect_pack(self, source_path: Path):
         """Validate a pack without copying it; report whether it contains executable code."""

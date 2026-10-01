@@ -293,20 +293,17 @@ class MainWindow(QMainWindow):
 
         self._set_title_label(self._history_title, self._t("Histórico").upper())
         if hasattr(self, "_history_nav_buttons"):
-            nav_labels = {"overview": "Visão geral", "sessions": "Sessões"}
+            nav_labels = {
+                "overview": "Visão geral",
+                "training_sessions": "Treino",
+                "exam_sessions": "Provas",
+            }
             for key, button in self._history_nav_buttons.items():
                 self._set_button(button, self._t(nav_labels[key]).upper())
-            scope_labels = {
-                "all": "Todos",
-                "training": "Training filter",
-                "exam": "Exam filter",
-                "learning": "Learning",
-            }
-            for key, button in self._history_scope_buttons.items():
-                self._set_button(button, self._t(scope_labels[key]).upper())
             self._history_views_label.setText(self._t("VIEWS"))
             self._history_learning_label.setText(self._t("LEARNING"))
             self._history_packs_label.setText(self._t("PACKS"))
+            self._history_sessions_label.setText(self._t("SESSIONS"))
             self._set_button(self._history_trace_button, self._action("Abrir trace completo"))
             self._refresh_history_sidebar()
             self._render_history()
@@ -957,7 +954,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(self._history_title)
         self._history_view = "overview"
         self._history_context: tuple[str, str | None] = ("overview", None)
-        self._history_scope = "all"
         self._history_activity_rows = []
         self._history_attempt_rows = []
         self._history_selected_attempt = None
@@ -975,7 +971,7 @@ class MainWindow(QMainWindow):
         self._history_views_label = ui.label("VIEWS", role="caption-muted")
         sidebar_layout.addWidget(self._history_views_label)
         self._history_nav_buttons: dict[str, QPushButton] = {}
-        for key, text in (("overview", "Visão geral"), ("sessions", "Sessões")):
+        for key, text in (("overview", "Visão geral"),):
             button = self._button(self._t(text).upper(), lambda checked=False, view=key: self._set_history_view(view), "option")
             button.setCheckable(True)
             self._history_nav_buttons[key] = button
@@ -992,6 +988,17 @@ class MainWindow(QMainWindow):
         self._history_pack_buttons_layout.setContentsMargins(0, 0, 0, 0)
         self._history_pack_buttons_layout.setSpacing(6)
         sidebar_layout.addLayout(self._history_pack_buttons_layout)
+        self._history_sessions_label = ui.label("SESSIONS", role="caption-muted")
+        sidebar_layout.addWidget(self._history_sessions_label)
+        self._history_session_buttons_layout = QVBoxLayout()
+        self._history_session_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        self._history_session_buttons_layout.setSpacing(6)
+        for key, text in (("training_sessions", "Treino"), ("exam_sessions", "Provas")):
+            button = self._button(self._t(text).upper(), lambda checked=False, view=key: self._set_history_view(view), "option")
+            button.setCheckable(True)
+            self._history_nav_buttons[key] = button
+            self._history_session_buttons_layout.addWidget(button)
+        sidebar_layout.addLayout(self._history_session_buttons_layout)
         sidebar_layout.addStretch(1)
         body.addWidget(sidebar)
 
@@ -1004,21 +1011,6 @@ class MainWindow(QMainWindow):
         self._history_center_meta = ui.label("", role="muted", wrap=True)
         center_layout.addWidget(self._history_center_title)
         center_layout.addWidget(self._history_center_meta)
-        scope_row = QHBoxLayout()
-        scope_row.setSpacing(6)
-        self._history_scope_buttons: dict[str, QPushButton] = {}
-        for key, text in (
-            ("all", self._t("Todos")),
-            ("training", self._t("Training filter")),
-            ("exam", self._t("Exam filter")),
-            ("learning", self._t("Learning")),
-        ):
-            button = self._button(text.upper(), lambda checked=False, scope=key: self._set_history_scope(scope), "option")
-            button.setCheckable(True)
-            self._history_scope_buttons[key] = button
-            scope_row.addWidget(button)
-        scope_row.addStretch(1)
-        center_layout.addLayout(scope_row)
         metric_row = QHBoxLayout()
         metric_row.setSpacing(16)
         self._history_metric_completed = ui.label("", status="pass")
@@ -1033,7 +1025,11 @@ class MainWindow(QMainWindow):
         ):
             metric_row.addWidget(widget)
         metric_row.addStretch(1)
-        center_layout.addLayout(metric_row)
+        self._history_metric_row = QWidget()
+        self._history_metric_row.setLayout(metric_row)
+        center_layout.addWidget(self._history_metric_row)
+        self._history_overview_text = ui.label("", role="muted", wrap=True)
+        center_layout.addWidget(self._history_overview_text)
         self._history_table = self._table(("ITEM", "VALOR"), stretch=1)
         self._history_activity_table = self._history_table
         self._history_activity_table.itemSelectionChanged.connect(self._history_activity_selected)
@@ -1044,6 +1040,7 @@ class MainWindow(QMainWindow):
         body.addWidget(center, 1)
 
         inspector = QFrame()
+        self._history_inspector = inspector
         inspector.setProperty("role", "card")
         inspector.setMaximumWidth(340)
         inspector_layout = QVBoxLayout(inspector)
@@ -1061,6 +1058,7 @@ class MainWindow(QMainWindow):
         self._history_trace_button = self._button("[ ABRIR TRACE COMPLETO ]", self._open_history_attempt_trace)
         inspector_layout.addWidget(self._history_trace_button)
         body.addWidget(inspector)
+        inspector.hide()
         layout.addLayout(body, 1)
         layout.addLayout(self._footer(self._show_home, [("Esc", "voltar")]))
         return page
@@ -2449,20 +2447,10 @@ class MainWindow(QMainWindow):
             self._go(self._history_page)
 
     def _set_history_view(self, view: str) -> None:
-        if view in {"packs", "activities", "timeline"}:
-            view = "overview"
+        if view == "sessions":
+            view = "exam_sessions"
         self._history_view = view
         self._history_context = (view, None)
-        self._render_history()
-
-    def _set_history_scope(self, scope: str) -> None:
-        self._history_scope = scope
-        if scope in {"training", "exam"}:
-            self._history_context = ("overview", None)
-            self._history_view = "overview"
-        elif scope == "learning":
-            languages = self._history_learning_languages()
-            self._history_context = ("learning", languages[0] if languages else None)
         self._render_history()
 
     def _refresh_history_sidebar(self) -> None:
@@ -2499,19 +2487,13 @@ class MainWindow(QMainWindow):
 
     def _select_history_learning(self, language: str) -> None:
         self._history_context = ("learning", language)
-        self._history_scope = "learning"
         self._history_view = "learning"
         self._render_history()
 
     def _history_query(self) -> HistoryQuery:
         context, value = self._history_context
         pack = value if context == "pack" else None
-        policy = None
-        if self._history_scope == "training":
-            policy = "training"
-        elif self._history_scope == "exam":
-            policy = "exam"
-        return HistoryQuery(pack_id=pack, policy=policy)
+        return HistoryQuery(pack_id=pack)
 
     def _render_history(self) -> None:
         self._sync_history_buttons()
@@ -2524,16 +2506,16 @@ class MainWindow(QMainWindow):
             self._render_history_activity(pack_id, activity_id)
         elif context == "learning" and value:
             self._render_history_learning(value)
-        elif self._history_view == "sessions":
-            self._render_history_sessions()
+        elif self._history_view == "training_sessions":
+            self._render_history_sessions("training")
+        elif self._history_view == "exam_sessions":
+            self._render_history_sessions("exam")
         else:
             self._render_history_overview()
 
     def _sync_history_buttons(self) -> None:
         for key, button in self._history_nav_buttons.items():
             button.setChecked(key == self._history_view)
-        for key, button in self._history_scope_buttons.items():
-            button.setChecked(key == self._history_scope)
 
     def _history_learning_languages(self) -> tuple[str, ...]:
         languages = tuple(self._coordinator.learning_languages())
@@ -2542,12 +2524,14 @@ class MainWindow(QMainWindow):
         return tuple(status.language for status in self._coordinator.runtime_statuses())
 
     def _history_clear_inspector(self) -> None:
+        self._history_inspector.hide()
         self._history_selected_attempt = None
         self._history_inspector_title.setText(self._t("Selecione uma atividade"))
         self._history_inspector_body.setText(self._t("Attempts e trace aparecem aqui."))
         self._history_trace_summary.setText(self._t("Nenhuma tentativa selecionada."))
         self._history_trace_button.setEnabled(False)
         self._history_attempt_rows = []
+        self._history_session_activity_rows = []
         self._set_table_headers(self._history_attempts_table, ("N", "RESULT", self._t("Data").upper()), 2)
         self._history_attempts_table.setRowCount(0)
 
@@ -2556,32 +2540,55 @@ class MainWindow(QMainWindow):
         self._history_activity_rows = []
         self._history_center_title.setText(self._t("Visão geral"))
         self._history_center_meta.setText(self._t("Resumo do progresso real registrado."))
-        self._set_history_metrics(overview.completed, overview.attempts, overview.exams, overview.packs)
+        self._set_history_metrics(
+            overview.completed_activity_count,
+            overview.attempt_count,
+            overview.exam_session_count,
+            overview.pack_count,
+        )
+        self._history_metric_row.show()
+        self._history_overview_text.setText(
+            f"{self._t('Atividades concluídas')}: {overview.completed_activity_count}\n"
+            f"{self._t('Atividades tentadas')}: {overview.attempted_activity_count}\n"
+            f"{self._t('Total de tentativas')}: {overview.attempt_count}\n"
+            f"{self._t('Packs usados')}: {overview.pack_count}\n\n"
+            + self._history_learning_overview_text()
+            + f"{self._t('Resumo de provas')}\n"
+            f"{self._t('Sessões')}: {overview.exam_session_count} · "
+            f"{self._t('Passou')}: {overview.exam_passed_count} · "
+            f"{self._t('Falhou')}: {overview.exam_failed_count} · "
+            f"{self._t('Tempo esgotado')}: {overview.exam_timed_out_count} · "
+            f"{self._t('Abandonada')}: {overview.exam_abandoned_count}\n\n"
+            f"{self._t('Atividade recente')}:\n"
+            + ("\n".join(
+                f"- {entry.identity.activity_id} · {entry.policy} · "
+                f"{self._history_result_text(entry.passed)} · {self._format_date(entry.submitted_at)}"
+                for entry in overview.recent
+            ) or self._t("Nenhum histórico registrado."))
+        )
         self._history_session_table.hide()
-        self._history_activity_table.show()
-        self._set_table_headers(self._history_activity_table, (self._t("Item").upper(), self._t("Valor").upper()), 1)
-        data = [
-            (self._t("Atividades concluídas"), str(overview.completed)),
-            (self._t("Atividades tentadas"), str(overview.attempted)),
-            (self._t("Tentativas"), str(overview.attempts)),
-            (self._t("Sessões de prova"), str(overview.exams)),
-            (self._t("Packs usados"), str(overview.packs)),
-        ]
-        if overview.recent:
-            for entry in overview.recent:
-                data.append((
-                    f"{entry.policy} · {entry.identity.pack_id}",
-                    f"{entry.identity.activity_id} · {self._history_result_text(entry.passed)} · {self._format_date(entry.submitted_at)}",
-                ))
-        else:
-            data.append((self._t("Atividade recente"), self._t("Nenhum histórico registrado.")))
-        self._history_activity_table.setRowCount(len(data))
-        for row_index, (label, value) in enumerate(data):
-            self._history_activity_table.setItem(row_index, 0, self._item(label, "text_secondary"))
-            self._history_activity_table.setItem(row_index, 1, self._item(value))
+        self._history_activity_table.hide()
+        self._history_overview_text.show()
+
+    def _history_learning_overview_text(self) -> str:
+        summaries = self._coordinator.history_learning_summaries()
+        if not summaries:
+            return ""
+        lines = [f"{self._t('Aprendizado atual')}"]
+        for summary in summaries:
+            current = summary.current_activity_id or "-"
+            lines.append(
+                f"{self._learning_language_display_name(summary.language)} · "
+                f"{self._t('Nível')} {summary.current_level} · "
+                f"{summary.completed_count}/{summary.total_count} · "
+                f"{self._t('Atual')}: {current}"
+            )
+        return "\n".join(lines) + "\n\n"
 
     def _render_history_pack(self, pack_id: str) -> None:
         summary = self._coordinator.history_pack_summary(pack_id)
+        self._history_metric_row.hide()
+        self._history_overview_text.hide()
         self._history_session_table.hide()
         self._history_activity_table.show()
         if summary is None:
@@ -2643,8 +2650,8 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(column, mode)
 
     def _set_history_metrics(self, completed: int, attempts: int, exams: int, packs: int) -> None:
-        self._history_metric_completed.setText(f"{self._t('Concluídas')}: {completed}")
-        self._history_metric_attempts.setText(f"{self._t('Tentativas')}: {attempts}")
+        self._history_metric_completed.setText(f"{self._t('Atividades concluídas')}: {completed}")
+        self._history_metric_attempts.setText(f"{self._t('Total de tentativas')}: {attempts}")
         self._history_metric_exams.setText(f"{self._t('Sessões de prova')}: {exams}")
         self._history_metric_packs.setText(f"{self._t('Packs usados')}: {packs}")
 
@@ -2654,9 +2661,37 @@ class MainWindow(QMainWindow):
             return
         activity = self._history_activity_rows[row]
         self._history_context = ("activity", f"{activity.pack_id}:{activity.activity_id}")
-        self._show_history_activity(activity)
+        if self._history_view == "learning":
+            self._show_history_learning_activity(activity)
+        else:
+            self._show_history_activity(activity)
+
+    def _show_history_learning_activity(self, activity: LearningActivityRef) -> None:
+        self._history_inspector.show()
+        self._history_inspector_title.setText(activity.title or activity.activity_id)
+        view = self._coordinator.learning_track(activity.language)
+        if activity.activity_id in view.completed_activity_ids:
+            state = self._t("Concluído")
+        elif view.next_activity is not None and activity.activity_id == view.next_activity.activity_id:
+            state = self._t("Atual")
+        elif is_activity_unlocked(activity, view.completed_activity_ids):
+            state = self._t("Disponível")
+        else:
+            state = self._t("Bloqueado")
+        self._history_inspector_body.setText(
+            f"{self._t('Estado')}: {state}\n"
+            f"{self._t('Nível')}: {activity.position}\n"
+            f"{self._t('Pack')}: {activity.pack_id}"
+        )
+        self._history_attempt_rows = []
+        self._set_table_headers(self._history_attempts_table, ("N", "RESULT", self._t("Data").upper()), 2)
+        self._history_attempts_table.setRowCount(0)
+        self._history_trace_summary.setText(self._t("Nenhuma tentativa registrada."))
+        self._history_trace_button.setEnabled(False)
 
     def _show_history_activity(self, activity) -> None:
+        self._history_inspector.show()
+        self._history_overview_text.hide()
         detailed = self._coordinator.history_activity_summary(activity.pack_id, activity.activity_id) or activity
         self._history_inspector_title.setText(detailed.title or detailed.activity_id)
         self._history_inspector_body.setText(
@@ -2681,9 +2716,24 @@ class MainWindow(QMainWindow):
 
     def _history_attempt_selected(self) -> None:
         row = self._history_attempts_table.currentRow()
-        if row < 0 or row >= len(getattr(self, "_history_attempt_rows", [])):
+        if row < 0:
             return
-        attempt = self._history_attempt_rows[row]
+        session_context = self._history_context[0] in {"exam_session", "training_session"}
+        rows = getattr(self, "_history_session_activity_rows", []) if session_context else getattr(self, "_history_attempt_rows", [])
+        if row >= len(rows):
+            return
+        if session_context:
+            activity = rows[row]
+            self._history_inspector_title.setText(activity.activity_id)
+            self._history_inspector_body.setText(
+                f"{self._t('Resultado')}: {activity.result}\n"
+                f"{self._t('Tentativas')}: {activity.attempts_count}\n"
+                f"{self._t('Última')}: {self._format_date(activity.updated_at)}"
+            )
+            self._history_trace_summary.setText(self._t("Trace não disponível para tentativas históricas."))
+            self._history_trace_button.setEnabled(False)
+            return
+        attempt = rows[row]
         self._history_selected_attempt = attempt
         summary = attempt.failure_summary or attempt.status or attempt.result
         trace_state = self._t("Trace não disponível para tentativas históricas.")
@@ -2698,6 +2748,8 @@ class MainWindow(QMainWindow):
         )
 
     def _render_history_learning(self, language: str) -> None:
+        self._history_metric_row.hide()
+        self._history_overview_text.hide()
         self._history_session_table.hide()
         self._history_activity_table.show()
         self._history_center_title.setText(f"{self._t('Learning')} · {self._learning_language_display_name(language)}")
@@ -2722,7 +2774,9 @@ class MainWindow(QMainWindow):
         for row_index, activity in enumerate(view.track.activities):
             if activity.activity_id in view.completed_activity_ids:
                 status = self._t("Concluído")
-            elif activity.activity_id in view.unlocked_activity_ids:
+            elif view.next_activity is not None and activity.activity_id == view.next_activity.activity_id:
+                status = self._t("Atual")
+            elif is_activity_unlocked(activity, view.completed_activity_ids):
                 status = self._t("Disponível")
             else:
                 status = self._t("Bloqueado")
@@ -2736,44 +2790,72 @@ class MainWindow(QMainWindow):
         if total == 0:
             self._history_center_meta.setText(self._t("Ainda não há atividades nesta trilha."))
 
-    def _render_history_sessions(self) -> None:
-        sessions = self._coordinator.history_session_summaries()
+    def _render_history_sessions(self, policy: str) -> None:
+        sessions = (
+            self._coordinator.history_training_summaries()
+            if policy == "training"
+            else self._coordinator.history_exam_summaries()
+        )
         self._history_activity_rows = []
-        self._history_center_title.setText(self._t("Sessões"))
-        self._history_center_meta.setText(self._t("Timeline compacta de sessões registradas."))
-        self._set_history_metrics(0, sum(session.activities_count for session in sessions), len(sessions), 0)
+        self._history_overview_text.hide()
+        self._history_metric_row.hide()
+        self._history_center_title.setText(self._t("Sessões de treino" if policy == "training" else "Sessões de prova"))
+        self._history_center_meta.setText(
+            self._t("Sessões de treino registradas.") if policy == "training" else self._t("Resumo das provas registradas.")
+        )
+        self._set_history_metrics(0, 0, len(sessions) if policy == "exam" else 0, 0)
         self._history_activity_table.hide()
         self._history_session_table.show()
         self._history_session_rows = list(sessions)
-        self._set_table_headers(
-            self._history_session_table,
-            (self._t("Data").upper(), self._t("Sessão").upper(), "PACK", self._t("Status").upper(), self._t("Atividades").upper()),
-            2,
+        headers = (
+            (self._t("Data").upper(), "PACK", self._t("Duração").upper(), self._t("Atividades").upper(), self._t("Status").upper())
+            if policy == "training"
+            else (self._t("Data").upper(), "PACK", self._t("Duração").upper(), self._t("Nota").upper(), self._t("Status").upper(), self._t("Atividades").upper())
         )
+        self._set_table_headers(self._history_session_table, headers, 1)
         self._history_session_table.setRowCount(len(sessions))
         for row_index, session in enumerate(sessions):
-            cells = (
-                self._item(self._format_date(session.finished_at), "text_secondary"),
-                self._item(session.policy),
-                self._item(session.pack_id),
-                self._item(session.status),
-                self._item(str(session.activities_count), align_right=True),
-            )
+            duration = "-" if session.duration_seconds is None else self._format_seconds(session.duration_seconds)
+            status = self._display_session_status(session.status)
+            if policy == "training":
+                cells = (
+                    self._item(self._format_date(session.finished_at), "text_secondary"),
+                    self._item(session.pack_id),
+                    self._item(duration),
+                    self._item(str(session.activities_count), align_right=True),
+                    self._item(status),
+                )
+            else:
+                score = "-" if session.score is None else f"{session.score:.0f}%"
+                cells = (
+                    self._item(self._format_date(session.finished_at), "text_secondary"),
+                    self._item(session.pack_id),
+                    self._item(duration),
+                    self._item(score),
+                    self._item(status),
+                    self._item(str(session.activities_count), align_right=True),
+                )
             for column, item in enumerate(cells):
                 self._history_session_table.setItem(row_index, column, item)
         if not sessions:
-            self._history_center_meta.setText(self._t("Nenhuma sessão registrada."))
+            self._history_center_meta.setText(
+                self._t("Nenhuma sessão de treino registrada.")
+                if policy == "training"
+                else self._t("Nenhuma sessão de prova registrada.")
+            )
 
     def _history_session_selected(self) -> None:
         row = self._history_session_table.currentRow()
         if row < 0 or row >= len(getattr(self, "_history_session_rows", [])):
             return
         session = self._history_session_rows[row]
+        self._history_inspector.show()
+        self._history_context = (f"{session.policy}_session", session.session_id)
         self._history_inspector_title.setText(f"{session.policy} · {session.pack_id}")
         score = "-" if session.score is None else f"{session.score:.0f}%"
         duration = "-" if session.duration_seconds is None else self._format_seconds(session.duration_seconds)
         lines = [
-            f"{self._t('Status')}: {session.status}",
+            f"{self._t('Status')}: {self._display_session_status(session.status)}",
             f"{self._t('Nota')}: {score}",
             f"{self._t('Duração')}: {duration}",
         ]
@@ -2783,8 +2865,18 @@ class MainWindow(QMainWindow):
         else:
             lines.append(self._t("Sessão sem atividades registradas."))
         self._history_inspector_body.setText("\n".join(lines))
-        self._history_attempts_table.setRowCount(0)
-        self._history_trace_summary.setText(self._t("Selecione uma activity do pack para ver attempts."))
+        self._history_session_activity_rows = list(session.activities)
+        self._set_table_headers(self._history_attempts_table, (self._t("Atividade").upper(), self._t("Resultado").upper(), self._t("Tentativas").upper()), 0)
+        self._history_attempts_table.setRowCount(len(self._history_session_activity_rows))
+        for row_index, activity in enumerate(self._history_session_activity_rows):
+            cells = (
+                self._item(activity.activity_id),
+                self._item(activity.result, "success" if activity.result == "PASS" else "fail"),
+                self._item(str(activity.attempts_count), align_right=True),
+            )
+            for column, item in enumerate(cells):
+                self._history_attempts_table.setItem(row_index, column, item)
+        self._history_trace_summary.setText(self._t("Selecione uma activity para ver os detalhes."))
         self._history_trace_button.setEnabled(False)
 
     @staticmethod
@@ -2808,6 +2900,17 @@ class MainWindow(QMainWindow):
         if isinstance(status, ActivityProgress):
             return self._t(ACTIVITY_PROGRESS_LABELS[status])
         return status
+
+    def _display_session_status(self, status: str) -> str:
+        labels = {
+            "passed": self._t("Passou"),
+            "completed": self._t("Passou"),
+            "failed": self._t("Falhou"),
+            "timed_out": self._t("Tempo esgotado"),
+            "timeout": self._t("Tempo esgotado"),
+            "abandoned": self._t("Abandonada"),
+        }
+        return labels.get(status.lower(), status or "-")
 
     # ---------------------------------------------------------------- settings
     def _import_pack(self) -> None:

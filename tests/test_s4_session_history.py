@@ -174,6 +174,14 @@ class SessionPolicyHistoryTest(unittest.TestCase):
             self.assertEqual(activity_summary.attempts[0].result, "FAIL")
             self.assertFalse(activity_summary.attempts[0].trace_available)
 
+    def test_history_learning_uses_real_prerequisites_without_unlocked_activity_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(Path(temp_dir))
+            view = coordinator.learning_track("c")
+            self.assertFalse(hasattr(view, "unlocked_activity_ids"))
+            for activity in view.track.activities:
+                self.assertIsInstance(activity.prerequisites, tuple)
+
     def test_sqlite_schema_has_neutral_activity_and_policy_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

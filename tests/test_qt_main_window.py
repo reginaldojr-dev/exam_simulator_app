@@ -690,14 +690,15 @@ class MainWindowTest(unittest.TestCase):
 
             window._show_history()
             self.assertEqual(window._history_view, "overview")
-            self.assertEqual(window._history_activity_table.horizontalHeaderItem(0).text(), "ITEM")
-            self.assertEqual(set(window._history_nav_buttons), {"overview", "sessions"})
+            self.assertTrue(window._history_overview_text.isVisible())
+            self.assertEqual(set(window._history_nav_buttons), {"overview", "training_sessions", "exam_sessions"})
+            self.assertTrue(window._history_inspector.isHidden())
 
             window._select_history_pack("sample_rank")
             self.assertEqual(window._history_activity_table.horizontalHeaderItem(0).text(), "ATIVIDADE")
             self.assertEqual(window._history_center_title.text(), "Sample Rank")
 
-            window._set_history_view("sessions")
+            window._set_history_view("exam_sessions")
             self.assertEqual(window._history_session_table.horizontalHeaderItem(0).text(), "DATA")
             self.assertFalse(window._history_session_table.isHidden())
 
@@ -705,7 +706,7 @@ class MainWindowTest(unittest.TestCase):
                 window._history_session_table.horizontalHeaderItem(column).text()
                 for column in range(window._history_session_table.columnCount())
             ]
-            self.assertEqual(headers, ["DATA", "SESSÃO", "PACK", "STATUS", "ATIVIDADES"])
+            self.assertEqual(headers, ["DATA", "PACK", "DURAÇÃO", "NOTA", "STATUS", "ATIVIDADES"])
 
     def test_home_layout_survives_reference_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

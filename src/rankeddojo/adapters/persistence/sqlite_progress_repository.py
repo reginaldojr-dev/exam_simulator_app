@@ -292,6 +292,17 @@ class SQLiteProgressRepository:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_training_sessions(self) -> list[dict[str, object]]:
+        with self._store.session() as connection:
+            rows = connection.execute(
+                """
+                SELECT id, rank, started_at, finished_at, status
+                FROM training_sessions
+                ORDER BY COALESCE(finished_at, started_at) DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def record_exam_level_result(
         self,
         session_id: str,
