@@ -138,14 +138,14 @@ QPushButton[variant="dojo-secondary"]:hover, QPushButton[variant="dojo-secondary
 QPushButton[variant="dojo-secondary"]:pressed {{ background: {t.pressed_background}; }}
 
 QPushButton[variant="cta"] {{
-    color: {t.background}; background: {t.accent}; border: 1px solid {t.accent};
+    color: {t.accent}; background: {t.surface}; border: 1px solid {t.accent};
     font-family: {t.font_mono}; font-weight: 700; font-size: {t.font_size + 1}px;
     text-align: center; min-width: 140px; max-width: 160px; min-height: 45px; max-height: 50px;
 }}
 QPushButton[variant="cta"]:hover, QPushButton[variant="cta"]:focus {{
-    background: {t.accent_secondary}; border: 1px solid {t.border_strong};
+    background: {t.hover_background}; border: 1px solid {t.accent}; color: {t.text_bright};
 }}
-QPushButton[variant="cta"]:pressed {{ background: {t.accent}; }}
+QPushButton[variant="cta"]:pressed {{ background: {t.pressed_background}; color: {t.text_bright}; }}
 QPushButton[variant="cta"]:disabled {{
     background: {t.background}; color: {t.text_disabled}; border: 1px dashed {t.border_disabled};
 }}

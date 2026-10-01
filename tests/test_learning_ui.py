@@ -262,18 +262,20 @@ class LearningUITest(unittest.TestCase):
     def test_home_exposes_a_distinct_learning_action(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
-            texts = [button.property("baseText") for button in window._menu_buttons]
-            matches = [text for text in texts if "TRILHA DE APRENDIZADO" in str(text)]
-            self.assertEqual(len(matches), 1)
-            # distinct handlers from training/random/exam/history/settings
-            handlers = {
-                window._open_study_flow,
-                window._open_training_setup,
-                window._open_learning_flow,
-                window._open_exam_setup,
-                window._show_history,
-            }
-            self.assertEqual(len(handlers), 5)
+
+            self.assertIn(window._home_learn_button, window._menu_buttons)
+            self.assertIn(window._home_train_button, window._menu_buttons)
+            self.assertIsNot(window._home_learn_button, window._home_train_button)
+            self.assertIn(window._home_learn_button.property("baseText"), {"LEARN", "APRENDER"})
+            self.assertIn(window._home_train_button.property("baseText"), {"TRAIN", "TREINAR"})
+            self.assertNotEqual(
+                window._home_learn_button.property("baseText"),
+                window._home_train_button.property("baseText"),
+            )
+
+            window._home_learn_button.click()
+
+            self.assertIs(window._stack.currentWidget(), window._learning_languages_page)
 
     def test_learning_button_navigates_to_the_languages_page(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

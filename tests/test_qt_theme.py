@@ -150,12 +150,16 @@ class ThemeTokensTest(unittest.TestCase):
         # The previous "beveled keycap" look gave QPushButton's bottom
         # border its own darker/thicker color (`t.bevel`/`t.bevel_width`),
         # which read as a missing/clipped bottom edge on several dark
-        # themes. Buttons must use a single, uniform border now -- the
-        # bevel tokens stay defined on `ThemeTokens` (other code may still
-        # reference them later) but `build_stylesheet` must never emit them.
+        # themes. The contract is structural: normal buttons must not emit
+        # an asymmetric bottom border. Do not compare token hex values here:
+        # `bevel` can legitimately match another token such as `border`.
+        # The tab variant is allowed to keep its intentional underline.
+        border_bottom_re = re.compile(r"border-bottom\s*:")
         for theme in THEMES.values():
-            qss = build_stylesheet(theme)
-            self.assertNotIn(theme.bevel.lower(), qss.lower(), theme.key)
+            for selector, body in _rules(build_stylesheet(theme)):
+                if "QPushButton" not in selector or "tab" in selector:
+                    continue
+                self.assertNotRegex(body, border_bottom_re, f"{theme.key}: {selector}")
 
     def test_button_rules_declare_no_asymmetric_border_bottom(self) -> None:
         # A `border-bottom` declared with its own width/color (distinct from
