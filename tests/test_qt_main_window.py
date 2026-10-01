@@ -690,7 +690,7 @@ class MainWindowTest(unittest.TestCase):
 
             window._show_history()
             self.assertEqual(window._history_view, "overview")
-            self.assertTrue(window._history_overview_text.isVisible())
+            self.assertTrue(window._history_activity_table.isHidden())
             self.assertEqual(set(window._history_nav_buttons), {"overview", "training_sessions", "exam_sessions"})
             self.assertTrue(window._history_inspector.isHidden())
 
