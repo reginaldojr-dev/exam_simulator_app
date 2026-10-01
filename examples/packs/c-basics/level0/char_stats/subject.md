@@ -9,14 +9,6 @@ Percorra o primeiro argumento e conte letras minúsculas, letras maiúsculas, d�
 - Se não houver argumento, todos os contadores devem ser zero.
 - Considere apenas ASCII.
 
-## Permitido
-- `write`
-
-## Não permitido
-- `printf`
-- `isalpha`
-- `isdigit`
-
 ## Exemplos
 
 Entrada/args: `./char_stats abc123!`

@@ -10,6 +10,7 @@
     "c",
     "basics"
   ],
+  "difficulty": "intro",
   "submission": {
     "filename": "argc_counter.c"
   },

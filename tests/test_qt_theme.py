@@ -10,13 +10,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
 
-from exam_trainer.adapters.ui.qt.components import widgets as ui
-from exam_trainer.adapters.ui.qt.components.cursor import CursorController
-from exam_trainer.adapters.ui.qt.theme import THEMES, ThemeManager, build_stylesheet, get_theme
-from exam_trainer.adapters.ui.qt.theme.registry import DuplicateThemeError, ThemeRegistry
-from exam_trainer.adapters.ui.qt.theme.themes import DEFAULT_THEME_KEY, THEME_REGISTRY
-from exam_trainer.adapters.ui.qt.theme.tokens import ThemeTokens
-from exam_trainer.adapters.theme.user_theme_loader import UserThemeLoader
+from rankeddojo.adapters.ui.qt.components import widgets as ui
+from rankeddojo.adapters.ui.qt.components.cursor import CursorController
+from rankeddojo.adapters.ui.qt.theme import THEMES, ThemeManager, build_stylesheet, get_theme
+from rankeddojo.adapters.ui.qt.theme.registry import DuplicateThemeError, ThemeRegistry
+from rankeddojo.adapters.ui.qt.theme.themes import DEFAULT_THEME_KEY, THEME_REGISTRY
+from rankeddojo.adapters.ui.qt.theme.tokens import ThemeTokens
+from rankeddojo.adapters.theme.user_theme_loader import UserThemeLoader
 
 RULE = re.compile(r"([^{}]+)\{([^{}]*)\}")
 COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
@@ -136,7 +136,7 @@ class ThemeTokensTest(unittest.TestCase):
         import inspect
         import textwrap
 
-        from exam_trainer.adapters.ui.qt.theme import qss as qss_module
+        from rankeddojo.adapters.ui.qt.theme import qss as qss_module
 
         source = textwrap.dedent(inspect.getsource(qss_module.build_stylesheet))
         tree = ast.parse(source)
@@ -145,6 +145,49 @@ class ThemeTokensTest(unittest.TestCase):
                 branch_source = ast.get_source_segment(source, node.test) or ""
                 self.assertNotIn(".key", branch_source)
                 self.assertNotIn(".name", branch_source)
+
+    def test_button_borders_never_use_the_bevel_tokens(self) -> None:
+        # The previous "beveled keycap" look gave QPushButton's bottom
+        # border its own darker/thicker color (`t.bevel`/`t.bevel_width`),
+        # which read as a missing/clipped bottom edge on several dark
+        # themes. The contract is structural: normal buttons must not emit
+        # an asymmetric bottom border. Do not compare token hex values here:
+        # `bevel` can legitimately match another token such as `border`.
+        # The tab variant is allowed to keep its intentional underline.
+        border_bottom_re = re.compile(r"border-bottom\s*:")
+        for theme in THEMES.values():
+            for selector, body in _rules(build_stylesheet(theme)):
+                if "QPushButton" not in selector or "tab" in selector:
+                    continue
+                self.assertNotRegex(body, border_bottom_re, f"{theme.key}: {selector}")
+
+    def test_button_rules_declare_no_asymmetric_border_bottom(self) -> None:
+        # A `border-bottom` declared with its own width/color (distinct from
+        # the rule's `border`) is exactly the shape of the clipped-bottom-
+        # edge bug. The one intentional exception is the "tab" variant's
+        # selected-tab underline indicator -- a different, pre-existing UI
+        # pattern (a 2px accent underline on the checked tab), not a
+        # 3D-bevel effect, and out of scope for this fix.
+        border_bottom_re = re.compile(r"border-bottom\s*:")
+        for theme in THEMES.values():
+            for selector, body in _rules(build_stylesheet(theme)):
+                if "QPushButton" not in selector or "tab" in selector:
+                    continue
+                self.assertNotRegex(body, border_bottom_re, f"{theme.key}: {selector}")
+
+    def test_button_border_sides_are_uniform_within_each_variant_and_state(self) -> None:
+        # Every `border: <width> <style> <color>` shorthand declared on a
+        # QPushButton rule (any variant, any state) must apply to all four
+        # sides -- i.e. there must be no separate per-side override sitting
+        # alongside it. This is the general form of the two checks above.
+        side_re = re.compile(r"border-(top|right|bottom|left)\s*:")
+        for theme in THEMES.values():
+            for selector, body in _rules(build_stylesheet(theme)):
+                if "QPushButton" not in selector or "tab" in selector:
+                    continue
+                if "border:" not in body:
+                    continue
+                self.assertNotRegex(body, side_re, f"{theme.key}: {selector}")
 
     def test_accent_is_never_a_large_background(self) -> None:
         for theme in THEMES.values():
@@ -243,7 +286,7 @@ class ThemePersistenceTest(unittest.TestCase):
     def test_config_repository_round_trips_theme(self) -> None:
         import tempfile
 
-        from exam_trainer.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
+        from rankeddojo.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
 
         with tempfile.TemporaryDirectory() as temp_dir:
             repository = JsonAppConfigRepository(Path(temp_dir) / "config.json")
@@ -314,7 +357,7 @@ class ExternalThemeIntegrationTest(unittest.TestCase):
             self._write_theme(tmp_path, "my-ext-theme", "my-ext-theme")
             registry = self._isolated_registry_with(tmp_path)
 
-            with patch("exam_trainer.adapters.ui.qt.theme.manager.THEME_REGISTRY", registry):
+            with patch("rankeddojo.adapters.ui.qt.theme.manager.THEME_REGISTRY", registry):
                 available_keys = {tokens.key for tokens in ThemeManager.available()}
 
         self.assertIn("my-ext-theme", available_keys)
@@ -332,7 +375,7 @@ class ExternalThemeIntegrationTest(unittest.TestCase):
 
             # Simulates config.json having "theme": "restorable" from a
             # previous run, resolved the same way ThemeManager resolves it.
-            with patch("exam_trainer.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
+            with patch("rankeddojo.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
                 restored = get_theme("restorable")
 
         self.assertEqual(restored.key, "restorable")
@@ -347,7 +390,7 @@ class ExternalThemeIntegrationTest(unittest.TestCase):
             self._write_theme(tmp_path, "temporary", "temporary")
             registry = self._isolated_registry_with(tmp_path)
 
-            with patch("exam_trainer.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
+            with patch("rankeddojo.adapters.ui.qt.theme.themes.THEME_REGISTRY", registry):
                 # "temporary" was never persisted; config.json still points at
                 # a theme id that simply does not exist in this registry
                 # (e.g. the user removed the folder, or it failed to load).

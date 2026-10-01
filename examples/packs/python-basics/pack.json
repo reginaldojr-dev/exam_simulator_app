@@ -12,6 +12,7 @@
     "basics",
     "practice"
   ],
+  "learning_track": true,
   "description": "Pack autoral de estudo Python Basics para o RankedDojo.",
   "exam": {
     "duration_minutes": 60

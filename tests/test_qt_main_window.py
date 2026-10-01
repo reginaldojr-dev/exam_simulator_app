@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import tempfile
 import threading
 import unittest
@@ -11,24 +12,26 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox, QPushButton
 
-from exam_trainer.adapters.editor.editor_registry import EDITOR_REGISTRY
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
-from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.adapters.ui.qt.i18n import LocaleService
-from exam_trainer.adapters.ui.qt.main_window import MainWindow
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, PreflightResult
-from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
-from exam_trainer.domain.progress import ActivityProgress
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.adapters.editor.editor_registry import EDITOR_REGISTRY
+from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.persistence.json_app_config_repository import JsonAppConfigRepository
+from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.adapters.ui.qt.i18n import LocaleService
+from rankeddojo.adapters.ui.qt.main_window import MainWindow
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, PreflightResult
+from rankeddojo.domain.activity_definition import UsageCategory
+from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
+from rankeddojo.domain.progress import ActivityProgress
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.runtime_port import RuntimeStatus
+from rankeddojo.ports.grader_port import GradingRequest
 
 
 class StaticGrader:
@@ -107,9 +110,13 @@ class FailingGrader:
 class RecordingEditor:
     def __init__(self) -> None:
         self.calls: list[tuple[Path, bool]] = []
+        self.file_calls: list[tuple[Path, bool]] = []
 
     def open_directory(self, directory: Path, *, reuse_window: bool = False) -> None:
         self.calls.append((directory, reuse_window))
+
+    def open_file(self, path: Path, *, reuse_window: bool = True) -> None:
+        self.file_calls.append((path, reuse_window))
 
 
 class SlowProbeCompiler(AvailableCompiler):
@@ -365,9 +372,10 @@ class MainWindowTest(unittest.TestCase):
             self.assertEqual(window._cursor._titles[window._exercise_title], "Argc Counter")
             self.assertNotEqual(first_line.strip(), "argc_counter")
             self.assertIn("argc_counter", rendered)
-            self.assertIn("Arquivo esperado", rendered)
-            self.assertIn("argc_counter.c", rendered)
+            self.assertIn("Comportamento esperado", rendered)
             self.assertIn("\\n", rendered)
+            self.assertFalse(window._sidebar_expected_block.isHidden())
+            self.assertEqual(window._sidebar_expected_value.text(), "> argc_counter.c")
             self.assertNotIn("# argc_counter", rendered)
             self.assertNotIn("## Arquivo esperado", rendered)
             self.assertNotIn("`argc_counter.c`", rendered)
@@ -403,7 +411,7 @@ class MainWindowTest(unittest.TestCase):
             self.assertIn("random_arguments", content)
             self.assertIn("reference_output", content)
             # single source: help shows the same contract file referenced by README
-            from exam_trainer.resources import pack_contract_text
+            from rankeddojo.resources import pack_contract_text
 
             self.assertIn(pack_contract_text().strip(), content)
 
@@ -597,25 +605,31 @@ class MainWindowTest(unittest.TestCase):
             self.assertTrue(window._tasks.wait())
 
             window._show_history()
-            window._set_history_view("activities")
+            window._select_history_pack("sample_rank")
 
             self.assertIs(window._stack.currentWidget(), window._history_page)
             headers = [
-                window._history_table.horizontalHeaderItem(column).text()
-                for column in range(window._history_table.columnCount())
+                window._history_activity_table.horizontalHeaderItem(column).text()
+                for column in range(window._history_activity_table.columnCount())
             ]
             self.assertEqual(
                 headers,
-                ["PACK/LEVEL", "ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMO RESULTADO", "DATA"],
+                ["ATIVIDADE", "STATUS", "TENTATIVAS", "ÚLTIMA"],
             )
             matching_row = next(
                 row
-                for row in range(window._history_table.rowCount())
-                if "steady_echo" in window._history_table.item(row, 1).text()
+                for row in range(window._history_activity_table.rowCount())
+                if "steady_echo" in window._history_activity_table.item(row, 0).text()
             )
-            self.assertEqual(window._history_table.item(matching_row, 3).text(), "1")
-            self.assertEqual(window._history_table.item(matching_row, 4).text(), "FAIL")
-            self.assertEqual(window._history_table.item(matching_row, 2).text(), "[\u2717] Tentado")
+            self.assertEqual(window._history_activity_table.item(matching_row, 2).text(), "1")
+            self.assertEqual(window._history_activity_table.item(matching_row, 1).text(), "Tentado")
+
+            window._history_activity_table.selectRow(matching_row)
+            self.assertEqual(window._history_inspector_title.text(), "Steady Echo")
+            self.assertEqual(window._history_attempts_table.item(0, 1).text(), "FAIL")
+            window._history_attempts_table.selectRow(0)
+            self.assertIn("Trace não disponível", window._history_trace_summary.text())
+            self.assertFalse(window._history_trace_button.isEnabled())
 
             coordinator_row = next(
                 row
@@ -647,24 +661,24 @@ class MainWindowTest(unittest.TestCase):
             self.assertNotEqual(coordinator_row["status"], "concluído")
 
             window._show_history()
-            window._set_history_view("activities")
+            window._select_history_pack("sample_rank")
             row_index = next(
                 row
-                for row in range(window._history_table.rowCount())
-                if "steady_echo" in window._history_table.item(row, 1).text()
+                for row in range(window._history_activity_table.rowCount())
+                if "steady_echo" in window._history_activity_table.item(row, 0).text()
             )
-            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Concluído")
+            self.assertEqual(window._history_activity_table.item(row_index, 1).text(), "Concluído")
 
             window._locale.set_locale("en")
             window._render_history()
-            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Completed")
+            self.assertEqual(window._history_activity_table.item(row_index, 1).text(), "Completed")
 
             window._locale.set_locale("es")
             window._render_history()
-            self.assertEqual(window._history_table.item(row_index, 2).text(), "[\u2713] Completado")
+            self.assertEqual(window._history_activity_table.item(row_index, 1).text(), "Completado")
 
             # Counts derived from ActivityProgress stay correct regardless of locale.
-            self.assertIn("1/", window._history_summary.text())
+            self.assertIn("1", window._history_metric_completed.text())
 
     def test_history_exposes_overview_pack_session_and_timeline_views(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -676,18 +690,23 @@ class MainWindowTest(unittest.TestCase):
 
             window._show_history()
             self.assertEqual(window._history_view, "overview")
-            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "ITEM")
+            self.assertTrue(window._history_activity_table.isHidden())
+            self.assertEqual(set(window._history_nav_buttons), {"overview", "training_sessions", "exam_sessions"})
+            self.assertTrue(window._history_inspector.isHidden())
 
-            window._set_history_view("packs")
-            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "PACK")
+            window._select_history_pack("sample_rank")
+            self.assertEqual(window._history_activity_table.horizontalHeaderItem(0).text(), "ATIVIDADE")
+            self.assertEqual(window._history_center_title.text(), "Sample Rank")
 
-            window._set_history_view("sessions")
-            self.assertEqual(window._history_table.horizontalHeaderItem(0).text(), "DATA")
+            window._set_history_view("exam_sessions")
+            self.assertEqual(window._history_session_table.horizontalHeaderItem(0).text(), "DATA")
+            self.assertFalse(window._history_session_table.isHidden())
 
-            window._set_history_view("timeline")
-            headers = [window._history_table.horizontalHeaderItem(column).text() for column in range(window._history_table.columnCount())]
-            self.assertEqual(headers, ["DATA", "SESSÃO", "PACK", "ATIVIDADE", "STATUS"])
-            self.assertGreaterEqual(window._history_table.rowCount(), 1)
+            headers = [
+                window._history_session_table.horizontalHeaderItem(column).text()
+                for column in range(window._history_session_table.columnCount())
+            ]
+            self.assertEqual(headers, ["DATA", "PACK", "DURAÇÃO", "NOTA", "STATUS", "ATIVIDADES"])
 
     def test_home_layout_survives_reference_sizes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -787,14 +806,20 @@ class MainWindowTest(unittest.TestCase):
                 self.assertGreaterEqual(window._theme_combo.findData(key), 0, key)
 
     def test_home_is_pt_br_by_default(self) -> None:
+        # Dojo Session home: three short primary actions (LEARN/TRAIN/EXAM)
+        # plus three secondary ones (STUDY NEW/HISTORY/SETTINGS) -- no more
+        # "> [N] " prefix, since the numbers are no longer shown on screen
+        # (the underlying `_menu_buttons` order is still 1-6 internally, see
+        # `_install_shortcuts`, but that is no longer part of the button text).
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
 
-            labels = [button.property("baseText") for button in window._menu_buttons]
-
-            self.assertIn("> [2] TREINAR", labels)
-            self.assertIn("> [3] MODO PROVA", labels)
-            self.assertIn("> [4] HISTÓRICO", labels)
+            self.assertEqual(window._home_train_button.property("baseText"), "TREINAR")
+            self.assertEqual(window._home_learn_button.property("baseText"), "APRENDER")
+            self.assertEqual(window._home_exam_button.property("baseText"), "PROVA")
+            self.assertEqual(window._home_study_button.property("baseText"), "QUERO ESTUDAR ALGO NOVO")
+            self.assertEqual(window._home_history_button.property("baseText"), "HISTÓRICO")
+            self.assertEqual(window._home_settings_button.property("baseText"), "CONFIGURAÇÕES")
 
     def test_home_can_switch_to_english_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -802,12 +827,12 @@ class MainWindowTest(unittest.TestCase):
 
             window._locale.set_locale("en")
 
-            labels = [button.property("baseText") for button in window._menu_buttons]
-            self.assertIn("> [1] STUDY SOMETHING NEW", labels)
-            self.assertIn("> [2] TRAINING", labels)
-            self.assertIn("> [3] EXAM MODE", labels)
-            self.assertIn("> [4] HISTORY", labels)
-            self.assertIn("> [5] SETTINGS", labels)
+            self.assertEqual(window._home_learn_button.property("baseText"), "LEARN")
+            self.assertEqual(window._home_train_button.property("baseText"), "TRAIN")
+            self.assertEqual(window._home_exam_button.property("baseText"), "EXAM")
+            self.assertEqual(window._home_study_button.property("baseText"), "STUDY SOMETHING NEW")
+            self.assertEqual(window._home_history_button.property("baseText"), "HISTORY")
+            self.assertEqual(window._home_settings_button.property("baseText"), "SETTINGS")
 
     def test_home_can_switch_to_spanish_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -815,12 +840,12 @@ class MainWindowTest(unittest.TestCase):
 
             window._locale.set_locale("es")
 
-            labels = [button.property("baseText") for button in window._menu_buttons]
-            self.assertIn("> [1] ESTUDIAR ALGO NUEVO", labels)
-            self.assertIn("> [2] ENTRENAR", labels)
-            self.assertIn("> [3] MODO EXAMEN", labels)
-            self.assertIn("> [4] HISTORIAL", labels)
-            self.assertIn("> [5] CONFIGURACIÓN", labels)
+            self.assertEqual(window._home_learn_button.property("baseText"), "APRENDER")
+            self.assertEqual(window._home_train_button.property("baseText"), "ENTRENAR")
+            self.assertEqual(window._home_exam_button.property("baseText"), "EXAMEN")
+            self.assertEqual(window._home_study_button.property("baseText"), "ESTUDIAR ALGO NUEVO")
+            self.assertEqual(window._home_history_button.property("baseText"), "HISTORIAL")
+            self.assertEqual(window._home_settings_button.property("baseText"), "CONFIGURACIÓN")
 
     def test_settings_shows_translated_locale_selector_with_three_languages(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1040,9 +1065,15 @@ class MainWindowTest(unittest.TestCase):
             window._load_exercise(ref, mode="training", overwrite=True)
 
             self.assertEqual(window._cursor._titles[window._exercise_title], "Argc Counter")
+            # "Arquivo esperado" / "argc_counter.c" are promoted to the
+            # sidebar (`_sidebar_expected_value`) and intentionally stripped
+            # from the body -- see `_exercise_body_markdown` -- so pack
+            # content staying untranslated by UI locale is now checked
+            # against a pedagogical section that always stays in the body
+            # instead.
             rendered = window._subject.toPlainText()
-            self.assertIn("Arquivo esperado", rendered)
-            self.assertIn("argc_counter.c", rendered)
+            self.assertIn("Comportamento esperado", rendered)
+            self.assertEqual(window._sidebar_expected_value.text(), "> argc_counter.c")
 
     def test_internal_status_values_are_not_translated(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1215,6 +1246,427 @@ class MainWindowTest(unittest.TestCase):
                 QMessageBox.information = original
             self.assertIs(window._stack.currentWidget(), window._settings_page)
             self.assertIsNotNone(window._pending_action)
+
+
+    def test_home_last_session_shows_real_progress_and_continue_resumes_it(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, passed=True)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+            window._submit_current()
+            self.assertTrue(window._tasks.wait())
+
+            window._refresh_home_last_session()
+
+            summary = window._coordinator.last_session_summary()
+            self.assertIsNotNone(summary)
+            self.assertEqual(summary.activity_id, ref.definition.id)
+            self.assertFalse(window._last_session_name.isHidden())
+            self.assertFalse(window._last_session_continue_button.isHidden())
+            self.assertTrue(window._last_session_empty_label.isHidden())
+            self.assertEqual(window._last_session_name.text(), ref.definition.name)
+            self.assertIn(str(summary.completed_count), window._last_session_progress_label.text())
+            self.assertIn(str(summary.total_count), window._last_session_progress_label.text())
+            # Never a hardcoded fraction: it must reflect the real pack size.
+            self.assertEqual(
+                window._last_session_progress.maximum(),
+                max(summary.total_count, 1),
+            )
+
+            window._continue_last_session()
+
+            self.assertIsNotNone(window._active)
+            self.assertEqual(window._active.ref.definition.id, ref.definition.id)
+            self.assertIs(window._stack.currentWidget(), window._exercise_page)
+
+    def test_home_last_session_shows_empty_state_without_prior_training(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            window._refresh_home_last_session()
+
+            self.assertIsNone(window._coordinator.last_session_summary())
+            self.assertFalse(window._last_session_empty_label.isHidden())
+            self.assertTrue(window._last_session_name.isHidden())
+            self.assertTrue(window._last_session_meta.isHidden())
+            self.assertTrue(window._last_session_progress.isHidden())
+            self.assertTrue(window._last_session_progress_label.isHidden())
+            self.assertTrue(window._last_session_continue_button.isHidden())
+            self.assertEqual(window._last_session_empty_label.text(), "NENHUMA SESSÃO RECENTE")
+
+    def test_home_language_status_reflects_runtime_registry_without_hardcoding(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            fake_statuses = (
+                RuntimeStatus(language="c", display_name="C", supported=True, available=True, checked=True, tool="gcc"),
+                RuntimeStatus(language="cpp", display_name="C++", supported=True, available=True, checked=True, tool="g++"),
+                RuntimeStatus(language="python", display_name="Python", supported=True, available=True, checked=True, tool="python3"),
+                RuntimeStatus(language="java", display_name="Java", supported=True, available=False, checked=True),
+            )
+            window._coordinator.runtime_statuses = lambda probe=False: fake_statuses
+
+            window._refresh_home_status()
+
+            chips = []
+            for index in range(window._home_language_status.count()):
+                widget = window._home_language_status.itemAt(index).widget()
+                if widget is not None:
+                    chips.append(widget)
+            self.assertEqual(len(chips), 4)
+            texts = {chip.text(): chip.property("status") for chip in chips}
+            self.assertEqual(texts["C ✓"], "pass")
+            self.assertEqual(texts["C++ ✓"], "pass")
+            self.assertEqual(texts["Python ✓"], "pass")
+            self.assertEqual(texts["Java !"], "pending")
+            # No parallel/hardcoded runtime logic: swapping which language is
+            # unavailable must change which chip shows "!" accordingly.
+            fake_statuses_swapped = (
+                RuntimeStatus(language="c", display_name="C", supported=True, available=False, checked=True),
+                RuntimeStatus(language="java", display_name="Java", supported=True, available=True, checked=True, tool="javac"),
+            )
+            window._coordinator.runtime_statuses = lambda probe=False: fake_statuses_swapped
+            window._refresh_home_status()
+            swapped_texts = {}
+            for index in range(window._home_language_status.count()):
+                widget = window._home_language_status.itemAt(index).widget()
+                if widget is not None:
+                    swapped_texts[widget.text()] = widget.property("status")
+            self.assertEqual(swapped_texts["C !"], "pending")
+            self.assertEqual(swapped_texts["Java ✓"], "pass")
+
+    def test_home_applies_every_theme_without_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            for key in ("default", "gamified", "retro", "terminal", "amber", "gameboy", "neon", "minimal", "paper"):
+                window._theme.set_theme(key)
+                QApplication.processEvents()
+            # Reaching here without a raised exception is the assertion; the
+            # new dojo-primary/dojo-secondary/cta/pill/keycap/progress roles
+            # must resolve under every theme using only existing tokens.
+            self.assertTrue(window.styleSheet())
+
+    def test_home_keyboard_shortcut_order_still_maps_to_original_screens(self) -> None:
+        # `_menu_buttons` keeps the pre-redesign order (study, train, learn,
+        # exam, history, settings) purely so the numeric shortcuts installed
+        # by `_install_shortcuts` keep opening the same screens, even though
+        # the buttons are now visually split into two groups.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+
+            self.assertEqual(len(window._menu_buttons), 6)
+            self.assertIs(window._menu_buttons[0], window._home_study_button)
+            self.assertIs(window._menu_buttons[1], window._home_train_button)
+            self.assertIs(window._menu_buttons[2], window._home_learn_button)
+            self.assertIs(window._menu_buttons[3], window._home_exam_button)
+            self.assertIs(window._menu_buttons[4], window._home_history_button)
+            self.assertIs(window._menu_buttons[5], window._home_settings_button)
+
+            window._menu_buttons[1].click()
+            self.assertIs(window._stack.currentWidget(), window._training_page)
+            window._show_home()
+            window._menu_buttons[3].click()
+            self.assertIs(window._stack.currentWidget(), window._exam_page)
+
+
+class ExerciseBodyMarkdownTest(unittest.TestCase):
+    """`MainWindow._exercise_body_markdown` is a pure, static, table-driven
+    function -- no exercise loading or sidebar state needed to exercise it
+    directly. The caller (`_refresh_exercise_frame`) is covered separately
+    below with real packs.
+    """
+
+    def test_strips_only_the_sections_confirmed_shown_in_the_sidebar(self) -> None:
+        subject = (
+            "Enunciado.\n\n"
+            "## Arquivo esperado\n`foo.c`\n\n"
+            "## Comportamento esperado\n- Faça X.\n\n"
+            "## Permitido\n- `write`\n\n"
+            "## Não permitido\n- `printf`\n\n"
+            "## Regras\n- Sem variáveis globais.\n\n"
+            "## Exemplos\n- ok\n"
+        )
+        result = MainWindow._exercise_body_markdown(
+            subject, allowed_shown=True, not_allowed_shown=False, constraints_shown=True
+        )
+        # Expected file is always promoted (submission.filename is
+        # mandatory), so always stripped regardless of its flag.
+        self.assertNotIn("Arquivo esperado", result)
+        self.assertNotIn("foo.c", result)
+        # Confirmed shown in the sidebar -> stripped from the body.
+        self.assertNotIn("Permitido", result)
+        self.assertNotIn("Regras", result)
+        # NOT confirmed shown in the sidebar -> stays, never silently lost.
+        self.assertIn("Não permitido", result)
+        self.assertIn("printf", result)
+        # Pedagogical content is never in the promoted-sections table.
+        self.assertIn("Comportamento esperado", result)
+        self.assertIn("Faça X.", result)
+        # The generic grouping heading is demoted, not removed.
+        self.assertIn("###### Exemplos", result.splitlines())
+
+    def test_keeps_every_promoted_section_when_nothing_was_shown_in_the_sidebar(self) -> None:
+        # Expected file is the one section promoted unconditionally; the
+        # other three stay in the body whenever their sidebar flag is False.
+        subject = (
+            "## Permitido\n- `write`\n\n"
+            "## Não permitido\n- `printf`\n\n"
+            "## Regras\n- Sem variáveis globais.\n"
+        )
+        result = MainWindow._exercise_body_markdown(
+            subject, allowed_shown=False, not_allowed_shown=False, constraints_shown=False
+        )
+        self.assertIn("Permitido", result)
+        self.assertIn("Não permitido", result)
+        self.assertIn("Regras", result)
+
+    def test_style_behavior_notes_style_headings_are_never_in_the_promoted_table(self) -> None:
+        # There is no STYLE/BEHAVIOR/NOTES heading table at all (by design,
+        # see `_refresh_exercise_frame`'s comment on the subject content
+        # contract) -- so any such section survives regardless of the other
+        # three flags, which is how the pedagogical fields stay untouched.
+        subject = "## Estilo\n- Use snake_case.\n\n## Observações\n- Veja o apêndice.\n"
+        result = MainWindow._exercise_body_markdown(
+            subject, allowed_shown=True, not_allowed_shown=True, constraints_shown=True
+        )
+        self.assertIn("Use snake_case.", result)
+        self.assertIn("Veja o apêndice.", result)
+
+    def test_decision_never_reads_ui_locale(self) -> None:
+        # Static method, no `self`/`self._t`/locale access at all -- the
+        # signature itself is the guarantee, exercised here with the same
+        # Markdown under every supported combination of flags.
+        import inspect
+
+        signature = inspect.signature(MainWindow._exercise_body_markdown)
+        self.assertNotIn("locale", signature.parameters)
+        self.assertNotIn("self", signature.parameters)
+
+
+class UsageCategoryLinesTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
+    def _window(self, temp_dir: str) -> MainWindow:
+        return MainWindowTest._window(self, temp_dir)  # reuse the shared factory
+
+    def test_empty_category_returns_no_lines(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self.assertEqual(window._usage_category_lines(UsageCategory()), [])
+
+    def test_single_populated_field_is_a_flat_unlabeled_list(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            lines = window._usage_category_lines(UsageCategory(functions=("write", "read")))
+            self.assertEqual(lines, ["> write", "> read"])
+
+    def test_multiple_populated_fields_are_grouped_with_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            window._locale.set_locale("en")
+            category = UsageCategory(functions=("write",), headers=("unistd.h",))
+            lines = window._usage_category_lines(category)
+            self.assertEqual(lines, ["Functions", "  > write", "Headers", "  > unistd.h"])
+
+
+class SubjectContractSidebarAndBodyTest(unittest.TestCase):
+    """Integration coverage for `_refresh_exercise_frame`, using real packs
+    audited for this fix (see `docs/subject-content-contract.md` and the
+    task report): a multi-category structured pack (`argc_counter`), a
+    pack whose structured metadata and legacy Markdown text conflict
+    (`sum_args`), and a pack that only has `forbidden` as legacy Markdown
+    with no structured equivalent (`vector_sum`).
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
+    def _window(self, temp_dir: str) -> MainWindow:
+        return MainWindowTest._window(self, temp_dir)
+
+    def _load(self, window: MainWindow, pack_id: str, exercise_id: str):
+        ref = next(
+            ref
+            for ref in window._coordinator._pack_catalog.list_exercises(pack_id)
+            if ref.definition.id == exercise_id
+        )
+        window._load_exercise(ref, mode="training", overwrite=True)
+
+    def test_structured_multi_category_allowed_and_forbidden_do_not_duplicate_in_body(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load(window, "c-basics", "argc_counter")
+
+            # Sidebar: structured `usage.allowed` has both functions and
+            # headers populated, so it renders grouped-by-category.
+            self.assertFalse(window._sidebar_allowed_block.isHidden())
+            allowed_text = window._sidebar_allowed_value.text()
+            self.assertIn("write", allowed_text)
+            self.assertIn("unistd.h", allowed_text)
+
+            self.assertFalse(window._sidebar_not_allowed_block.isHidden())
+            not_allowed_text = window._sidebar_not_allowed_value.text()
+            self.assertIn("printf", not_allowed_text)
+            self.assertIn("puts", not_allowed_text)
+
+            self.assertFalse(window._sidebar_constraints_block.isHidden())
+            self.assertFalse(window._sidebar_expected_block.isHidden())
+            self.assertEqual(window._sidebar_expected_value.text(), "> argc_counter.c")
+
+            rendered = window._subject.toPlainText()
+            self.assertNotIn("Arquivo esperado", rendered)
+            self.assertNotIn("argc_counter.c", rendered)
+            self.assertNotIn("Permitido", rendered)
+            self.assertNotIn("Não permitido", rendered)
+            # Pedagogical content never promoted, always stays.
+            self.assertIn("Comportamento esperado", rendered)
+            self.assertIn("Exemplos", rendered)
+
+    def test_legacy_markdown_fallback_promotes_and_strips_forbidden_section(self) -> None:
+        # `vector_sum` has structured `usage.allowed` but no `forbidden` key
+        # at all -- its only "not allowed" content is the legacy Markdown
+        # heading, which must still be promoted to the sidebar and then
+        # safely stripped from the body.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load(window, "cpp-basics", "vector_sum")
+
+            self.assertFalse(window._sidebar_not_allowed_block.isHidden())
+            self.assertIn("variáveis globais", window._sidebar_not_allowed_value.text())
+
+            self.assertFalse(window._sidebar_allowed_block.isHidden())
+            self.assertIn("vector", window._sidebar_allowed_value.text())
+
+            self.assertFalse(window._sidebar_constraints_block.isHidden())
+            self.assertIn("referência constante", window._sidebar_constraints_value.text())
+
+            rendered = window._subject.toPlainText()
+            self.assertNotIn("Não permitido", rendered)
+            self.assertNotIn("Permitido", rendered)
+            self.assertIn("Comportamento esperado", rendered)
+
+    def test_structured_metadata_wins_over_conflicting_legacy_markdown_text(self) -> None:
+        # `sum_args` has `usage.allowed.libraries = ["java.lang"]` but its
+        # subject.md "## Permitido" section still names `Integer.parseInt`
+        # (stale legacy text). Only the structured value may ever be
+        # visible, in the sidebar; the stale Markdown version must not
+        # survive anywhere, not even in the body.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load(window, "java-basics", "sum_args")
+
+            self.assertEqual(window._sidebar_allowed_value.text(), "> java.lang")
+            self.assertEqual(window._sidebar_not_allowed_value.text(), "> Scanner")
+
+            rendered = window._subject.toPlainText()
+            self.assertNotIn("Integer.parseInt", rendered)
+            self.assertNotIn("Permitido", rendered)
+            self.assertNotIn("Não permitido", rendered)
+            self.assertIn("Comportamento esperado", rendered)
+
+    def test_sidebar_and_body_promotion_decisions_do_not_depend_on_ui_locale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load(window, "c-basics", "argc_counter")
+
+            for locale in ("pt-BR", "en", "es"):
+                window._locale.set_locale(locale)
+                self.assertFalse(window._sidebar_allowed_block.isHidden())
+                self.assertFalse(window._sidebar_not_allowed_block.isHidden())
+                self.assertFalse(window._sidebar_constraints_block.isHidden())
+                rendered = window._subject.toPlainText()
+                self.assertNotIn("Arquivo esperado", rendered)
+                self.assertNotIn("argc_counter.c", rendered)
+                # The technical values themselves are never translated.
+                self.assertIn("write", window._sidebar_allowed_value.text())
+                self.assertIn("printf", window._sidebar_not_allowed_value.text())
+
+
+class FooterHintLocaleTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
+    def _window(self, temp_dir: str) -> MainWindow:
+        return MainWindowTest._window(self, temp_dir)
+
+    def _hint_bar(self, window: MainWindow, hints: list[tuple[str, str]]):
+        return next(bar for bar, bar_hints in window._footer_hint_bars if bar_hints == hints)
+
+    def test_study_screen_hints_follow_locale(self) -> None:
+        # Matches the reported screenshot: an English UI with the footer
+        # hints still stuck in pt-BR ("voltar", "copiar prompt").
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            hint_bar = self._hint_bar(window, [("Esc", "voltar"), ("Ctrl+C", "copiar prompt")])
+
+            window._locale.set_locale("en")
+            self.assertEqual(
+                [label.text() for label in hint_bar._hint_labels],
+                ["[Esc] back", "[Ctrl+C] copy prompt"],
+            )
+
+            window._locale.set_locale("es")
+            self.assertEqual(
+                [label.text() for label in hint_bar._hint_labels],
+                ["[Esc] volver", "[Ctrl+C] copiar prompt"],
+            )
+
+            window._locale.set_locale("pt-BR")
+            self.assertEqual(
+                [label.text() for label in hint_bar._hint_labels],
+                ["[Esc] voltar", "[Ctrl+C] copiar prompt"],
+            )
+
+    def test_training_setup_screen_hints_follow_locale(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            hint_bar = self._hint_bar(
+                window, [("1", "por level"), ("2", "aleatório"), ("Esc", "voltar")]
+            )
+
+            window._locale.set_locale("en")
+            self.assertEqual(
+                [label.text() for label in hint_bar._hint_labels],
+                ["[1] by level", "[2] random", "[Esc] back"],
+            )
+
+            window._locale.set_locale("es")
+            self.assertEqual(
+                [label.text() for label in hint_bar._hint_labels],
+                ["[1] por level", "[2] aleatorio", "[Esc] volver"],
+            )
+
+
+class ExerciseScreenLayoutRegressionTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._app = QApplication.instance() or QApplication([])
+
+    def _window(self, temp_dir: str) -> MainWindow:
+        return MainWindowTest._window(self, temp_dir)
+
+    def test_sidebar_and_subject_panel_still_split_after_loading_an_exercise(self) -> None:
+        # Regression guard: the new 4th sidebar block must not have
+        # collapsed the pre-existing sidebar/main-panel split from the
+        # exercise screen redesign.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+
+            for block in (
+                window._sidebar_expected_block,
+                window._sidebar_allowed_block,
+                window._sidebar_not_allowed_block,
+                window._sidebar_constraints_block,
+            ):
+                self.assertIsNotNone(block.parentWidget())
+            self.assertIsNotNone(window._subject.parentWidget())
+            self.assertIsNot(window._sidebar_expected_block.parentWidget(), window._subject.parentWidget())
 
 
 if __name__ == "__main__":

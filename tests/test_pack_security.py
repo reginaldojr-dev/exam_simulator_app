@@ -7,9 +7,9 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter, PackImportError
-from exam_trainer.domain.identifiers import (
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter, PackImportError
+from rankeddojo.domain.identifiers import (
     UnsafeValueError,
     parse_relative_path,
     validate_identifier,

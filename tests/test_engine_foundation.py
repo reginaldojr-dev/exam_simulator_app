@@ -3,13 +3,14 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.grader.generic_c_grader import GenericCGrader
-from exam_trainer.application.engine.expectations import default_expectation_registry
-from exam_trainer.application.engine.generators import default_generator_registry
-from exam_trainer.application.engine.test_case_service import TestCaseService
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.grader.generic_c_grader import GenericCGrader
+from rankeddojo.application.engine.expectations import default_expectation_registry
+from rankeddojo.application.engine.generators import default_generator_registry
+from rankeddojo.application.engine.test_case_service import TestCaseService
+from rankeddojo.domain.exercise_definition import (
     ExerciseDefinition,
     ExecutionDefinition,
     LimitsDefinition,
@@ -17,9 +18,9 @@ from exam_trainer.domain.exercise_definition import (
     TestCaseDefinition,
     TestDefinition,
 )
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.grader_port import GradingRequest
 
 
 def definition() -> ExerciseDefinition:
@@ -102,10 +103,44 @@ class EngineFoundationTest(unittest.TestCase):
         self.assertEqual(cases[0].args, ("one", "two"))
         self.assertEqual(cases[0].expected, "one two\n")
 
-    def test_compiler_reports_unavailable_when_candidates_do_not_exist(self) -> None:
+    def test_compiler_reports_unavailable_when_no_candidate_can_be_resolved(self) -> None:
+        """Hermetic: an explicit candidate that does not exist, combined
+        with no Windows WinGet fallback available, must report unavailable
+        regardless of what is actually installed on the host machine."""
         compiler = SystemCCompiler(candidates=("definitely-not-a-c-compiler",))
 
-        self.assertFalse(compiler.is_available())
+        with patch.object(compiler, "_windows_winget_candidates", return_value=[]):
+            self.assertFalse(compiler.is_available())
+
+    def test_compiler_reports_available_via_windows_winget_fallback(self) -> None:
+        """Hermetic: nothing resolvable via `shutil.which`, but the
+        Windows WinGet fallback resolves a compiler that passes
+        compatibility probing -- must report available. Runs identically
+        on Windows with a real GCC installed, on Windows without one, and
+        on Linux CI, because both `shutil.which` and the fallback itself
+        are mocked; no real compiler is ever invoked.
+        """
+        compiler = SystemCCompiler(candidates=("definitely-not-a-c-compiler",))
+        fake_compiler_path = Path("C:/fake/winget/gcc.exe")
+
+        with patch(
+            "rankeddojo.adapters.compiler.system_c_compiler.shutil.which",
+            return_value=None,
+        ), patch.object(
+            compiler,
+            "_windows_winget_candidates",
+            return_value=[fake_compiler_path],
+        ), patch.object(
+            Path,
+            "is_file",
+            return_value=True,
+        ), patch.object(
+            compiler,
+            "_is_compatible_compiler",
+            return_value=True,
+        ):
+            self.assertTrue(compiler.is_available())
+            self.assertEqual(compiler.find_compiler(), str(fake_compiler_path))
 
     def test_grader_reports_missing_submission_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

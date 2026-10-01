@@ -10,6 +10,7 @@
     "java",
     "basics"
   ],
+  "difficulty": "intro",
   "submission": {
     "filename": "SumArgs.java"
   },

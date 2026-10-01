@@ -10,6 +10,7 @@
     "c",
     "basics"
   ],
+  "difficulty": "intro",
   "submission": {
     "filename": "char_stats.c"
   },

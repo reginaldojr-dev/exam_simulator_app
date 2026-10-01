@@ -7,14 +7,14 @@ from pathlib import Path, PurePath
 from types import SimpleNamespace
 from unittest import mock
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.compiler.system_cpp_compiler import SystemCppCompiler
-from exam_trainer.adapters.grader.generic_grader import GenericGrader
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.adapters.runtime.cpp_runtime import CppRuntime
-from exam_trainer.application.engine.execution import FunctionCallStrategy, ProgramOutputStrategy, reference_spec, support_include_dirs
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.compiler.system_cpp_compiler import SystemCppCompiler
+from rankeddojo.adapters.grader.generic_grader import GenericGrader
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.adapters.runtime.cpp_runtime import CppRuntime
+from rankeddojo.application.engine.execution import FunctionCallStrategy, ProgramOutputStrategy, reference_spec, support_include_dirs
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.domain.exercise_definition import (
     FUNCTION_CALL,
     PROGRAM_OUTPUT,
     ExecutionDefinition,
@@ -25,10 +25,10 @@ from exam_trainer.domain.exercise_definition import (
     TestCaseDefinition,
     TestDefinition,
 )
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
-from exam_trainer.ports.runtime_port import ProgramSpec
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.grader_port import GradingRequest
+from rankeddojo.ports.runtime_port import ProgramSpec
 
 
 def _definition(**overrides: object) -> ExerciseDefinition:

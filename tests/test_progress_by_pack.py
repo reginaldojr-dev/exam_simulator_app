@@ -10,20 +10,20 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.persistence import migrations
-from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
-from exam_trainer.domain.attempt_modes import LEGACY_PACK_ID
-from exam_trainer.domain.progress import ActivityProgress
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.persistence import migrations
+from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
+from rankeddojo.domain.attempt_modes import LEGACY_PACK_ID
+from rankeddojo.domain.progress import ActivityProgress
 
 from test_exam_rules import FakeClock, SwitchGrader, build_pack
 
@@ -167,7 +167,7 @@ class ProgressByPackTest(unittest.TestCase):
 
     def test_repository_rejects_unknown_mode(self) -> None:
         repo = SQLiteProgressRepository(SQLiteStore(self.database))
-        from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
+        from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
 
         with self.assertRaises(ValueError):
             repo.save_grading_result(

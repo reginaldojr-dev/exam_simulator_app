@@ -5,19 +5,19 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path, PurePath
 
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.application.engine.activity_preflight import (
+from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.application.engine.activity_preflight import (
     ActivityContentPreflight,
     ActivityPreflightStatus,
 )
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.mvp_models import ExerciseRef
-from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.application.mvp_models import ExerciseRef
+from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+from rankeddojo.domain.exercise_definition import (
     ExecutionDefinition,
     ExerciseDefinition,
     LimitsDefinition,
@@ -26,12 +26,12 @@ from exam_trainer.domain.exercise_definition import (
     TestCaseDefinition,
     TestDefinition,
 )
-from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
-from exam_trainer.domain.pack_definition import PackDefinition, PackLevelDefinition
-from exam_trainer.domain.test_contract import ArgumentContract, ArgumentKind, TestContract
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
-from exam_trainer.ports.runtime_port import PreparedProgram, ProcessOutcome, ProgramSpec
+from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
+from rankeddojo.domain.pack_definition import PackDefinition, PackLevelDefinition
+from rankeddojo.domain.test_contract import ArgumentContract, ArgumentKind, TestContract
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.grader_port import GradingRequest
+from rankeddojo.ports.runtime_port import PreparedProgram, ProcessOutcome, ProgramSpec
 
 
 class ScriptedRuntime:

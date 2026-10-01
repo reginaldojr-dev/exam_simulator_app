@@ -59,7 +59,7 @@
 - SQLite é a autoridade local da V1.
 - Schema atual: v3.
 - Migration v3 adiciona identidade neutra e policy preservando colunas/dados antigos.
-- Path principal no Windows: `%APPDATA%\exam-trainer\` permanece legado por compatibilidade de dados.
+- Path principal no Windows: `%APPDATA%\rankeddojo\` (renomeado de `%APPDATA%\exam-trainer\` na migração de namespace pós-Fase 2; dados antigos são migrados automaticamente uma única vez).
 - Packs públicos em `examples/packs`; packs locais privados em `_local/packs`.
 - DB readonly investigado na S4: causa provável é ACL/sandbox, não schema corrompido.
 
@@ -76,7 +76,7 @@
 - Produto público: `RankedDojo`.
 - Home inclui `QUERO ESTUDAR ALGO NOVO`, geração/cópia de prompt e importação de pack.
 - Training, Exam, Histórico, Configurações e ajuda de pack existem em Qt.
-- Histórico oferece visão geral, por pack, activities, sessões e linha do tempo, com filtros simples por pack/session.
+- Histórico oferece Overview, Learning por linguagem, Pack History e visões separadas de Training/Exam Sessions; inspector é contextual e só aparece após seleção.
 - Configurações > Packs mostra resumo de contrato/capabilities e abre a documentação completa de packs.
 - Subjects `subject.md` continuam Markdown e são renderizados com suporte nativo do Qt.
 - UI não deve acessar SQL nem decidir regras de session/policy.

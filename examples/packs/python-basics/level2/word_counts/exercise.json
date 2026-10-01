@@ -10,6 +10,7 @@
     "python",
     "basics"
   ],
+  "difficulty": "medium",
   "submission": {
     "filename": "word_counts.py"
   },

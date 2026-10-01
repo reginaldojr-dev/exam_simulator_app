@@ -31,7 +31,7 @@ jobs:
           echo "PY=$PY" >> "$GITHUB_ENV"
       - name: Import comes from this checkout
         shell: bash
-        run: $PY -c "import exam_trainer, inspect; print(inspect.getfile(exam_trainer))"
+        run: $PY -c "import rankeddojo, inspect; print(inspect.getfile(rankeddojo))"
       - name: Unit tests
         shell: bash
         run: $PY -m unittest discover -s tests -v

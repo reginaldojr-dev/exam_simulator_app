@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from exam_trainer.adapters.ui.qt.components.widgets import SubjectMarkdownView
+from rankeddojo.adapters.ui.qt.components.widgets import SubjectMarkdownView
 
 
 class SubjectMarkdownViewTest(unittest.TestCase):
@@ -226,14 +227,41 @@ _____________
 
     # -------------------------------------------------------------- estilos
     def test_document_stylesheet_keeps_markdown_reading_spacing(self) -> None:
+        """The stylesheet still favors reading comfort after the terminal-feel
+        redesign (less webview/markdown-heavy, leaner hierarchy): a readable
+        body line-height, a *reduced* heading hierarchy (h1 > h2 > h3 -- not
+        flat, not giant 42-style headings), `pre` keeping its own line-height
+        rhythm, and the stylesheet remaining present/themed (no stray
+        hardcoded colors). This checks the current visual intent rather than
+        a historical pixel value.
+        """
         view = self._view("Texto.\n\n## Secao\n\n```text\ncodigo\n```")
 
         stylesheet = view.document().defaultStyleSheet()
+        self.assertTrue(stylesheet.strip())
 
-        self.assertIn("line-height: 1.72", stylesheet)
-        self.assertIn("margin: 12px 0 18px 0", stylesheet)
-        self.assertIn("border-bottom: 1px solid #2f5f3b", stylesheet)
-        self.assertIn("background-color: #071307", stylesheet)
+        def _font_size(selector: str) -> float:
+            match = re.search(rf"{selector}\s*{{[^}}]*font-size:\s*([\d.]+)em", stylesheet)
+            self.assertIsNotNone(match, f"no font-size found for {selector!r}")
+            return float(match.group(1))
+
+        def _line_height(selector: str) -> float:
+            match = re.search(rf"{selector}\s*{{[^}}]*line-height:\s*([\d.]+)", stylesheet)
+            self.assertIsNotNone(match, f"no line-height found for {selector!r}")
+            return float(match.group(1))
+
+        body_line_height = _line_height("body")
+        pre_line_height = _line_height("pre")
+        self.assertGreaterEqual(body_line_height, 1.4)  # still comfortable for long subjects
+        self.assertNotEqual(pre_line_height, body_line_height)  # pre keeps its own, tighter rhythm
+
+        h1_size = _font_size("h1")
+        h2_size = _font_size("h2")
+        h3_size = _font_size("h3")
+        self.assertGreater(h1_size, h2_size)
+        self.assertGreater(h2_size, h3_size)  # reduced hierarchy, never flat or oversized
+
+        self.assertIn("border-bottom: 1px solid #2f5f3b", stylesheet)  # h2 keeps a themed separator
         self.assertIn("white-space: pre", stylesheet)
         self.assertIn("blockquote", stylesheet)
 

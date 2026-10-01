@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from exam_trainer.application.capabilities import default_exercise_capabilities
-from exam_trainer.application.study_intent import PackPromptBuilder, StudyIntent
-from exam_trainer.ports.runtime_port import RuntimeStatus
+from rankeddojo.application.capabilities import default_exercise_capabilities
+from rankeddojo.application.study_intent import PackPromptBuilder, StudyIntent
+from rankeddojo.ports.runtime_port import RuntimeStatus
 
 
 class PackPromptBuilderTest(unittest.TestCase):

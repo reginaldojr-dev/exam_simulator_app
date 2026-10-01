@@ -5,21 +5,21 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
-from exam_trainer.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
-from exam_trainer.adapters.pack.local_pack_catalog import LocalPackCatalog
-from exam_trainer.adapters.pack.local_pack_importer import LocalPackImporter
-from exam_trainer.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
-from exam_trainer.adapters.persistence.sqlite_store import SQLiteStore
-from exam_trainer.adapters.runtime.c_runtime import CRuntime
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.adapters.workspace.local_workspace import LocalWorkspace
-from exam_trainer.application.engine.runtime_registry import RuntimeRegistry
-from exam_trainer.application.history_service import HistoryQuery
-from exam_trainer.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
-from exam_trainer.domain.grading import GradingOutcome, GradingPolicy, GradingResult, TraceData
-from exam_trainer.domain.session_policy import ExamPolicy, SessionPolicyRegistry, TrainingPolicy
-from exam_trainer.ports.compiler_port import CompilationResult
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.adapters.editor.subprocess_editor import SubprocessEditor, SubprocessEditorFactory
+from rankeddojo.adapters.pack.local_pack_catalog import LocalPackCatalog
+from rankeddojo.adapters.pack.local_pack_importer import LocalPackImporter
+from rankeddojo.adapters.persistence.sqlite_progress_repository import SQLiteProgressRepository
+from rankeddojo.adapters.persistence.sqlite_store import SQLiteStore
+from rankeddojo.adapters.runtime.c_runtime import CRuntime
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
+from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
+from rankeddojo.application.history_service import HistoryQuery
+from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator, TrainingOptions
+from rankeddojo.domain.grading import GradingOutcome, GradingPolicy, GradingResult, TraceData
+from rankeddojo.domain.session_policy import ExamPolicy, SessionPolicyRegistry, TrainingPolicy
+from rankeddojo.ports.compiler_port import CompilationResult
+from rankeddojo.ports.grader_port import GradingRequest
 
 
 class StaticGrader:
@@ -147,6 +147,40 @@ class SessionPolicyHistoryTest(unittest.TestCase):
             self.assertTrue(any(entry.identity.activity_id == "steady_echo" for entry in by_activity))
             self.assertTrue(by_session)
             self.assertTrue(all(entry.session_id == state.id for entry in by_session))
+
+    def test_contextual_history_projections_feed_history_inspector(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            coordinator = self._coordinator(root, StaticGrader(passed=False))
+            ref = next(
+                ref
+                for ref in coordinator._pack_catalog.list_exercises("sample_rank")
+                if ref.definition.id == "steady_echo"
+            )
+            active = coordinator.prepare_exercise(ref, overwrite=True)
+            coordinator.submit_training(active)
+
+            overview = coordinator.history_overview()
+            pack_summary = coordinator.history_pack_summary("sample_rank")
+            activity_summary = coordinator.history_activity_summary("sample_rank", "steady_echo")
+
+            self.assertGreaterEqual(overview.attempts, 1)
+            self.assertIsNotNone(pack_summary)
+            self.assertEqual(pack_summary.pack_id, "sample_rank")
+            self.assertGreaterEqual(pack_summary.attempts_count, 1)
+            self.assertIsNotNone(activity_summary)
+            self.assertEqual(activity_summary.activity_id, "steady_echo")
+            self.assertEqual(activity_summary.latest_result, "FAIL")
+            self.assertEqual(activity_summary.attempts[0].result, "FAIL")
+            self.assertFalse(activity_summary.attempts[0].trace_available)
+
+    def test_history_learning_uses_real_prerequisites_without_unlocked_activity_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(Path(temp_dir))
+            view = coordinator.learning_track("c")
+            self.assertFalse(hasattr(view, "unlocked_activity_ids"))
+            for activity in view.track.activities:
+                self.assertIsInstance(activity.prerequisites, tuple)
 
     def test_sqlite_schema_has_neutral_activity_and_policy_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

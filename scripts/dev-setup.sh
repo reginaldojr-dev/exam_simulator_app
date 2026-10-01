@@ -11,11 +11,11 @@ PYTHON=${PYTHON:-python3}
 .venv/bin/python -m pip install --upgrade pip >/dev/null
 .venv/bin/python -m pip install -e ".[build]"
 
-ORIGIN=$(.venv/bin/python -c "import exam_trainer, inspect; print(inspect.getfile(exam_trainer))")
-echo "exam_trainer (.venv): $ORIGIN"
+ORIGIN=$(.venv/bin/python -c "import rankeddojo, inspect; print(inspect.getfile(rankeddojo))")
+echo "rankeddojo (.venv): $ORIGIN"
 case "$ORIGIN" in
-  "$ROOT/src/exam_trainer/"*) ;;
-  *) echo "ERRO: exam_trainer nao vem de $ROOT/src/exam_trainer" >&2; exit 1 ;;
+  "$ROOT/src/rankeddojo/"*) ;;
+  *) echo "ERRO: rankeddojo nao vem de $ROOT/src/rankeddojo" >&2; exit 1 ;;
 esac
 [ -z "${PYTHONPATH:-}" ] || echo "AVISO: PYTHONPATH definido ($PYTHONPATH); pode sobrepor a .venv." >&2
 

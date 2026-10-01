@@ -9,7 +9,7 @@ from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication, QComboBox, QWidget
 
-from exam_trainer.adapters.ui.qt.components.combo_wheel_guard import (
+from rankeddojo.adapters.ui.qt.components.combo_wheel_guard import (
     ComboBoxWheelGuard,
     install_combo_box_wheel_guard,
 )

@@ -10,8 +10,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtWidgets import QApplication
 
-from exam_trainer.adapters.ui.qt.startup_window import StartupWindow
-from exam_trainer.domain.workspace import Workspace
+from rankeddojo.adapters.ui.qt.startup_window import StartupWindow
+from rankeddojo.domain.workspace import Workspace
 
 
 class StubInitializeApplication:
@@ -38,13 +38,13 @@ class StartupWindowTest(unittest.TestCase):
         self.assertTrue(window.isVisible())
 
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch(
-            "exam_trainer.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
+            "rankeddojo.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
             return_value=temp_dir,
         ):
             window._choose_workspace()
             self._app.processEvents()
 
-        self.assertEqual(captured, [Path(temp_dir) / "exam-trainer"])
+        self.assertEqual(captured, [Path(temp_dir) / "rankeddojo"])
         self.assertFalse(window.isVisible())
 
     def test_public_brand_changed_but_default_workspace_folder_stays_legacy(self) -> None:
@@ -54,12 +54,12 @@ class StartupWindowTest(unittest.TestCase):
         self.assertEqual(window._title.text(), "RankedDojo")
 
         with tempfile.TemporaryDirectory() as temp_dir, mock.patch(
-            "exam_trainer.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
+            "rankeddojo.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
             return_value=temp_dir,
         ):
             window._choose_workspace()
 
-        self.assertEqual(service.configured, Path(temp_dir) / "exam-trainer")
+        self.assertEqual(service.configured, Path(temp_dir) / "rankeddojo")
 
     def test_cancel_keeps_startup_window_open(self) -> None:
         service = StubInitializeApplication()
@@ -67,7 +67,7 @@ class StartupWindowTest(unittest.TestCase):
         window.show()
 
         with mock.patch(
-            "exam_trainer.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
+            "rankeddojo.adapters.ui.qt.startup_window.QFileDialog.getExistingDirectory",
             return_value="",
         ):
             window._choose_workspace()

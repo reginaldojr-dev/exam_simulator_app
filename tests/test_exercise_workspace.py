@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.adapters.workspace.local_exercise_workspace import LocalExerciseWorkspace
+from rankeddojo.domain.exercise_definition import (
     ExerciseDefinition,
     ExecutionDefinition,
     LimitsDefinition,

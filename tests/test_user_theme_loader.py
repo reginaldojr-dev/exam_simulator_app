@@ -10,9 +10,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.theme.user_theme_loader import UserThemeLoader
-from exam_trainer.adapters.ui.qt.theme.registry import ThemeRegistry
-from exam_trainer.adapters.ui.qt.theme.themes import TERMINAL, THEMES
+from rankeddojo.adapters.theme.user_theme_loader import UserThemeLoader
+from rankeddojo.adapters.ui.qt.theme.registry import ThemeRegistry
+from rankeddojo.adapters.ui.qt.theme.themes import TERMINAL, THEMES
 
 
 def _write_theme(folder: Path, data: dict) -> None:

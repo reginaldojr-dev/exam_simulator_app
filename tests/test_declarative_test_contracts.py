@@ -3,11 +3,11 @@ from __future__ import annotations
 import unittest
 from pathlib import PurePosixPath
 
-from exam_trainer.adapters.exercise_definition.json_loader import ExerciseDefinitionError, JsonExerciseDefinitionLoader
-from exam_trainer.application.engine.expectations import default_expectation_registry
-from exam_trainer.application.engine.generators import default_generator_registry
-from exam_trainer.application.engine.test_case_service import TestCaseService
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.adapters.exercise_definition.json_loader import ExerciseDefinitionError, JsonExerciseDefinitionLoader
+from rankeddojo.application.engine.expectations import default_expectation_registry
+from rankeddojo.application.engine.generators import default_generator_registry
+from rankeddojo.application.engine.test_case_service import TestCaseService
+from rankeddojo.domain.exercise_definition import (
     ExerciseDefinition,
     ExecutionDefinition,
     LimitsDefinition,
@@ -15,7 +15,7 @@ from exam_trainer.domain.exercise_definition import (
     TestCaseDefinition,
     TestDefinition,
 )
-from exam_trainer.domain.test_contract import ArgumentContract, ArgumentKind, TestContract
+from rankeddojo.domain.test_contract import ArgumentContract, ArgumentKind, TestContract
 
 
 def definition(contract: TestContract | None, generator: str = "random_arguments") -> ExerciseDefinition:

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import unittest
 
-from exam_trainer.domain.grading import GradingOutcome, GradingResult, TraceData
+from rankeddojo.domain.grading import GradingOutcome, GradingResult, TraceData
 
 
 class GradingOutcomePassedConsistencyTest(unittest.TestCase):

@@ -4,19 +4,19 @@ import tempfile
 import unittest
 from pathlib import Path, PurePosixPath
 
-from exam_trainer.adapters.exercise_definition.json_loader import (
+from rankeddojo.adapters.exercise_definition.json_loader import (
     DEFAULT_TIMEOUT_SECONDS,
     ExerciseDefinitionError,
     JsonExerciseDefinitionLoader,
 )
-from exam_trainer.application.capabilities import (
+from rankeddojo.application.capabilities import (
     ExerciseCapabilities,
     ExecutionRegistry,
     ExpectationRegistry,
     GeneratorRegistry,
     C_LANGUAGE,
 )
-from exam_trainer.domain.exercise_definition import ExerciseDefinition, ReferenceDefinition
+from rankeddojo.domain.exercise_definition import ExerciseDefinition, ReferenceDefinition
 
 
 def valid_definition_data() -> dict[str, object]:
@@ -283,3 +283,80 @@ class JsonExerciseDefinitionLoaderTest(unittest.TestCase):
         definition = JsonExerciseDefinitionLoader(capabilities).load_data(data)
 
         self.assertIsNone(definition.reference)
+
+    def test_usage_absent_is_valid_and_defaults_to_empty(self) -> None:
+        data = v3_literal_data()
+        del data["usage"]
+
+        definition = JsonExerciseDefinitionLoader().load_data(data)
+
+        self.assertTrue(definition.usage.is_empty)
+        self.assertEqual(definition.usage.allowed.functions, ())
+        self.assertEqual(definition.usage.forbidden.functions, ())
+
+    def test_usage_with_empty_lists_is_valid(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {"allowed": {"functions": []}, "forbidden": {}}
+
+        definition = JsonExerciseDefinitionLoader().load_data(data)
+
+        self.assertEqual(definition.usage.allowed.functions, ())
+        self.assertEqual(definition.usage.forbidden.functions, ())
+        self.assertTrue(definition.usage.is_empty)
+
+    def test_usage_preserves_declared_order(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {
+            "allowed": {"functions": ["write", "read", "close"]},
+            "forbidden": {"functions": ["printf", "isalpha", "isdigit"]},
+        }
+
+        definition = JsonExerciseDefinitionLoader().load_data(data)
+
+        self.assertEqual(definition.usage.allowed.functions, ("write", "read", "close"))
+        self.assertEqual(definition.usage.forbidden.functions, ("printf", "isalpha", "isdigit"))
+
+    def test_usage_rejects_non_list_category_value(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {"allowed": {"functions": "write"}}
+
+        with self.assertRaisesRegex(ExerciseDefinitionError, "usage.allowed.functions must be a list"):
+            JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_usage_rejects_non_string_item(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {"allowed": {"functions": ["write", 1]}}
+
+        with self.assertRaisesRegex(ExerciseDefinitionError, "usage.allowed.functions must be a list"):
+            JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_usage_rejects_empty_string_item(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {"forbidden": {"functions": ["printf", "   "]}}
+
+        with self.assertRaisesRegex(ExerciseDefinitionError, "usage.forbidden.functions must be a list"):
+            JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_usage_rejects_unknown_top_level_field(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {"allowed": {}, "not_a_real_field": []}
+
+        with self.assertRaisesRegex(ExerciseDefinitionError, "Unknown field.*usage"):
+            JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_usage_rejects_unknown_category_field(self) -> None:
+        data = v3_literal_data()
+        data["usage"] = {"allowed": {"not_a_real_category": ["write"]}}
+
+        with self.assertRaisesRegex(ExerciseDefinitionError, "Unknown field.*usage.allowed"):
+            JsonExerciseDefinitionLoader().load_data(data)
+
+    def test_usage_never_executed_values_are_kept_as_plain_strings(self) -> None:
+        # Declarative only: a value that looks like code must survive as an
+        # inert string, never be evaluated/interpolated by the loader.
+        data = v3_literal_data()
+        data["usage"] = {"allowed": {"functions": ["__import__('os').system('x')"]}}
+
+        definition = JsonExerciseDefinitionLoader().load_data(data)
+
+        self.assertEqual(definition.usage.allowed.functions, ("__import__('os').system('x')",))

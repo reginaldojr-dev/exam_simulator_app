@@ -4,17 +4,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.adapters.compiler.system_c_compiler import SystemCCompiler
-from exam_trainer.adapters.grader.generic_c_grader import GenericCGrader
-from exam_trainer.domain.exercise_definition import (
+from rankeddojo.adapters.compiler.system_c_compiler import SystemCCompiler
+from rankeddojo.adapters.grader.generic_c_grader import GenericCGrader
+from rankeddojo.domain.exercise_definition import (
     ExerciseDefinition,
     ExecutionDefinition,
     LimitsDefinition,
     SubmissionDefinition,
     TestDefinition,
 )
-from exam_trainer.domain.grading import GradingPolicy
-from exam_trainer.ports.grader_port import GradingRequest
+from rankeddojo.domain.grading import GradingPolicy
+from rankeddojo.ports.grader_port import GradingRequest
 
 
 class GraderIntegrationTest(unittest.TestCase):

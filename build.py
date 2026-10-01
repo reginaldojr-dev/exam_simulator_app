@@ -73,7 +73,7 @@ IGNORED_ANYWHERE = {
 }
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 # Ignorados SÓ na raiz do projeto. Uma pasta com o mesmo nome dentro de src/
-# (como src/exam_trainer/adapters/workspace/) continua no hash.
+# (como src/rankeddojo/adapters/workspace/) continua no hash.
 IGNORED_AT_ROOT = {
     ".git",
     ".venv",
@@ -272,7 +272,7 @@ def report_launch_error(error: OSError) -> int:
             f"{WINDOWS_POLICY_BLOCK_ERRORS[winerror]} (WinError {winerror})."
         )
         print("Isso costuma ser o Controle Inteligente de Aplicativos com um exe sem assinatura digital.")
-        print("Para testar agora, rode pelo código-fonte: python -m exam_trainer.main")
+        print("Para testar agora, rode pelo código-fonte: python -m rankeddojo.main")
     else:
         print(f"Não foi possível abrir o executável: {error}")
     print(f"Executável: {EXE_PATH}")
@@ -294,13 +294,13 @@ def check_environment() -> None:
             " (ative a .venv antes de rodar build.py)"
         )
     try:
-        import exam_trainer  # noqa: PLC0415
+        import rankeddojo  # noqa: PLC0415
     except ImportError:
         return
-    origin = Path(exam_trainer.__file__).resolve()
+    origin = Path(rankeddojo.__file__).resolve()
     if PROJECT_SRC.resolve() not in origin.parents:
         print(
-            "AVISO: neste Python, 'exam_trainer' vem de outra cópia do projeto:\n"
+            "AVISO: neste Python, 'rankeddojo' vem de outra cópia do projeto:\n"
             f"  {origin}\n"
             "  Rode 'python -m pip install -e .' dentro da .venv deste projeto."
         )

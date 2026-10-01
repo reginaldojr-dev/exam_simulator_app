@@ -10,6 +10,7 @@
     "cpp",
     "basics"
   ],
+  "difficulty": "intro",
   "submission": {
     "filename": "line_join.cpp"
   },

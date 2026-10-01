@@ -10,6 +10,7 @@
     "python",
     "basics"
   ],
+  "difficulty": "easy",
   "submission": {
     "filename": "add_numbers.py"
   },

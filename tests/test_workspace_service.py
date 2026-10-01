@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from exam_trainer.application.workspace_service import WorkspaceService
-from exam_trainer.domain.workspace import Workspace
+from rankeddojo.application.workspace_service import WorkspaceService
+from rankeddojo.domain.workspace import Workspace
 
 
 class InMemoryConfigRepository:
@@ -46,7 +46,7 @@ class WorkspaceServiceTest(unittest.TestCase):
 
     def test_startup_state_uses_existing_saved_workspace(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir) / "exam-trainer"
+            workspace_path = Path(temp_dir) / "rankeddojo"
             service = WorkspaceService(
                 config_repository=InMemoryConfigRepository(workspace_path),
                 workspace_file_system=InMemoryWorkspaceFileSystem({workspace_path}),
@@ -61,7 +61,7 @@ class WorkspaceServiceTest(unittest.TestCase):
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir) / "exam-trainer"
+            workspace_path = Path(temp_dir) / "rankeddojo"
             service = WorkspaceService(
                 config_repository=InMemoryConfigRepository(workspace_path),
                 workspace_file_system=InMemoryWorkspaceFileSystem(),
@@ -74,7 +74,7 @@ class WorkspaceServiceTest(unittest.TestCase):
 
     def test_configure_workspace_creates_and_saves_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            workspace_path = Path(temp_dir) / "exam-trainer"
+            workspace_path = Path(temp_dir) / "rankeddojo"
             config_repository = InMemoryConfigRepository()
             file_system = InMemoryWorkspaceFileSystem()
             service = WorkspaceService(config_repository, file_system)
