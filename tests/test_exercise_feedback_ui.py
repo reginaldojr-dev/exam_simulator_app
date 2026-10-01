@@ -394,9 +394,13 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             window._submit_current()
             self.assertTrue(window._tasks.wait())
 
-            # No animation running -- the body is already in its final, visible state.
+            # No animation running -- the body is already in its final, expanded
+            # state. `isVisible()` would be False regardless (the offscreen
+            # window is never `.show()`n), so check the panel's own expanded
+            # state and the body's own hidden flag instead.
             self.assertIsNone(window._trace_summary_panel._body_animation)
-            self.assertTrue(window._trace_summary_panel._body.isVisible())
+            self.assertTrue(window._trace_summary_panel._expanded)
+            self.assertFalse(window._trace_summary_panel._body.isHidden())
 
     # -------------------------------------------------------------- themes
     def test_existing_themes_still_apply_with_the_redesigned_subject_and_trace_panel(self) -> None:
@@ -499,11 +503,16 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             self.assertNotEqual(sidebar.property("role"), "")
 
     def test_difficulty_badge_shows_when_the_pack_declares_one(self) -> None:
+        # `isVisible()` depends on the whole ancestor chain being shown with
+        # `.show()`, which this offscreen window never is -- it would be
+        # False here even when the label is correctly configured to appear.
+        # `isHidden()` reflects the widget's own hidden flag instead, which
+        # is what `_refresh_exercise_frame` actually controls.
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
             ref = self._load_c_basics_exercise(window)
             self.assertEqual(ref.definition.difficulty, "intro")
-            self.assertTrue(window._exercise_difficulty_label.isVisible())
+            self.assertFalse(window._exercise_difficulty_label.isHidden())
             self.assertIn("INTRO", window._exercise_difficulty_label.text().upper())
 
     def test_difficulty_badge_hides_when_the_pack_declares_none(self) -> None:
@@ -521,13 +530,17 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             self.assertIn(ref.definition.submission.filename, window._sidebar_expected_value.text())
 
     def test_sidebar_allowed_and_not_allowed_extracted_from_the_real_subject(self) -> None:
+        # Same `isVisible()` vs `isHidden()` distinction as the difficulty
+        # badge: the window is never `.show()`n in this offscreen harness, so
+        # `isVisible()` is always False regardless of what `setVisible()` was
+        # actually called with. `isHidden()` reflects that call directly.
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
             self._load_c_basics_exercise(window)
 
-            self.assertTrue(window._sidebar_allowed_block.isVisible())
+            self.assertFalse(window._sidebar_allowed_block.isHidden())
             self.assertIn("write", window._sidebar_allowed_value.text())
-            self.assertTrue(window._sidebar_not_allowed_block.isVisible())
+            self.assertFalse(window._sidebar_not_allowed_block.isHidden())
             not_allowed_text = window._sidebar_not_allowed_value.text()
             self.assertIn("printf", not_allowed_text)
             self.assertIn("isalpha", not_allowed_text)
@@ -543,6 +556,11 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             self.assertFalse(window._sidebar_not_allowed_block.isVisible())
 
     def test_feedback_banner_still_sits_in_the_sidebar_after_a_fail(self) -> None:
+        # `isVisible()` would be False here purely because the offscreen
+        # window is never `.show()`n -- it says nothing about whether
+        # `show_result` actually surfaced the banner. Check the banner's own
+        # hidden flag, its FAIL status/text, and that it stayed clickable
+        # (reopens the trace summary), which is the real contract here.
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir, grader=CompilationFailureGrader())
             self._load_c_basics_exercise(window)
@@ -553,7 +571,10 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             while sidebar is not None and sidebar.property("role") != "exercise-sidebar":
                 sidebar = sidebar.parentWidget()
             self.assertIsNotNone(sidebar)
-            self.assertTrue(window._feedback.isVisible())
+            self.assertFalse(window._feedback.isHidden())
+            self.assertEqual(window._feedback.property("status"), "fail")
+            self.assertTrue(window._feedback.text)
+            self.assertTrue(window._feedback._clickable)
 
     def test_split_layout_survives_locale_switch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

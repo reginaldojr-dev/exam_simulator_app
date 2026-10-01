@@ -791,14 +791,18 @@ class MainWindowTest(unittest.TestCase):
                 self.assertGreaterEqual(window._theme_combo.findData(key), 0, key)
 
     def test_home_is_pt_br_by_default(self) -> None:
+        # Menu order after the Learning Track addition: Study, Training,
+        # Learning Track, Exam Mode, History, Settings -- Learning Track now
+        # sits at position 3, pushing Exam Mode/History/Settings down one.
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
 
             labels = [button.property("baseText") for button in window._menu_buttons]
 
             self.assertIn("> [2] TREINAR", labels)
-            self.assertIn("> [3] MODO PROVA", labels)
-            self.assertIn("> [4] HISTÓRICO", labels)
+            self.assertIn("> [3] TRILHA DE APRENDIZADO", labels)
+            self.assertIn("> [4] MODO PROVA", labels)
+            self.assertIn("> [5] HISTÓRICO", labels)
 
     def test_home_can_switch_to_english_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -809,9 +813,10 @@ class MainWindowTest(unittest.TestCase):
             labels = [button.property("baseText") for button in window._menu_buttons]
             self.assertIn("> [1] STUDY SOMETHING NEW", labels)
             self.assertIn("> [2] TRAINING", labels)
-            self.assertIn("> [3] EXAM MODE", labels)
-            self.assertIn("> [4] HISTORY", labels)
-            self.assertIn("> [5] SETTINGS", labels)
+            self.assertIn("> [3] LEARNING TRACK", labels)
+            self.assertIn("> [4] EXAM MODE", labels)
+            self.assertIn("> [5] HISTORY", labels)
+            self.assertIn("> [6] SETTINGS", labels)
 
     def test_home_can_switch_to_spanish_at_runtime(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -822,9 +827,10 @@ class MainWindowTest(unittest.TestCase):
             labels = [button.property("baseText") for button in window._menu_buttons]
             self.assertIn("> [1] ESTUDIAR ALGO NUEVO", labels)
             self.assertIn("> [2] ENTRENAR", labels)
-            self.assertIn("> [3] MODO EXAMEN", labels)
-            self.assertIn("> [4] HISTORIAL", labels)
-            self.assertIn("> [5] CONFIGURACIÓN", labels)
+            self.assertIn("> [3] RUTA DE APRENDIZAJE", labels)
+            self.assertIn("> [4] MODO EXAMEN", labels)
+            self.assertIn("> [5] HISTORIAL", labels)
+            self.assertIn("> [6] CONFIGURACIÓN", labels)
 
     def test_settings_shows_translated_locale_selector_with_three_languages(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

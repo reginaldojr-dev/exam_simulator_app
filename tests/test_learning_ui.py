@@ -361,7 +361,9 @@ class LearningUITest(unittest.TestCase):
             window._open_learning_activity(unlocked)
 
             self.assertIsNotNone(window._active)
-            self.assertEqual(window._active.definition.id, C_BASICS_BLOCKED_UNTIL_LEAVES_DONE)
+            # `ActiveExercise.definition` doesn't exist -- the exercise's
+            # definition is reached through `ref` (see ExerciseRef).
+            self.assertEqual(window._active.ref.definition.id, C_BASICS_BLOCKED_UNTIL_LEAVES_DONE)
             self.assertIs(window._stack.currentWidget(), window._exercise_page)
 
     def test_continue_opens_the_activity_provided_by_the_application(self) -> None:
@@ -373,7 +375,9 @@ class LearningUITest(unittest.TestCase):
             window._continue_learning()
 
             self.assertIsNotNone(window._active)
-            self.assertEqual(window._active.definition.id, expected.activity_id)
+            # `ActiveExercise.definition` doesn't exist -- the exercise's
+            # definition is reached through `ref` (see ExerciseRef).
+            self.assertEqual(window._active.ref.definition.id, expected.activity_id)
 
     def test_track_completed_shows_final_state_without_opening_an_exercise(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
