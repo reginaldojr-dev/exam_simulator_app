@@ -446,6 +446,138 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             self.assertTrue(window._last_outcome.trace_path.exists())
             self.assertIn("Test 1", window._last_outcome.trace_path.read_text(encoding="utf-8"))
 
+    # ------------------------------------------------- split sidebar layout
+    def test_window_opens_at_the_larger_default_size(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self.assertEqual(window.size().width(), 1100)
+            self.assertEqual(window.size().height(), 760)
+
+    def test_sidebar_holds_breadcrumb_title_and_feedback_banner(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+
+            sidebar = window._exercise_id_label.parentWidget()
+            while sidebar is not None and sidebar.property("role") != "exercise-sidebar":
+                sidebar = sidebar.parentWidget()
+            self.assertIsNotNone(sidebar, "breadcrumb must live inside the exercise-sidebar widget")
+            self.assertIs(window._exercise_title.parentWidget(), sidebar)
+            self.assertIs(window._feedback.parentWidget(), sidebar)
+
+    def test_footer_buttons_live_in_a_fixed_footer_bar(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+
+            footer = window._correct_button.parentWidget()
+            while footer is not None and footer.property("role") != "exercise-footer":
+                footer = footer.parentWidget()
+            self.assertIsNotNone(footer, "action buttons must live inside the exercise-footer widget")
+            for button in (
+                window._open_editor_button,
+                window._correct_button,
+                window._trace_button,
+                window._next_button,
+                window._exercise_back_button,
+            ):
+                parent = button.parentWidget()
+                while parent is not None and parent is not footer and parent.property("role") != "exercise-footer":
+                    parent = parent.parentWidget()
+                self.assertIs(parent, footer)
+
+    def test_subject_is_not_inside_the_sidebar_and_keeps_stretch_priority(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+
+            sidebar = window._exercise_id_label.parentWidget()
+            while sidebar is not None and sidebar.property("role") != "exercise-sidebar":
+                sidebar = sidebar.parentWidget()
+            parent = window._subject.parentWidget()
+            self.assertIsNot(parent, sidebar)
+            self.assertNotEqual(sidebar.property("role"), "")
+
+    def test_difficulty_badge_shows_when_the_pack_declares_one(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = self._load_c_basics_exercise(window)
+            self.assertEqual(ref.definition.difficulty, "intro")
+            self.assertTrue(window._exercise_difficulty_label.isVisible())
+            self.assertIn("INTRO", window._exercise_difficulty_label.text().upper())
+
+    def test_difficulty_badge_hides_when_the_pack_declares_none(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            self.assertIsNone(ref.definition.difficulty)
+            window._load_exercise(ref, mode="training", overwrite=True)
+            self.assertFalse(window._exercise_difficulty_label.isVisible())
+
+    def test_sidebar_expected_file_comes_from_the_real_submission_filename(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = self._load_c_basics_exercise(window)
+            self.assertIn(ref.definition.submission.filename, window._sidebar_expected_value.text())
+
+    def test_sidebar_allowed_and_not_allowed_extracted_from_the_real_subject(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+
+            self.assertTrue(window._sidebar_allowed_block.isVisible())
+            self.assertIn("write", window._sidebar_allowed_value.text())
+            self.assertTrue(window._sidebar_not_allowed_block.isVisible())
+            not_allowed_text = window._sidebar_not_allowed_value.text()
+            self.assertIn("printf", not_allowed_text)
+            self.assertIn("isalpha", not_allowed_text)
+            self.assertIn("isdigit", not_allowed_text)
+
+    def test_sidebar_allowed_blocks_hide_when_subject_has_no_matching_heading(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            ref = next(iter(window._coordinator._pack_catalog.list_exercises("sample_rank")))
+            window._load_exercise(ref, mode="training", overwrite=True)
+
+            self.assertFalse(window._sidebar_allowed_block.isVisible())
+            self.assertFalse(window._sidebar_not_allowed_block.isVisible())
+
+    def test_feedback_banner_still_sits_in_the_sidebar_after_a_fail(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir, grader=CompilationFailureGrader())
+            self._load_c_basics_exercise(window)
+            window._submit_current()
+            self.assertTrue(window._tasks.wait())
+
+            sidebar = window._feedback.parentWidget()
+            while sidebar is not None and sidebar.property("role") != "exercise-sidebar":
+                sidebar = sidebar.parentWidget()
+            self.assertIsNotNone(sidebar)
+            self.assertTrue(window._feedback.isVisible())
+
+    def test_split_layout_survives_locale_switch(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+            window._locale.set_locale("en")
+            self.assertIn("EXPECTED", window._sidebar_expected_header.text().upper())
+            self.assertIn("ALLOWED", window._sidebar_allowed_header.text().upper())
+            window._locale.set_locale("pt-BR")
+
+    def test_split_layout_strings_are_translated_for_en_and_es(self) -> None:
+        for key in ("Arquivos esperados", "Permitido", "Não permitido"):
+            self.assertIn(key, TRANSLATIONS["en"], key)
+            self.assertIn(key, TRANSLATIONS["es"], key)
+
+    def test_all_themes_apply_cleanly_to_the_new_sidebar_and_footer_roles(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+            for tokens in THEME_REGISTRY.themes():
+                window._theme.set_theme(tokens.key)  # must not raise for any preset
+                QApplication.processEvents()
+            window._theme.set_theme("terminal")
+
 
 if __name__ == "__main__":
     unittest.main()

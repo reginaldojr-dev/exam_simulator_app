@@ -35,6 +35,11 @@ from PySide6.QtWidgets import (
 from rankeddojo.adapters.ui.qt.components import widgets as ui
 from rankeddojo.adapters.ui.qt.components.cursor import CursorController
 from rankeddojo.adapters.ui.qt.i18n import LOCALE_LABELS, LocaleService, SUPPORTED_UI_LOCALES, tr
+from rankeddojo.adapters.ui.qt.subject_sections import (
+    ALLOWED_HEADINGS,
+    NOT_ALLOWED_HEADINGS,
+    extract_list_section,
+)
 from rankeddojo.adapters.ui.qt.task_runner import TaskRunner
 from rankeddojo.adapters.ui.qt.theme import ThemeManager, ThemeTokens
 from rankeddojo.application.capabilities import default_exercise_capabilities
@@ -108,6 +113,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("RankedDojo")
         self.setMinimumSize(760, 560)
+        self.resize(1100, 760)
 
         self._stack = QStackedWidget()
         self._home_page = self._build_home_page()
@@ -278,6 +284,9 @@ class MainWindow(QMainWindow):
         self._set_button(self._trace_button, self._action("Ver trace"))
         self._set_button(self._next_button, self._action("Próximo/trocar"))
         self._set_button(self._exercise_back_button, self._action("Voltar"))
+        self._sidebar_expected_header.setText(f"> {self._t('Arquivos esperados').upper()}")
+        self._sidebar_allowed_header.setText(f"> {self._t('Permitido').upper()}")
+        self._sidebar_not_allowed_header.setText(f"> {self._t('Não permitido').upper()}")
 
         self._set_title_label(self._history_title, self._t("Histórico").upper())
         history_tabs = {
@@ -678,43 +687,117 @@ class MainWindow(QMainWindow):
         return page
 
     # --------------------------------------------------------------- exercise
-    def _build_exercise_page(self) -> QWidget:
-        page, layout = self._page(margins=22, spacing=8)
-        self._exercise_title = self._title("")
-        layout.addWidget(self._exercise_title)
+    def _build_sidebar_block(self) -> tuple[QWidget, QLabel, QLabel]:
+        """A small sidebar section: a section-style header + a mono value
+        line. Returned separately so callers can set/translate the header
+        and hide the whole container when there's nothing to show (used for
+        the best-effort "allowed"/"not allowed" blocks).
+        """
+        container = QWidget()
+        block_layout = QVBoxLayout(container)
+        block_layout.setContentsMargins(0, 0, 0, 0)
+        block_layout.setSpacing(3)
+        header = ui.label("", role="section")
+        value = ui.label("", role="mono", wrap=True)
+        block_layout.addWidget(header)
+        block_layout.addWidget(value)
+        return container, header, value
 
-        meta = QHBoxLayout()
-        meta.setSpacing(28)
-        self._exercise_id_label = ui.label("", role="meta")
-        self._exercise_rank_label = ui.label("")
-        self._exercise_level_label = ui.label("")
+    def _build_exercise_page(self) -> QWidget:
+        page, layout = self._page(margins=0, spacing=0)
+
+        content = QHBoxLayout()
+        content.setContentsMargins(0, 0, 0, 0)
+        content.setSpacing(0)
+
+        # ------------------------------------------------------------- sidebar
+        sidebar = QWidget()
+        sidebar.setProperty("role", "exercise-sidebar")
+        sidebar.setFixedWidth(272)
+        sidebar_layout = QVBoxLayout(sidebar)
+        sidebar_layout.setContentsMargins(18, 20, 18, 16)
+        sidebar_layout.setSpacing(10)
+
+        breadcrumb_row = QHBoxLayout()
+        breadcrumb_row.setSpacing(0)
+        breadcrumb_column = QVBoxLayout()
+        breadcrumb_column.setSpacing(2)
+        self._exercise_id_label = ui.label("", role="meta", wrap=True)
+        self._exercise_rank_label = ui.label("", role="meta", wrap=True)
+        self._exercise_level_label = ui.label("", role="meta", wrap=True)
         for widget in (self._exercise_id_label, self._exercise_rank_label, self._exercise_level_label):
-            meta.addWidget(widget)
-        meta.addStretch(1)
-        self._exam_timer_label = ui.label("", role="timer")
-        meta.addWidget(self._exam_timer_label)
-        layout.addLayout(meta)
+            breadcrumb_column.addWidget(widget)
+        breadcrumb_row.addLayout(breadcrumb_column)
+        sidebar_layout.addLayout(breadcrumb_row)
         # compat: single label with metadata, used by screen inspection tests
         self._exercise_meta = self._exercise_id_label
 
-        layout.addSpacing(4)
-        self._subject_prompt_label = ui.label("", role="panel-caption")
-        layout.addWidget(self._subject_prompt_label)
-        self._subject = ui.SubjectMarkdownView()
-        self._subject.setMinimumHeight(240)
-        layout.addWidget(self._subject, 1)
+        self._exercise_title = self._title("")
+        self._exercise_title.setProperty("compact", "true")
+        self._exercise_title.setWordWrap(True)
+        sidebar_layout.addWidget(self._exercise_title)
+
+        self._exercise_difficulty_label = ui.label("", role="meta")
+        self._exercise_difficulty_label.hide()
+        sidebar_layout.addWidget(self._exercise_difficulty_label)
+
+        sidebar_layout.addSpacing(6)
+        self._sidebar_expected_block, self._sidebar_expected_header, self._sidebar_expected_value = (
+            self._build_sidebar_block()
+        )
+        self._sidebar_allowed_block, self._sidebar_allowed_header, self._sidebar_allowed_value = (
+            self._build_sidebar_block()
+        )
+        self._sidebar_not_allowed_block, self._sidebar_not_allowed_header, self._sidebar_not_allowed_value = (
+            self._build_sidebar_block()
+        )
+        for block in (
+            self._sidebar_expected_block,
+            self._sidebar_allowed_block,
+            self._sidebar_not_allowed_block,
+        ):
+            sidebar_layout.addWidget(block)
+
+        sidebar_layout.addStretch(1)
 
         self._feedback = ui.FeedbackBanner()
         self._feedback.clicked.connect(self._reopen_trace_summary)
-        layout.addWidget(self._feedback)
+        sidebar_layout.addWidget(self._feedback)
+
+        content.addWidget(sidebar)
+
+        # ---------------------------------------------------------- main column
+        main_column = QWidget()
+        main_layout = QVBoxLayout(main_column)
+        main_layout.setContentsMargins(24, 20, 24, 0)
+        main_layout.setSpacing(8)
+
+        header_row = QHBoxLayout()
+        self._subject_prompt_label = ui.label("", role="panel-caption")
+        header_row.addWidget(self._subject_prompt_label, 1)
+        self._exam_timer_label = ui.label("", role="timer")
+        header_row.addWidget(self._exam_timer_label)
+        main_layout.addLayout(header_row)
+
+        self._subject = ui.SubjectMarkdownView()
+        self._subject.setMinimumHeight(240)
+        main_layout.addWidget(self._subject, 1)
 
         self._trace_summary_panel = ui.TraceSummaryPanel()
         self._trace_summary_panel.set_open_full_handler(self._open_full_trace)
-        layout.addWidget(self._trace_summary_panel)
+        main_layout.addWidget(self._trace_summary_panel)
         self._trace_collapse_timer = QTimer(self)
         self._trace_collapse_timer.setSingleShot(True)
         self._trace_collapse_timer.timeout.connect(self._collapse_trace_summary)
 
+        content.addWidget(main_column, 1)
+        layout.addLayout(content, 1)
+
+        # ------------------------------------------------------------- footer
+        footer_bar = QWidget()
+        footer_bar.setProperty("role", "exercise-footer")
+        footer_layout = QVBoxLayout(footer_bar)
+        footer_layout.setContentsMargins(24, 10, 24, 14)
         buttons = QHBoxLayout()
         buttons.setSpacing(8)
         self._open_editor_button = self._button("[ ABRIR IDE ]", self._open_editor)
@@ -727,7 +810,9 @@ class MainWindow(QMainWindow):
         buttons.addWidget(self._trace_button, 2)
         buttons.addWidget(self._next_button, 3)
         buttons.addWidget(self._exercise_back_button, 2)
-        layout.addLayout(buttons)
+        footer_layout.addLayout(buttons)
+        layout.addWidget(footer_bar)
+
         return page
 
     # ---------------------------------------------------------------- history
@@ -1639,6 +1724,32 @@ class MainWindow(QMainWindow):
         self._open_editor_button.setToolTip(
             self._t("Abrir a pasta do exercício no {editor}", editor=self._coordinator.editor_display_name())
         )
+
+        difficulty = active.ref.definition.difficulty
+        if difficulty:
+            self._exercise_difficulty_label.setText(f"{self._t('Dificuldade').upper()}: {difficulty}")
+            self._exercise_difficulty_label.show()
+        else:
+            self._exercise_difficulty_label.setText("")
+            self._exercise_difficulty_label.hide()
+
+        self._sidebar_expected_value.setText(f"> {active.ref.definition.submission.filename}")
+
+        allowed_items = extract_list_section(active.subject_text, ALLOWED_HEADINGS)
+        if allowed_items:
+            self._sidebar_allowed_value.setText("\n".join(f"> {item}" for item in allowed_items))
+            self._sidebar_allowed_block.show()
+        else:
+            self._sidebar_allowed_value.setText("")
+            self._sidebar_allowed_block.hide()
+
+        not_allowed_items = extract_list_section(active.subject_text, NOT_ALLOWED_HEADINGS)
+        if not_allowed_items:
+            self._sidebar_not_allowed_value.setText("\n".join(f"> {item}" for item in not_allowed_items))
+            self._sidebar_not_allowed_block.show()
+        else:
+            self._sidebar_not_allowed_value.setText("")
+            self._sidebar_not_allowed_block.hide()
 
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):

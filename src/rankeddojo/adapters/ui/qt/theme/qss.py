@@ -21,6 +21,7 @@ QScrollArea, QScrollArea > QWidget > QWidget {{ background: {t.background}; bord
 /* ---------- labels ---------- */
 QLabel {{ background: transparent; }}
 QLabel[role="title"] {{ color: {t.accent}; font-family: {t.font_title}; font-size: {t.title_size}px; font-weight: 900; letter-spacing: 1px; }}
+QLabel[role="title"][compact="true"] {{ font-size: {t.font_size + 5}px; letter-spacing: 0.4px; }}
 QLabel[role="section"] {{ color: {t.accent}; font-size: {t.font_size}px; font-weight: 700; letter-spacing: 2px; padding-top: 6px; }}
 QLabel[role="muted"] {{ color: {t.text_secondary}; }}
 QLabel[role="prompt"] {{ color: {t.text_secondary}; }}
@@ -43,6 +44,8 @@ QFrame[role="banner"][status="pass"] {{ background: {t.success_background}; bord
 QFrame[role="banner"][status="fail"] {{ background: {t.fail_background}; border: 2px solid {t.fail}; }}
 QFrame[role="hintbar"] {{ border-top: 1px solid {t.border}; }}
 QFrame[role="trace-summary"] {{ background: {t.surface_alt}; border: 1px solid {t.border_strong}; border-radius: {r}px; }}
+QWidget[role="exercise-sidebar"] {{ background: {t.surface_alt}; border-right: 1px solid {t.border}; }}
+QWidget[role="exercise-footer"] {{ border-top: 1px solid {t.border}; }}
 QFrame[role="card"] QLabel, QFrame[role="banner"] QLabel, QFrame[role="hintbar"] QLabel, QFrame[role="trace-summary"] QLabel {{ background: transparent; }}
 
 /* ---------- buttons ---------- */
