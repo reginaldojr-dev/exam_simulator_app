@@ -35,6 +35,7 @@ from rankeddojo.adapters.workspace.local_workspace import LocalWorkspace
 from rankeddojo.application.engine.runtime_registry import RuntimeRegistry
 from rankeddojo.application.engine.trace_summary import build_trace_summary
 from rankeddojo.application.use_cases.mvp_coordinator import MVPTrainerCoordinator
+from rankeddojo.domain.activity_definition import UsageCategory, UsageConstraints
 from rankeddojo.domain.grading import GradingOutcome, GradingResult, TestCase, TestResult, TraceData
 from rankeddojo.ports.compiler_port import CompilationResult
 from rankeddojo.ports.grader_port import GradingRequest
@@ -529,15 +530,22 @@ class ExerciseFeedbackUITest(unittest.TestCase):
             ref = self._load_c_basics_exercise(window)
             self.assertIn(ref.definition.submission.filename, window._sidebar_expected_value.text())
 
-    def test_sidebar_allowed_and_not_allowed_extracted_from_the_real_subject(self) -> None:
+    def test_sidebar_allowed_and_not_allowed_shown_from_structured_metadata(self) -> None:
+        # char_stats (the pilot migration) has no more "## Permitido"/"##
+        # Não permitido" headings in its subject.md -- these values now come
+        # straight from the real `exercise.json` `usage.allowed`/`.forbidden`.
         # Same `isVisible()` vs `isHidden()` distinction as the difficulty
         # badge: the window is never `.show()`n in this offscreen harness, so
         # `isVisible()` is always False regardless of what `setVisible()` was
         # actually called with. `isHidden()` reflects that call directly.
         with tempfile.TemporaryDirectory() as temp_dir:
             window = self._window(temp_dir)
-            self._load_c_basics_exercise(window)
+            ref = self._load_c_basics_exercise(window)
 
+            self.assertEqual(ref.definition.usage.allowed.functions, ("write",))
+            self.assertEqual(
+                ref.definition.usage.forbidden.functions, ("printf", "isalpha", "isdigit")
+            )
             self.assertFalse(window._sidebar_allowed_block.isHidden())
             self.assertIn("write", window._sidebar_allowed_value.text())
             self.assertFalse(window._sidebar_not_allowed_block.isHidden())
@@ -554,6 +562,82 @@ class ExerciseFeedbackUITest(unittest.TestCase):
 
             self.assertFalse(window._sidebar_allowed_block.isVisible())
             self.assertFalse(window._sidebar_not_allowed_block.isVisible())
+
+    def test_sidebar_prefers_structured_usage_over_conflicting_markdown(self) -> None:
+        # A pack that (still) has both sources, disagreeing with each other:
+        # the structured contract must win, never the Markdown text.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+            active = window._active
+            conflicting_subject = (
+                active.subject_text
+                + "\n\n## Permitido\n- scanf\n\n## Não permitido\n- write\n"
+            )
+            window._active = replace(active, subject_text=conflicting_subject)
+
+            window._refresh_exercise_frame()
+
+            allowed_text = window._sidebar_allowed_value.text()
+            not_allowed_text = window._sidebar_not_allowed_value.text()
+            self.assertIn("write", allowed_text)
+            self.assertNotIn("scanf", allowed_text)
+            self.assertIn("printf", not_allowed_text)
+            self.assertNotIn("write", not_allowed_text)
+
+    def test_sidebar_falls_back_to_legacy_parser_when_no_structured_usage(self) -> None:
+        # A pre-contract pack: `usage` is empty, but the subject.md still has
+        # the old headings. The legacy parser must still surface them.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+            active = window._active
+            legacy_ref = replace(
+                active.ref,
+                definition=replace(active.ref.definition, usage=UsageConstraints()),
+            )
+            legacy_subject = "## Permitido\n- foo_legacy\n\n## Não permitido\n- bar_legacy\n"
+            window._active = replace(active, ref=legacy_ref, subject_text=legacy_subject)
+
+            window._refresh_exercise_frame()
+
+            self.assertFalse(window._sidebar_allowed_block.isHidden())
+            self.assertIn("foo_legacy", window._sidebar_allowed_value.text())
+            self.assertFalse(window._sidebar_not_allowed_block.isHidden())
+            self.assertIn("bar_legacy", window._sidebar_not_allowed_value.text())
+
+    def test_sidebar_hides_when_neither_structured_nor_legacy_has_data(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+            active = window._active
+            empty_ref = replace(
+                active.ref,
+                definition=replace(active.ref.definition, usage=UsageConstraints()),
+            )
+            window._active = replace(
+                active, ref=empty_ref, subject_text="Nenhum heading técnico aqui."
+            )
+
+            window._refresh_exercise_frame()
+
+            self.assertTrue(window._sidebar_allowed_block.isHidden())
+            self.assertTrue(window._sidebar_not_allowed_block.isHidden())
+
+    def test_sidebar_technical_usage_values_are_never_translated(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = self._window(temp_dir)
+            self._load_c_basics_exercise(window)
+
+            for locale in ("pt-BR", "en", "es"):
+                window._locale.set_locale(locale)
+                window._refresh_exercise_frame()
+                self.assertIn("write", window._sidebar_allowed_value.text())
+                not_allowed_text = window._sidebar_not_allowed_value.text()
+                self.assertIn("printf", not_allowed_text)
+                self.assertIn("isalpha", not_allowed_text)
+                self.assertIn("isdigit", not_allowed_text)
+            window._locale.set_locale("pt-BR")
 
     def test_feedback_banner_still_sits_in_the_sidebar_after_a_fail(self) -> None:
         # `isVisible()` would be False here purely because the offscreen

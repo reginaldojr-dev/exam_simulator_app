@@ -1901,7 +1901,13 @@ class MainWindow(QMainWindow):
 
         self._sidebar_expected_value.setText(f"> {active.ref.definition.submission.filename}")
 
-        allowed_items = extract_list_section(active.subject_text, ALLOWED_HEADINGS)
+        usage = active.ref.definition.usage
+        allowed_items = self._usage_category_items(usage.allowed)
+        if not allowed_items:
+            # Legacy compatibility fallback: packs with no structured
+            # `usage.allowed` (pre-contract content) may still spell it out
+            # as a subject.md heading -- see `subject_sections.py`.
+            allowed_items = extract_list_section(active.subject_text, ALLOWED_HEADINGS)
         if allowed_items:
             self._sidebar_allowed_value.setText("\n".join(f"> {item}" for item in allowed_items))
             self._sidebar_allowed_block.show()
@@ -1909,13 +1915,35 @@ class MainWindow(QMainWindow):
             self._sidebar_allowed_value.setText("")
             self._sidebar_allowed_block.hide()
 
-        not_allowed_items = extract_list_section(active.subject_text, NOT_ALLOWED_HEADINGS)
+        not_allowed_items = self._usage_category_items(usage.forbidden)
+        if not not_allowed_items:
+            # Same legacy compatibility fallback as above, for the
+            # "forbidden" side.
+            not_allowed_items = extract_list_section(active.subject_text, NOT_ALLOWED_HEADINGS)
         if not_allowed_items:
             self._sidebar_not_allowed_value.setText("\n".join(f"> {item}" for item in not_allowed_items))
             self._sidebar_not_allowed_block.show()
         else:
             self._sidebar_not_allowed_value.setText("")
             self._sidebar_not_allowed_block.hide()
+
+    @staticmethod
+    def _usage_category_items(category) -> tuple[str, ...]:
+        """Flattens a structured usage category (an `ExerciseDefinition.usage.
+        allowed`/`.forbidden`, reached via the application layer -- functions,
+        libraries, imports, headers, apis, flags) into the single ordered
+        list the sidebar shows. Presentation only: the grouping itself is
+        not surfaced. Values are technical identifiers (`write`, `printf`,
+        ...) and must never be passed through i18n.
+        """
+        return (
+            category.functions
+            + category.libraries
+            + category.imports
+            + category.headers
+            + category.apis
+            + category.flags
+        )
 
     def _submit_current(self) -> None:
         if self._active is None or self._tasks.is_busy("submit"):
