@@ -1,0 +1,58 @@
+{
+  "schema_version": 3,
+  "id": "add_numbers",
+  "type": "exercise",
+  "name": "Add Numbers",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "difficulty": "easy",
+  "submission": {
+    "filename": "add_numbers.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Não faça print dentro da função."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "2",
+            "3"
+          ],
+          "expected": "5\n"
+        },
+        {
+          "args": [
+            "-4",
+            "10"
+          ],
+          "expected": "6\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "add",
+    "args_format": "json"
+  }
+}

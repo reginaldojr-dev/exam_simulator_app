@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from importlib import resources
 from pathlib import Path
 
 
@@ -57,4 +58,7 @@ def user_plugins_dir() -> Path:
 def bundled_sample_packs_dir() -> Path:
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
         return Path(sys._MEIPASS) / "examples" / "packs"
+    packaged = resources.files("rankeddojo.resources").joinpath("packs")
+    if packaged.is_dir():
+        return Path(str(packaged))
     return Path(__file__).resolve().parents[3] / "examples" / "packs"

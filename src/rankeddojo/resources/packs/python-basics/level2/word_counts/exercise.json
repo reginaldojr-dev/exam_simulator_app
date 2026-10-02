@@ -1,0 +1,56 @@
+{
+  "schema_version": 3,
+  "id": "word_counts",
+  "type": "exercise",
+  "name": "Word Counts",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "difficulty": "medium",
+  "submission": {
+    "filename": "word_counts.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Use dict/comprehension quando fizer sentido."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "[\"a\", \"b\", \"a\"]"
+          ],
+          "expected": "{\"a\": 2, \"b\": 1}\n"
+        },
+        {
+          "args": [
+            "[\"x\"]"
+          ],
+          "expected": "{\"x\": 1}\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "word_counts",
+    "args_format": "json"
+  }
+}

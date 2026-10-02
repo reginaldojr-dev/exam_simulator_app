@@ -85,7 +85,10 @@
 ## Build
 
 - Versão V1: `1.0.0`.
-- Build helper: `build.py`.
+- Instalação Linux oficial: `python -m pip install rankeddojo` seguida de `rankeddojo`.
+- Desenvolvimento instalado: `python -m pip install -e .` seguido de `rankeddojo`.
+- Dependências de runtime vêm de `pyproject.toml`; PyInstaller permanece somente no extra `build` para o fluxo Windows.
+- Build helper Windows: `build.py`.
 - Spec: `RankedDojo.spec`.
 - Executável Windows: `_local/dist/RankedDojo.exe`.
 - Checksum: `_local/dist/RankedDojo.exe.sha256`.

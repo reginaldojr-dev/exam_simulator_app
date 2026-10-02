@@ -1,0 +1,56 @@
+{
+  "schema_version": 3,
+  "id": "reverse_text",
+  "type": "exercise",
+  "name": "Reverse Text",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "difficulty": "easy",
+  "submission": {
+    "filename": "reverse_text.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "A função deve retornar string, não imprimir."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "abc"
+          ],
+          "expected": "\"cba\"\n"
+        },
+        {
+          "args": [
+            "Python"
+          ],
+          "expected": "\"nohtyP\"\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "reverse_text",
+    "args_format": "str"
+  }
+}

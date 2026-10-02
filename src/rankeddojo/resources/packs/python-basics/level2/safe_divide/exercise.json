@@ -1,0 +1,58 @@
+{
+  "schema_version": 3,
+  "id": "safe_divide",
+  "type": "exercise",
+  "name": "Safe Divide",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "difficulty": "medium",
+  "submission": {
+    "filename": "safe_divide.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Use tratamento de exceção ou checagem explícita."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "6",
+            "3"
+          ],
+          "expected": "2.0\n"
+        },
+        {
+          "args": [
+            "1",
+            "0"
+          ],
+          "expected": "null\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "safe_divide",
+    "args_format": "json"
+  }
+}

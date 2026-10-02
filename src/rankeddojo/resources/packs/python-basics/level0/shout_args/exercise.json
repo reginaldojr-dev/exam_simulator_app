@@ -1,0 +1,55 @@
+{
+  "schema_version": 3,
+  "id": "shout_args",
+  "type": "exercise",
+  "name": "Shout Args",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "difficulty": "intro",
+  "submission": {
+    "filename": "shout_args.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": [
+        "sys"
+      ],
+      "apis": [
+        "str.upper"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "input"
+      ]
+    }
+  },
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "hi",
+            "there"
+          ],
+          "expected": "HI THERE\n"
+        },
+        {
+          "args": [],
+          "expected": "\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

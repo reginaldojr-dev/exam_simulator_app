@@ -1,0 +1,56 @@
+{
+  "schema_version": 3,
+  "id": "take_even",
+  "type": "exercise",
+  "name": "Take Even",
+  "subject": "subject.md",
+  "programming_language": "python",
+  "content_language": "pt-BR",
+  "topics": [
+    "python",
+    "basics"
+  ],
+  "difficulty": "medium",
+  "submission": {
+    "filename": "take_even.py"
+  },
+  "usage": {
+    "allowed": {
+      "imports": []
+    },
+    "forbidden": {
+      "functions": [
+        "print"
+      ]
+    },
+    "constraints": [
+      "Prefira comprehension ou generator interno."
+    ]
+  },
+  "validation": {
+    "strategy": "function_call",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "[1, 2, 3, 4]"
+          ],
+          "expected": "[2, 4]\n"
+        },
+        {
+          "args": [
+            "[]"
+          ],
+          "expected": "[]\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "take_even",
+    "args_format": "json"
+  }
+}

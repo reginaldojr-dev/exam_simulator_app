@@ -1,0 +1,57 @@
+{
+  "schema_version": 3,
+  "id": "sum_args",
+  "type": "exercise",
+  "name": "Sum Args",
+  "subject": "subject.md",
+  "programming_language": "java",
+  "content_language": "pt-BR",
+  "topics": [
+    "java",
+    "basics"
+  ],
+  "difficulty": "intro",
+  "submission": {
+    "filename": "SumArgs.java"
+  },
+  "usage": {
+    "allowed": {
+      "libraries": [
+        "java.lang"
+      ]
+    },
+    "forbidden": {
+      "apis": [
+        "Scanner"
+      ]
+    }
+  },
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [
+            "1",
+            "2"
+          ],
+          "expected": "3\n"
+        },
+        {
+          "args": [
+            "-3",
+            "8",
+            "1"
+          ],
+          "expected": "6\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    },
+    "entry": "SumArgs"
+  }
+}

@@ -26,6 +26,23 @@ class EnvironmentTest(unittest.TestCase):
         # No leftover script entry under the pre-migration internal name.
         self.assertNotIn("exam_trainer", pyproject["project"]["scripts"])
 
+    def test_runtime_dependencies_and_build_extra_are_separate(self) -> None:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        runtime = pyproject["project"]["dependencies"]
+        build = pyproject["project"]["optional-dependencies"]["build"]
+
+        self.assertTrue(any(dependency.startswith("PySide6") for dependency in runtime))
+        self.assertTrue(any(dependency.startswith("markdown-it-py") for dependency in runtime))
+        self.assertTrue(any(dependency.startswith("pyinstaller") for dependency in build))
+        self.assertFalse(any(dependency.lower().startswith("pyinstaller") for dependency in runtime))
+
+    def test_packaged_resources_are_declared_and_not_checkout_only(self) -> None:
+        pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        package_data = pyproject["tool"]["setuptools"]["package-data"]["rankeddojo"]
+
+        self.assertIn("resources/packs/**/*", package_data)
+        self.assertTrue((ROOT / "src" / "rankeddojo" / "resources" / "packs" / "c-basics" / "pack.json").is_file())
+
     def test_rankeddojo_is_imported_from_this_checkout(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-c", "import rankeddojo, inspect; print(inspect.getfile(rankeddojo))"],

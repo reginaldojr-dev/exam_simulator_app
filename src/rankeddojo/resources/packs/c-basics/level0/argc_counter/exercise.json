@@ -1,0 +1,67 @@
+{
+  "schema_version": 3,
+  "id": "argc_counter",
+  "type": "exercise",
+  "name": "Argc Counter",
+  "subject": "subject.md",
+  "programming_language": "c",
+  "content_language": "pt-BR",
+  "topics": [
+    "c",
+    "basics"
+  ],
+  "difficulty": "intro",
+  "submission": {
+    "filename": "argc_counter.c"
+  },
+  "usage": {
+    "allowed": {
+      "functions": [
+        "write"
+      ],
+      "headers": [
+        "unistd.h"
+      ]
+    },
+    "forbidden": {
+      "functions": [
+        "printf",
+        "puts"
+      ]
+    },
+    "constraints": [
+      "Não escreva mensagens extras.",
+      "Sempre finalize a saída com newline."
+    ]
+  },
+  "validation": {
+    "strategy": "program_output",
+    "tests": {
+      "generator": "fixed_cases",
+      "expectation": "literal",
+      "cases": [
+        {
+          "args": [],
+          "expected": "0\n"
+        },
+        {
+          "args": [
+            "alpha"
+          ],
+          "expected": "1\n"
+        },
+        {
+          "args": [
+            "a",
+            "b",
+            "c"
+          ],
+          "expected": "3\n"
+        }
+      ]
+    },
+    "limits": {
+      "timeout_seconds": 3
+    }
+  }
+}

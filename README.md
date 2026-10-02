@@ -24,8 +24,7 @@ packs de prova privados/originais nem material de estudo proprietário.
   para gerar packs compatíveis, e depois importá-los.
 - Trilha de aprendizado progressivo por linguagem (C, C++, Python, Java), combinando
   conteúdo oficial embutido e packs instalados pelo usuário.
-- Fluxo de build via PyInstaller para gerar `RankedDojo.exe`, com substituição segura
-  e checksum SHA-256.
+- Instalação distribuível via `pip` no Linux e build PyInstaller preservado no Windows.
 
 ## Requisitos
 
@@ -52,12 +51,35 @@ rankeddojo
 
 ```text
 RankedDojo.exe   # Windows, build gerado por PyInstaller
-RankedDojo       # Linux/macOS, build gerado por PyInstaller
 ```
 
-O comando `rankeddojo` é instalado junto com o pacote Python (veja "Desenvolvimento"
-abaixo) e é o ponto de entrada público declarado em `pyproject.toml`
-(`[project.scripts]`).
+O comando `rankeddojo` é instalado junto com o pacote Python e é o ponto de entrada
+público declarado em `pyproject.toml` (`[project.scripts]`).
+
+## Linux
+
+Instalação a partir do pacote publicado:
+
+```bash
+python -m pip install rankeddojo
+rankeddojo
+```
+
+Desenvolvimento local:
+
+```bash
+git clone https://github.com/reginaldojr-dev/rankeddojo.git
+cd rankeddojo
+python -m pip install -e .
+rankeddojo
+```
+
+O pacote instala as dependências Python e os recursos públicos necessários, incluindo
+os packs de exemplo. Algumas distribuições Linux ainda podem exigir bibliotecas
+nativas do Qt para o backend gráfico. Se o Qt informar `Could not load the Qt
+platform plugin "xcb"`, verifique a documentação da sua distribuição para
+dependências como `xcb-cursor0`/`libxcb-cursor0`; isso não é instalado
+automaticamente pelo RankedDojo.
 
 ## Desenvolvimento
 
@@ -153,7 +175,7 @@ workspace/
 Workspaces de treino legados são migrados de forma defensiva quando é seguro fazê-lo.
 Arquivos existentes do usuário nunca são apagados silenciosamente.
 
-## Build
+## Build Windows
 
 Build a partir do `.venv` do projeto:
 
@@ -170,7 +192,8 @@ _local/dist/RankedDojo.exe
 _local/dist/RankedDojo.exe.sha256
 ```
 
-No Linux/macOS o nome do executável é `RankedDojo`.
+No Linux/macOS o fluxo oficial é a instalação via `pip` acima. O build PyInstaller
+continua disponível para Windows e gera `RankedDojo.exe`.
 
 Comportamento do build:
 

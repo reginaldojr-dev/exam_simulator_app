@@ -1,0 +1,25 @@
+{
+  "schema_version": 3,
+  "id": "sample_rank",
+  "name": "Sample Rank",
+  "version": "1.0.0",
+  "languages": [
+    "c"
+  ],
+  "content_language": "pt-BR",
+  "topics": [],
+  "levels": [
+    {
+      "id": "level0",
+      "path": "level0"
+    },
+    {
+      "id": "level1",
+      "path": "level1"
+    },
+    {
+      "id": "level2",
+      "path": "level2"
+    }
+  ]
+}
