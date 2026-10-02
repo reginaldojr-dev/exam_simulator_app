@@ -1027,9 +1027,67 @@ class MainWindow(QMainWindow):
         metric_row.addStretch(1)
         self._history_metric_row = QWidget()
         self._history_metric_row.setLayout(metric_row)
+        self._history_metric_row.hide()
         center_layout.addWidget(self._history_metric_row)
-        self._history_overview_text = ui.label("", role="muted", wrap=True)
-        center_layout.addWidget(self._history_overview_text)
+        self._history_overview_text = QWidget()
+        overview_layout = QVBoxLayout(self._history_overview_text)
+        overview_layout.setContentsMargins(0, 8, 0, 0)
+        overview_layout.setSpacing(18)
+        overview_panels = QHBoxLayout()
+        overview_panels.setSpacing(14)
+
+        exam_panel = ui.card()
+        exam_layout = QVBoxLayout(exam_panel)
+        exam_layout.setContentsMargins(16, 14, 16, 14)
+        exam_layout.setSpacing(8)
+        self._history_exam_heading = ui.label("", role="caption-muted")
+        self._history_exam_total = ui.label("", role="activity-name")
+        exam_layout.addWidget(self._history_exam_heading)
+        exam_layout.addWidget(self._history_exam_total)
+        self._history_exam_meter = QHBoxLayout()
+        self._history_exam_meter.setSpacing(3)
+        exam_layout.addLayout(self._history_exam_meter)
+        self._history_exam_breakdown = ui.label("", role="muted", wrap=True)
+        exam_layout.addWidget(self._history_exam_breakdown)
+        overview_panels.addWidget(exam_panel, 1)
+
+        training_panel = ui.card()
+        training_layout = QVBoxLayout(training_panel)
+        training_layout.setContentsMargins(16, 14, 16, 14)
+        training_layout.setSpacing(8)
+        self._history_training_heading = ui.label("", role="caption-muted")
+        self._history_training_total = ui.label("", role="activity-name")
+        training_layout.addWidget(self._history_training_heading)
+        training_layout.addWidget(self._history_training_total)
+        self._history_training_heatmap = QHBoxLayout()
+        self._history_training_heatmap.setSpacing(4)
+        training_layout.addLayout(self._history_training_heatmap)
+        self._history_training_meta = ui.label("", role="muted", wrap=True)
+        training_layout.addWidget(self._history_training_meta)
+        overview_panels.addWidget(training_panel, 1)
+
+        learning_panel = ui.card()
+        learning_layout = QVBoxLayout(learning_panel)
+        learning_layout.setContentsMargins(16, 14, 16, 14)
+        learning_layout.setSpacing(8)
+        self._history_learning_heading = ui.label("", role="caption-muted", wrap=True)
+        self._history_learning_percent = ui.label("", role="activity-name")
+        self._history_learning_progress = ui.progress_bar(100, 0)
+        self._history_learning_meta = ui.label("", role="muted", wrap=True)
+        learning_layout.addWidget(self._history_learning_heading)
+        learning_layout.addWidget(self._history_learning_percent)
+        learning_layout.addWidget(self._history_learning_progress)
+        learning_layout.addWidget(self._history_learning_meta)
+        overview_panels.addWidget(learning_panel, 1)
+        overview_layout.addLayout(overview_panels)
+
+        self._history_recent_heading = ui.label("", role="caption-muted")
+        overview_layout.addWidget(self._history_recent_heading)
+        self._history_recent_sessions = QVBoxLayout()
+        self._history_recent_sessions.setSpacing(8)
+        overview_layout.addLayout(self._history_recent_sessions)
+        overview_layout.addStretch(1)
+        center_layout.addWidget(self._history_overview_text, 1)
         self._history_table = self._table(("ITEM", "VALOR"), stretch=1)
         self._history_activity_table = self._history_table
         self._history_activity_table.itemSelectionChanged.connect(self._history_activity_selected)
@@ -2536,39 +2594,108 @@ class MainWindow(QMainWindow):
         self._history_attempts_table.setRowCount(0)
 
     def _render_history_overview(self) -> None:
-        overview = self._coordinator.history_overview(self._history_query())
+        exam_summary = self._coordinator.history_exam_summary()
+        training_volume = self._coordinator.history_training_volume()
+        recent_sessions = self._coordinator.history_recent_sessions()
+        learning = self._coordinator.history_learning_summaries()
         self._history_activity_rows = []
-        self._history_center_title.setText(self._t("Visão geral"))
+        self._history_center_title.setText(self._t("Visão geral do sistema").upper())
         self._history_center_meta.setText(self._t("Resumo do progresso real registrado."))
-        self._set_history_metrics(
-            overview.completed_activity_count,
-            overview.attempt_count,
-            overview.exam_session_count,
-            overview.pack_count,
+        self._history_metric_row.hide()
+        self._history_exam_heading.setText(self._t("Sessões de prova").upper())
+        self._history_exam_total.setText(f"{len(exam_summary.sessions)} {self._t('Total').lower()}")
+        self._history_clear_layout(self._history_exam_meter)
+        for status, count in (
+            ("pass", exam_summary.passed_count),
+            ("fail", exam_summary.failed_count),
+            ("pending", exam_summary.timed_out_count),
+            ("muted", exam_summary.abandoned_count),
+        ):
+            segment = ui.label("", status=status)
+            segment.setFixedHeight(8)
+            segment.setMinimumWidth(max(8, count * 12) if count else 4)
+            self._history_exam_meter.addWidget(segment)
+        self._history_exam_breakdown.setText(
+            f"{self._t('Passou')}: {exam_summary.passed_count}\n"
+            f"{self._t('Falhou')}: {exam_summary.failed_count}\n"
+            f"{self._t('Timeout')}: {exam_summary.timed_out_count}\n"
+            f"{self._t('Abandonada')}: {exam_summary.abandoned_count}"
         )
-        self._history_metric_row.show()
-        self._history_overview_text.setText(
-            f"{self._t('Atividades concluídas')}: {overview.completed_activity_count}\n"
-            f"{self._t('Atividades tentadas')}: {overview.attempted_activity_count}\n"
-            f"{self._t('Total de tentativas')}: {overview.attempt_count}\n"
-            f"{self._t('Packs usados')}: {overview.pack_count}\n\n"
-            + self._history_learning_overview_text()
-            + f"{self._t('Resumo de provas')}\n"
-            f"{self._t('Sessões')}: {overview.exam_session_count} · "
-            f"{self._t('Passou')}: {overview.exam_passed_count} · "
-            f"{self._t('Falhou')}: {overview.exam_failed_count} · "
-            f"{self._t('Tempo esgotado')}: {overview.exam_timed_out_count} · "
-            f"{self._t('Abandonada')}: {overview.exam_abandoned_count}\n\n"
-            f"{self._t('Atividade recente')}:\n"
-            + ("\n".join(
-                f"- {entry.identity.activity_id} · {entry.policy} · "
-                f"{self._history_result_text(entry.passed)} · {self._format_date(entry.submitted_at)}"
-                for entry in overview.recent
-            ) or self._t("Nenhum histórico registrado."))
+
+        self._history_training_heading.setText(self._t("Volume de treino").upper())
+        self._history_training_total.setText(
+            f"{training_volume.total_attempts} {self._t('Tentativas').lower()}"
         )
+        self._history_clear_layout(self._history_training_heatmap)
+        maximum = max(training_volume.daily_counts, default=0)
+        for count in training_volume.daily_counts:
+            block = ui.label("", status="pass" if count else "muted")
+            width = 8 + round(18 * count / maximum) if maximum and count else 8
+            block.setFixedSize(width, 14)
+            self._history_training_heatmap.addWidget(block)
+        self._history_training_meta.setText(self._t("Últimos 14 dias"))
+
+        if learning:
+            current = learning[0]
+            percent = round(current.completed_count / current.total_count * 100) if current.total_count else 0
+            language = self._learning_language_display_name(current.language).upper()
+            self._history_learning_heading.setText(
+                f"{self._t('Trilha de aprendizado').upper()} {language} · LVL {current.current_level}"
+            )
+            self._history_learning_percent.setText(f"{percent}%")
+            self._history_learning_progress.setValue(percent)
+            self._history_learning_meta.setText(
+                f"{current.completed_count} / {current.total_count} {self._t('Atividades').lower()} {self._t('Concluídas').lower()}"
+            )
+        else:
+            self._history_learning_heading.setText(self._t("Trilha de aprendizado").upper())
+            self._history_learning_percent.setText("-")
+            self._history_learning_progress.setValue(0)
+            self._history_learning_meta.setText(self._t("Nenhum progresso de aprendizado ativo."))
+
+        self._history_recent_heading.setText(self._t("Sessões recentes").upper())
+        self._history_clear_layout(self._history_recent_sessions)
+        for session in recent_sessions:
+            row = ui.card()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(12, 8, 12, 8)
+            row_layout.setSpacing(14)
+            kind = ui.label(session.kind, status="pass" if session.kind == "TRAIN" else "pending")
+            kind.setMinimumWidth(54)
+            pack = ui.label(session.pack_id, role="activity-name")
+            row_layout.addWidget(kind)
+            row_layout.addWidget(pack)
+            row_layout.addStretch(1)
+            if session.kind == "TRAIN":
+                detail = f"{session.attempts_count} {self._t('Tentativas').lower()} · {session.completed_count} {self._t('Concluídas').lower()}"
+            else:
+                detail = f"{session.activities_count} {self._t('Atividades').lower()} · {self._t('Resultado')}: {self._display_overview_result(session.result)}"
+            row_layout.addWidget(ui.label(f"{self._format_date(session.timestamp)} · {detail}", role="muted"))
+            self._history_recent_sessions.addWidget(row)
+        if not recent_sessions:
+            self._history_recent_sessions.addWidget(ui.label(self._t("Nenhum histórico registrado."), role="muted"))
         self._history_session_table.hide()
         self._history_activity_table.hide()
         self._history_overview_text.show()
+
+    @staticmethod
+    def _history_clear_layout(layout: QHBoxLayout | QVBoxLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _display_overview_result(self, status: str) -> str:
+        labels = {
+            "passed": self._t("Passou"),
+            "completed": self._t("Passou"),
+            "failed": self._t("Falhou"),
+            "timed_out": self._t("Timeout"),
+            "timeout": self._t("Timeout"),
+            "abandoned": self._t("Abandonada"),
+        }
+        return labels.get(status.lower(), status or "-")
 
     def _history_learning_overview_text(self) -> str:
         summaries = self._coordinator.history_learning_summaries()
