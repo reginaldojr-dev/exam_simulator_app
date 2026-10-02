@@ -2973,11 +2973,8 @@ class MainWindow(QMainWindow):
             for column, item in enumerate(cells):
                 self._history_session_table.setItem(row_index, column, item)
         if not sessions:
-            self._history_center_meta.setText(
-                self._t("Nenhuma sessão de treino registrada.")
-                if policy == "training"
-                else self._t("Nenhuma sessão de prova registrada.")
-            )
+            if policy == "training":
+                self._history_center_meta.setText(self._t("Nenhuma sessão de treino registrada."))
 
     def _history_session_selected(self) -> None:
         row = self._history_session_table.currentRow()
