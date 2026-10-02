@@ -701,6 +701,8 @@ class MainWindowTest(unittest.TestCase):
             window._set_history_view("exam_sessions")
             self.assertEqual(window._history_session_table.horizontalHeaderItem(0).text(), "DATA")
             self.assertFalse(window._history_session_table.isHidden())
+            self.assertIn("Passou: 0", window._history_center_meta.text())
+            self.assertIn("Falhou: 0", window._history_center_meta.text())
 
             headers = [
                 window._history_session_table.horizontalHeaderItem(column).text()

@@ -182,6 +182,20 @@ class SessionPolicyHistoryTest(unittest.TestCase):
             for activity in view.track.activities:
                 self.assertIsInstance(activity.prerequisites, tuple)
 
+    def test_exam_history_exposes_status_counts_as_a_projection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(Path(temp_dir))
+            summary = coordinator.history_exam_summary()
+
+            self.assertEqual(summary.sessions, coordinator.history_exam_summaries())
+            self.assertEqual(
+                summary.passed_count
+                + summary.failed_count
+                + summary.timed_out_count
+                + summary.abandoned_count,
+                len(summary.sessions),
+            )
+
     def test_sqlite_schema_has_neutral_activity_and_policy_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -2791,18 +2791,26 @@ class MainWindow(QMainWindow):
             self._history_center_meta.setText(self._t("Ainda não há atividades nesta trilha."))
 
     def _render_history_sessions(self, policy: str) -> None:
+        exam_summary = None if policy == "training" else self._coordinator.history_exam_summary()
         sessions = (
             self._coordinator.history_training_summaries()
             if policy == "training"
-            else self._coordinator.history_exam_summaries()
+            else exam_summary.sessions
         )
         self._history_activity_rows = []
         self._history_overview_text.hide()
         self._history_metric_row.hide()
         self._history_center_title.setText(self._t("Sessões de treino" if policy == "training" else "Sessões de prova"))
-        self._history_center_meta.setText(
-            self._t("Sessões de treino registradas.") if policy == "training" else self._t("Resumo das provas registradas.")
-        )
+        if policy == "training":
+            self._history_center_meta.setText(self._t("Sessões de treino registradas."))
+        else:
+            self._history_center_meta.setText(
+                f"{self._t('Resumo das provas registradas.')} "
+                f"{self._t('Passou')}: {exam_summary.passed_count} · "
+                f"{self._t('Falhou')}: {exam_summary.failed_count} · "
+                f"{self._t('Tempo esgotado')}: {exam_summary.timed_out_count} · "
+                f"{self._t('Abandonada')}: {exam_summary.abandoned_count}"
+            )
         self._set_history_metrics(0, 0, len(sessions) if policy == "exam" else 0, 0)
         self._history_activity_table.hide()
         self._history_session_table.show()

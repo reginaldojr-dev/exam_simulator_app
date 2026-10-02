@@ -126,6 +126,15 @@ class HistoryOverviewSummary:
 
 
 @dataclass(frozen=True)
+class ExamHistorySummary:
+    sessions: tuple[SessionHistorySummary, ...]
+    passed_count: int
+    failed_count: int
+    timed_out_count: int
+    abandoned_count: int
+
+
+@dataclass(frozen=True)
 class LearningHistorySummary:
     language: str
     current_level: int
@@ -242,6 +251,17 @@ class HistoryService:
 
     def exam_summaries(self) -> tuple[SessionHistorySummary, ...]:
         return tuple(session for session in self.session_summaries() if session.policy == "exam")
+
+    def exam_summary(self) -> ExamHistorySummary:
+        sessions = self.exam_summaries()
+        statuses = [session.status.lower() for session in sessions]
+        return ExamHistorySummary(
+            sessions=sessions,
+            passed_count=sum(status in {"passed", "completed"} for status in statuses),
+            failed_count=statuses.count("failed"),
+            timed_out_count=sum(status in {"timed_out", "timeout"} for status in statuses),
+            abandoned_count=statuses.count("abandoned"),
+        )
 
     def training_summaries(self) -> tuple[SessionHistorySummary, ...]:
         rows = getattr(self._progress_repository, "list_training_sessions", lambda: [])()
