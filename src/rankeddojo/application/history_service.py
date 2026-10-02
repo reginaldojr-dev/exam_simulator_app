@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta
 
 from rankeddojo.domain.activity_identity import ActivityIdentity
 from rankeddojo.domain.attempt_modes import LEGACY_PACK_ID
@@ -126,6 +127,32 @@ class HistoryOverviewSummary:
 
 
 @dataclass(frozen=True)
+class ExamHistorySummary:
+    sessions: tuple[SessionHistorySummary, ...]
+    passed_count: int
+    failed_count: int
+    timed_out_count: int
+    abandoned_count: int
+
+
+@dataclass(frozen=True)
+class TrainingVolumeSummary:
+    total_attempts: int
+    daily_counts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class RecentSessionSummary:
+    kind: str
+    pack_id: str
+    timestamp: str | None
+    result: str
+    activities_count: int
+    attempts_count: int = 0
+    completed_count: int = 0
+
+
+@dataclass(frozen=True)
 class LearningHistorySummary:
     language: str
     current_level: int
@@ -242,6 +269,70 @@ class HistoryService:
 
     def exam_summaries(self) -> tuple[SessionHistorySummary, ...]:
         return tuple(session for session in self.session_summaries() if session.policy == "exam")
+
+    def exam_summary(self) -> ExamHistorySummary:
+        sessions = self.exam_summaries()
+        statuses = [session.status.lower() for session in sessions]
+        return ExamHistorySummary(
+            sessions=sessions,
+            passed_count=sum(status in {"passed", "completed"} for status in statuses),
+            failed_count=statuses.count("failed"),
+            timed_out_count=sum(status in {"timed_out", "timeout"} for status in statuses),
+            abandoned_count=statuses.count("abandoned"),
+        )
+
+    def training_volume(self, days: int = 14) -> TrainingVolumeSummary:
+        rows = self._progress_repository.list_activity_attempts(policy="training")
+        today = date.today()
+        start = today - timedelta(days=max(days - 1, 0))
+        counts = [0] * max(days, 0)
+        for row in rows:
+            submitted_at = row.get("submitted_at")
+            if not submitted_at:
+                continue
+            try:
+                submitted_date = datetime.fromisoformat(str(submitted_at)).date()
+            except ValueError:
+                continue
+            offset = (submitted_date - start).days
+            if 0 <= offset < len(counts):
+                counts[offset] += 1
+        return TrainingVolumeSummary(total_attempts=len(rows), daily_counts=tuple(counts))
+
+    def recent_sessions(self, limit: int = 5) -> tuple[RecentSessionSummary, ...]:
+        recent: list[RecentSessionSummary] = []
+        for session in self.exam_summaries():
+            result = session.status or "-"
+            recent.append(
+                RecentSessionSummary(
+                    kind="EXAM",
+                    pack_id=session.pack_id,
+                    timestamp=session.finished_at,
+                    result=result,
+                    activities_count=session.activities_count,
+                )
+            )
+
+        training_rows = self._progress_repository.list_activity_attempts(policy="training")
+        by_pack: dict[str, list[dict]] = {}
+        for row in training_rows:
+            by_pack.setdefault(str(row.get("pack_id") or ""), []).append(row)
+        for pack_id, rows in by_pack.items():
+            latest = max((str(row.get("submitted_at")) for row in rows if row.get("submitted_at")), default=None)
+            completed = sum(1 for row in rows if row.get("passed") is True or row.get("passed") == 1)
+            recent.append(
+                RecentSessionSummary(
+                    kind="TRAIN",
+                    pack_id=pack_id,
+                    timestamp=latest,
+                    result="completed" if completed else "attempted",
+                    activities_count=len({str(row.get("activity_id") or row.get("exercise_id") or "") for row in rows}),
+                    attempts_count=len(rows),
+                    completed_count=completed,
+                )
+            )
+        recent.sort(key=lambda item: item.timestamp or "", reverse=True)
+        return tuple(recent[: max(limit, 0)])
 
     def training_summaries(self) -> tuple[SessionHistorySummary, ...]:
         rows = getattr(self._progress_repository, "list_training_sessions", lambda: [])()

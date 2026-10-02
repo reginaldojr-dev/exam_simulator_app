@@ -182,6 +182,36 @@ class SessionPolicyHistoryTest(unittest.TestCase):
             for activity in view.track.activities:
                 self.assertIsInstance(activity.prerequisites, tuple)
 
+    def test_exam_history_exposes_status_counts_as_a_projection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(Path(temp_dir))
+            summary = coordinator.history_exam_summary()
+
+            self.assertEqual(summary.sessions, coordinator.history_exam_summaries())
+            self.assertEqual(
+                summary.passed_count
+                + summary.failed_count
+                + summary.timed_out_count
+                + summary.abandoned_count,
+                len(summary.sessions),
+            )
+
+    def test_history_overview_projections_use_recorded_training_attempts(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            coordinator = self._coordinator(Path(temp_dir))
+            ref = next(iter(coordinator._pack_catalog.list_exercises("sample_rank")))
+            active = coordinator.prepare_exercise(ref, overwrite=True)
+            coordinator.submit_training(active)
+
+            volume = coordinator.history_training_volume()
+            recent = coordinator.history_recent_sessions()
+
+            self.assertEqual(volume.total_attempts, 1)
+            self.assertEqual(sum(volume.daily_counts), 1)
+            self.assertEqual(len(recent), 1)
+            self.assertEqual(recent[0].kind, "TRAIN")
+            self.assertEqual(recent[0].attempts_count, 1)
+
     def test_sqlite_schema_has_neutral_activity_and_policy_columns(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

@@ -693,6 +693,12 @@ class MainWindowTest(unittest.TestCase):
             self.assertTrue(window._history_activity_table.isHidden())
             self.assertEqual(set(window._history_nav_buttons), {"overview", "training_sessions", "exam_sessions"})
             self.assertTrue(window._history_inspector.isHidden())
+            self.assertEqual(window._history_exam_heading.text(), "SESSÕES DE PROVA")
+            self.assertEqual(window._history_training_heading.text(), "VOLUME DE TREINO")
+            self.assertIn("TRILHA DE APRENDIZADO", window._history_learning_heading.text())
+            self.assertEqual(window._history_recent_heading.text(), "SESSÕES RECENTES")
+            self.assertEqual(window._history_recent_sessions.count(), 1)
+            self.assertTrue(window._history_activity_table.isHidden())
 
             window._select_history_pack("sample_rank")
             self.assertEqual(window._history_activity_table.horizontalHeaderItem(0).text(), "ATIVIDADE")
@@ -701,6 +707,8 @@ class MainWindowTest(unittest.TestCase):
             window._set_history_view("exam_sessions")
             self.assertEqual(window._history_session_table.horizontalHeaderItem(0).text(), "DATA")
             self.assertFalse(window._history_session_table.isHidden())
+            self.assertIn("Passou: 0", window._history_center_meta.text())
+            self.assertIn("Falhou: 0", window._history_center_meta.text())
 
             headers = [
                 window._history_session_table.horizontalHeaderItem(column).text()

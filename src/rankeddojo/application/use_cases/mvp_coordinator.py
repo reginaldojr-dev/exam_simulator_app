@@ -402,6 +402,15 @@ class MVPTrainerCoordinator:
     def history_exam_summaries(self):
         return self._history.exam_summaries()
 
+    def history_exam_summary(self):
+        return self._history.exam_summary()
+
+    def history_training_volume(self):
+        return self._history.training_volume()
+
+    def history_recent_sessions(self):
+        return self._history.recent_sessions()
+
     def history_training_summaries(self):
         return self._history.training_summaries()
 
