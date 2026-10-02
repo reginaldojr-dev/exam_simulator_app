@@ -74,6 +74,16 @@ python -m pip install -e .
 rankeddojo
 ```
 
+Atalho no Linux:
+
+```bash
+make
+```
+
+Esse target instala o checkout atual com `python -m pip install -e .` e inicia
+`rankeddojo`. Para instalar a versão publicada, use separadamente:
+`python -m pip install rankeddojo`.
+
 O pacote instala as dependências Python e os recursos públicos necessários, incluindo
 os packs de exemplo. Algumas distribuições Linux ainda podem exigir bibliotecas
 nativas do Qt para o backend gráfico. Se o Qt informar `Could not load the Qt
